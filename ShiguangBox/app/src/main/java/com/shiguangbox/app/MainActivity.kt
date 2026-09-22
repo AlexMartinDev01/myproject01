@@ -435,7 +435,8 @@ private fun MainShell(
             composable("mine") {
                 SettingsScreen(
                     db = db,
-                    onAiSettings = { navController.navigate("ai_settings") }
+                    onAiSettings = { navController.navigate("ai_settings") },
+                    onJournalTheme = { navController.navigate("journal_mood") }
                 )
             }
             composable("ai_settings") {

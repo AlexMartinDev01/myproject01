@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -314,22 +315,46 @@ fun KnowledgeCardScreen(
             if (imagePaths.isNotEmpty()) {
                 item {
                     KnowledgeBox {
-                        Text("原始图片", fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(10.dp))
-                        imagePaths.forEach { path ->
+                        Text("拍立得收藏", fontWeight = FontWeight.Bold)
+                        Text(
+                            "原图被像手账照片一样收在这里。",
+                            color = journal.muted,
+                            fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(14.dp))
+
+                        imagePaths.forEachIndexed { index, path ->
                             val image = remember(path) {
                                 BitmapFactory.decodeFile(path)?.asImageBitmap()
                             }
                             if (image != null) {
-                                Image(
-                                    bitmap = image,
-                                    contentDescription = "知识图片",
+                                Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(max = 420.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                                Spacer(Modifier.height(10.dp))
+                                        .rotate(if (index % 2 == 0) -1.2f else 1.2f),
+                                    colors = CardDefaults.cardColors(containerColor = journal.surface),
+                                    shape = RoundedCornerShape(8.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                                ) {
+                                    Column(Modifier.padding(10.dp)) {
+                                        Image(
+                                            bitmap = image,
+                                            contentDescription = "知识图片",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(max = 420.dp),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(
+                                            "拾光 #" + (index + 1) + "  ·  " +
+                                                formatKnowledgeTime(current.createdAt),
+                                            color = journal.muted,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(16.dp))
                             }
                         }
                     }

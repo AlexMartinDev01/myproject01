@@ -2,7 +2,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="#F7F7F4">
+    android:background="#FFF8EA">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,40 +13,47 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="苏打水 LIVE"
+            android:text="六点见"
             android:textStyle="bold"
-            android:textSize="16sp"
-            android:textColor="#777777" />
+            android:textSize="30sp"
+            android:textColor="#5A4632" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="让倒计时悬浮在\n抖音、微信和任何窗口上"
+            android:text="苏打水 · 今天六点见"
+            android:textSize="15sp"
+            android:textColor="#9A7752" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:text="让倒计时陪你等到开播"
             android:textStyle="bold"
-            android:textSize="29sp"
-            android:textColor="#111111"
-            android:lineSpacingExtra="4dp" />
+            android:textSize="24sp"
+            android:textColor="#5A4632" />
 
         <TextView
             android:id="@+id/permissionStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="22dp"
             android:padding="16dp"
             android:background="@drawable/widget_bg"
-            android:text="① 先开启系统悬浮窗权限"
+            android:text="① 第一次使用：开启悬浮显示权限"
             android:textStyle="bold"
             android:textSize="17sp"
-            android:textColor="#111111" />
+            android:textColor="#5A4632" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="只需要第一次设置：\n\n1. 点击下面的「去开启悬浮窗权限」\n2. 系统页面会自动打开\n3. 把「允许显示在其他应用上层」打开\n4. 返回后，我会自动启动倒计时\n\n以后再打开 App，不需要重复设置，会直接出现悬浮倒计时。"
+            android:text="第一次只需要跟着系统点两步：\n\n1. 点击下面按钮，打开「允许显示在其他应用上层」\n2. 返回后，系统会询问通知权限，用于锁屏显示倒计时\n\n完成后，刷抖音、聊微信、看小红书时都会悬浮显示；锁屏时也能在通知里看到距离 18:00 的倒计时。"
             android:textSize="16sp"
-            android:textColor="#4D4D4D"
+            android:textColor="#6E5941"
             android:lineSpacingExtra="7dp" />
 
         <Button
@@ -54,7 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:layout_marginTop="28dp"
-            android:text="去开启悬浮窗权限"
+            android:text="开启六点见"
             android:textSize="17sp"
             android:textStyle="bold" />
 
@@ -62,9 +69,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="开启后：刷抖音、聊微信、看小红书、浏览网页时都会继续悬浮显示。"
+            android:text="以后再打开 App，会直接显示悬浮倒计时。"
             android:textSize="14sp"
-            android:textColor="#777777"
+            android:textColor="#9A7752"
             android:gravity="center" />
 
         <Button
@@ -72,7 +79,7 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_marginTop="28dp"
-            android:text="关闭正在运行的悬浮窗" />
+            android:text="关闭悬浮倒计时" />
 
     </LinearLayout>
 </ScrollView>

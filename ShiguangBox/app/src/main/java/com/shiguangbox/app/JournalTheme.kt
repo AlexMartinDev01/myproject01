@@ -3,6 +3,7 @@ package com.shiguangbox.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Casino
@@ -19,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
-import kotlin.math.abs
 
 data class JournalThemeProfile(
     val id: String,
@@ -143,7 +143,7 @@ fun resolveJournalTheme(
     else JournalThemes.filter { it.moodId == moodId }.ifEmpty { JournalThemes }
 
     val raw = date.toEpochDay().toInt() * 31 + offset * 17 + moodId.hashCode()
-    val index = abs(raw).mod(pool.size)
+    val index = Math.floorMod(raw, pool.size)
     return pool[index]
 }
 
@@ -235,80 +235,83 @@ fun MoodJournalScreen(
 ) {
     val style = LocalJournalTheme.current
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(style.background)
-            .padding(20.dp)
+            .background(style.background),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("返回") }
-            Spacer(Modifier.width(4.dp))
-            Column {
-                Text("今天的手账", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                Text("心情由你自己选，拾光盒只负责陪你换氛围。", color = style.muted, fontSize = 13.sp)
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("返回") }
+                Spacer(Modifier.width(4.dp))
+                Column {
+                    Text("今天的手账", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text("心情由你自己选，拾光盒只负责陪你换氛围。", color = style.muted, fontSize = 13.sp)
+                }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        item {
+            JournalDayHeader(onOpen = onShuffle)
+        }
 
-        JournalDayHeader(onOpen = onShuffle)
-
-        Spacer(Modifier.height(18.dp))
-
-        Text("今天感觉怎么样？", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
+        item {
+            Text("今天感觉怎么样？", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
 
         JournalMoodOptions.forEach { mood ->
-            val selected = currentMoodId == mood.id
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 5.dp)
-                    .clickable { onSelectMood(mood.id) },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (selected) style.palePrimary else style.surface
-                ),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(15.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item(key = mood.id) {
+                val selected = currentMoodId == mood.id
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectMood(mood.id) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (selected) style.palePrimary else style.surface
+                    ),
+                    shape = RoundedCornerShape(20.dp)
                 ) {
-                    Text(mood.emoji, fontSize = 28.sp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(mood.label, fontWeight = FontWeight.Bold)
-                        Text(mood.description, color = style.muted, fontSize = 12.sp)
-                    }
-                    if (selected) {
-                        Text("今天", color = style.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(15.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(mood.emoji, fontSize = 28.sp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(mood.label, fontWeight = FontWeight.Bold)
+                            Text(mood.description, color = style.muted, fontSize = 12.sp)
+                        }
+                        if (selected) {
+                            Text("今天", color = style.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(14.dp))
-
-        OutlinedButton(
-            onClick = onShuffle,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Outlined.Casino, null)
-            Spacer(Modifier.width(8.dp))
-            Text("同一种心情，换一套手账")
+        item {
+            OutlinedButton(
+                onClick = onShuffle,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Outlined.Casino, null)
+                Spacer(Modifier.width(8.dp))
+                Text("同一种心情，换一套手账")
+            }
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Palette, null, tint = style.secondary)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "同一天选好后会保持这套风格；第二天会根据心情自动换一套。",
-                color = style.muted,
-                fontSize = 12.sp
-            )
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Palette, null, tint = style.secondary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "同一天选好后会保持这套风格；第二天会根据心情自动换一套。",
+                    color = style.muted,
+                    fontSize = 12.sp
+                )
+            }
         }
     }
 }

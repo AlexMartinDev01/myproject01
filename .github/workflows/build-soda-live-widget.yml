@@ -1,4 +1,4 @@
-name: Build SodaLiveOverlay APK
+name: Build SixMeet APK
 
 on:
   workflow_dispatch:
@@ -37,5 +37,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SodaLiveOverlay-apk
+          name: SixMeet-apk
           path: SodaLiveWidget/app/build/outputs/apk/debug/app-debug.apk

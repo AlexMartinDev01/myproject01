@@ -37,7 +37,9 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -316,7 +318,15 @@ private fun MainShell(prefs: SharedPreferences) {
                     onBack = { navController.popBackStack() }
                 )
             }
-            composable("mine") { MineScreen(prefs) }
+            composable("mine") {
+                MineScreen(
+                    prefs = prefs,
+                    onAiSettings = { navController.navigate("ai_settings") }
+                )
+            }
+            composable("ai_settings") {
+                AiSettingsScreen(onBack = { navController.popBackStack() })
+            }
             composable("quick_note") {
                 NoteEditorScreen(
                     db = db,
@@ -352,7 +362,11 @@ private fun MainShell(prefs: SharedPreferences) {
                 )
             }
             composable("summary") {
-                SummaryScreen(db = db, onBack = { navController.popBackStack() })
+                SummaryScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() },
+                    onAiSettings = { navController.navigate("ai_settings") }
+                )
             }
         }
     }
@@ -376,8 +390,22 @@ private fun TodayScreen(
     val favorites by db.favoriteDao().observeBetween(bounds.first, bounds.second)
         .collectAsState(initial = emptyList())
     val name = prefs.getString("name", "我") ?: "我"
+    val city = prefs.getString("city", "西安") ?: "西安"
     val date = LocalDate.now()
     val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINA)
+
+    var weather by remember(city) { mutableStateOf<WeatherSnapshot?>(null) }
+    var weatherLoading by remember(city) { mutableStateOf(true) }
+    var weatherError by remember(city) { mutableStateOf("") }
+
+    LaunchedEffect(city) {
+        weatherLoading = true
+        weatherError = ""
+        val result = withContext(Dispatchers.IO) { WeatherClient.fetch(city) }
+        weatherLoading = false
+        result.onSuccess { weather = it }
+            .onFailure { weatherError = it.message ?: "天气加载失败" }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Cream),
@@ -399,12 +427,42 @@ private fun TodayScreen(
                         Icons.Outlined.WbSunny,
                         null,
                         tint = WarmOrange,
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier.size(42.dp)
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("天气", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text("下一阶段接入实时天气，这里不显示假数据。", color = Muted)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        when {
+                            weatherLoading -> {
+                                Text(city + " · 正在获取天气", fontWeight = FontWeight.Bold)
+                                Text("稍等一下…", color = Muted)
+                            }
+                            weather != null -> {
+                                val w = weather!!
+                                Text(
+                                    city + "  " + String.format(Locale.CHINA, "%.0f°C", w.temperature) + "  " + w.condition,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    String.format(
+                                        Locale.CHINA,
+                                        "%.0f～%.0f°C · 降雨概率 %d%% · 体感 %.0f°C",
+                                        w.minTemperature,
+                                        w.maxTemperature,
+                                        w.rainProbability,
+                                        w.apparentTemperature
+                                    ),
+                                    color = Muted,
+                                    fontSize = 13.sp
+                                )
+                                Spacer(Modifier.height(5.dp))
+                                Text(w.advice, color = DarkBrown)
+                            }
+                            else -> {
+                                Text(city + " · 天气暂时没加载出来", fontWeight = FontWeight.Bold)
+                                Text(weatherError, color = Muted, fontSize = 13.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -483,7 +541,7 @@ private fun TodayScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("整理我的今天", fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
-            Text("V0.2 先根据真实记录和待办生成本地汇总。", color = Muted, fontSize = 12.sp)
+            Text("可生成本地汇总，也可以交给 DeepSeek 整理。", color = Muted, fontSize = 12.sp)
         }
     }
 }
@@ -1009,7 +1067,10 @@ private fun FavoritesScreen() {
 }
 
 @Composable
-private fun MineScreen(prefs: SharedPreferences) {
+private fun MineScreen(
+    prefs: SharedPreferences,
+    onAiSettings: () -> Unit
+) {
     val context = LocalContext.current
     val notificationsGranted =
         Build.VERSION.SDK_INT < 33 ||
@@ -1025,7 +1086,7 @@ private fun MineScreen(prefs: SharedPreferences) {
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V0.3 万能收藏版", color = Muted)
+            Text("拾光盒 · V0.4 AI天气版", color = Muted)
         }
         item {
             SettingRow(
@@ -1062,17 +1123,36 @@ private fun MineScreen(prefs: SharedPreferences) {
             SettingRow(Icons.Outlined.RestartAlt, "重启后提醒", "会自动恢复未来待办提醒")
         }
         item {
-            SettingRow(Icons.Outlined.AutoAwesome, "AI 整理", "V0.5 接入")
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onAiSettings)
+            ) {
+                SettingRow(
+                    Icons.Outlined.AutoAwesome,
+                    "DeepSeek AI",
+                    if (SecureApiKeyStore.exists(context))
+                        "已配置 · 点这里测试或更换"
+                    else
+                        "未配置 · 点这里接入"
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun SummaryScreen(db: AppDatabase, onBack: () -> Unit) {
+private fun SummaryScreen(
+    db: AppDatabase,
+    onBack: () -> Unit,
+    onAiSettings: () -> Unit
+) {
     val bounds = remember { todayBounds() }
     val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
         .collectAsState(initial = emptyList())
     val notes by db.noteDao().observeBetween(bounds.first, bounds.second)
+        .collectAsState(initial = emptyList())
+    val favorites by db.favoriteDao().observeBetween(bounds.first, bounds.second)
         .collectAsState(initial = emptyList())
 
     val done = tasks.filter { it.completed }
@@ -1085,6 +1165,17 @@ private fun SummaryScreen(db: AppDatabase, onBack: () -> Unit) {
             color = Muted
         )
         Spacer(Modifier.height(16.dp))
+
+        AiDailySummarySection(
+            db = db,
+            completedTasks = done.map { it.title },
+            pendingTasks = undone.map { it.title },
+            notes = notes.map { it.content },
+            favorites = favorites.map { it.title },
+            onOpenSettings = onAiSettings
+        )
+
+        Spacer(Modifier.height(14.dp))
 
         SummaryBlock("今天完成了什么", Icons.Outlined.CheckCircle) {
             if (done.isEmpty()) {
@@ -1114,7 +1205,7 @@ private fun SummaryScreen(db: AppDatabase, onBack: () -> Unit) {
         }
 
         Text(
-            "这是 V0.2 的真实本地汇总，不会编造内容。之后接入 AI 后，会在这些真实数据基础上生成更自然的日报。",
+            "上面保留本地真实汇总作为兜底；DeepSeek 总结只基于这些真实数据生成。",
             color = Muted,
             fontSize = 12.sp
         )

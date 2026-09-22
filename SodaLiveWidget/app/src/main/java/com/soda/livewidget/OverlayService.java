@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
@@ -24,8 +25,8 @@ import java.util.Locale;
 
 public class OverlayService extends Service {
 
-    private static final String CHANNEL_ID = "soda_live_countdown";
-    private static final int NOTIFICATION_ID = 1001;
+    private static final String CHANNEL_ID = "six_meet_lock_v1";
+    private static final int NOTIFICATION_ID = 1800;
 
     private WindowManager windowManager;
     private View overlayView;
@@ -34,11 +35,23 @@ public class OverlayService extends Service {
 
     private TextView labelText;
     private TextView timeText;
+    private boolean lastLiveState = false;
 
     private final Runnable ticker = new Runnable() {
         @Override
         public void run() {
-            updateCountdown();
+            boolean liveNow = updateCountdown();
+
+            // 系统计时器会自己按秒走，只在 18:00 状态切换时重建通知。
+            if (liveNow != lastLiveState) {
+                lastLiveState = liveNow;
+                NotificationManager manager =
+                        (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                if (manager != null) {
+                    manager.notify(NOTIFICATION_ID, buildNotification());
+                }
+            }
+
             handler.postDelayed(this, 1000);
         }
     };
@@ -53,9 +66,24 @@ public class OverlayService extends Service {
         }
 
         createNotificationChannel();
+        lastLiveState = isLiveNow();
         startForeground(NOTIFICATION_ID, buildNotification());
         showOverlay();
         handler.post(ticker);
+    }
+
+    private Calendar getTodayTarget() {
+        Calendar target = Calendar.getInstance();
+        target.set(Calendar.HOUR_OF_DAY, 18);
+        target.set(Calendar.MINUTE, 0);
+        target.set(Calendar.SECOND, 0);
+        target.set(Calendar.MILLISECOND, 0);
+        return target;
+    }
+
+    private boolean isLiveNow() {
+        return Calendar.getInstance().getTimeInMillis()
+                >= getTodayTarget().getTimeInMillis();
     }
 
     private Notification buildNotification() {
@@ -71,23 +99,54 @@ public class OverlayService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
 
-        return builder
-                .setContentTitle("苏打水直播倒计时")
-                .setContentText("悬浮倒计时正在运行")
-                .setSmallIcon(android.R.drawable.ic_media_play)
+        Calendar target = getTodayTarget();
+        boolean liveNow = Calendar.getInstance().getTimeInMillis()
+                >= target.getTimeInMillis();
+
+        builder
+                .setContentTitle("六点见")
+                .setSmallIcon(R.drawable.ic_stat_sun)
+                .setColor(Color.rgb(244, 184, 96))
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
-                .build();
+                .setOnlyAlertOnce(true)
+                .setCategory(Notification.CATEGORY_EVENT)
+                .setVisibility(Notification.VISIBILITY_PUBLIC);
+
+        if (!liveNow) {
+            builder
+                    .setContentText("距离今天 18:00 开播还有")
+                    .setSubText("苏打水 · 今天六点见")
+                    .setWhen(target.getTimeInMillis())
+                    .setShowWhen(true)
+                    .setUsesChronometer(true);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                builder.setChronometerCountDown(true);
+            }
+        } else {
+            builder
+                    .setContentText("正在直播 ✦")
+                    .setSubText("苏打水 · 今天六点见")
+                    .setShowWhen(false)
+                    .setUsesChronometer(false);
+        }
+
+        return builder.build();
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "苏打水直播倒计时",
-                    NotificationManager.IMPORTANCE_LOW
+                    "六点见 · 锁屏倒计时",
+                    NotificationManager.IMPORTANCE_DEFAULT
             );
-            channel.setDescription("用于保持悬浮倒计时运行");
+            channel.setDescription("在锁屏和通知栏显示距离 18:00 开播的倒计时");
+            channel.setSound(null, null);
+            channel.enableVibration(false);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
@@ -111,6 +170,7 @@ public class OverlayService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
         );
+
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = 32;
         params.y = 180;
@@ -141,6 +201,7 @@ public class OverlayService extends Service {
                     case MotionEvent.ACTION_MOVE:
                         params.x = startX + (int) (event.getRawX() - startRawX);
                         params.y = startY + (int) (event.getRawY() - startRawY);
+
                         if (windowManager != null && overlayView != null) {
                             windowManager.updateViewLayout(overlayView, params);
                         }
@@ -156,16 +217,13 @@ public class OverlayService extends Service {
         updateCountdown();
     }
 
-    private void updateCountdown() {
-        if (labelText == null || timeText == null) return;
+    private boolean updateCountdown() {
+        if (labelText == null || timeText == null) {
+            return isLiveNow();
+        }
 
         Calendar now = Calendar.getInstance();
-        Calendar target = Calendar.getInstance();
-        target.set(Calendar.HOUR_OF_DAY, 18);
-        target.set(Calendar.MINUTE, 0);
-        target.set(Calendar.SECOND, 0);
-        target.set(Calendar.MILLISECOND, 0);
-
+        Calendar target = getTodayTarget();
         long diffMs = target.getTimeInMillis() - now.getTimeInMillis();
 
         if (diffMs > 0) {
@@ -174,7 +232,7 @@ public class OverlayService extends Service {
             long minutes = (totalSeconds % 3600) / 60;
             long seconds = totalSeconds % 60;
 
-            labelText.setText("苏打水 · 距离 18:00 开播还有");
+            labelText.setText("距离今天 18:00 开播还有");
             timeText.setText(String.format(
                     Locale.getDefault(),
                     "%02d:%02d:%02d",
@@ -182,9 +240,11 @@ public class OverlayService extends Service {
                     minutes,
                     seconds
             ));
+            return false;
         } else {
-            labelText.setText("苏打水 · 今天 18:00");
+            labelText.setText("苏打水 · 今天六点见");
             timeText.setText("正在直播 ✦");
+            return true;
         }
     }
 
@@ -196,12 +256,14 @@ public class OverlayService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(ticker);
+
         if (windowManager != null && overlayView != null) {
             try {
                 windowManager.removeView(overlayView);
             } catch (Exception ignored) {
             }
         }
+
         overlayView = null;
         super.onDestroy();
     }

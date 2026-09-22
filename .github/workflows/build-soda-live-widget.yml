@@ -1,10 +1,10 @@
-name: Build SodaLiveWidget APK
+name: Build SodaLiveOverlay APK
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - soda-live-widget
+      - soda-live-overlay
     paths:
       - 'SodaLiveWidget/**'
       - '.github/workflows/build-soda-live-widget.yml'
@@ -37,5 +37,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SodaLiveWidget-apk
+          name: SodaLiveOverlay-apk
           path: SodaLiveWidget/app/build/outputs/apk/debug/app-debug.apk

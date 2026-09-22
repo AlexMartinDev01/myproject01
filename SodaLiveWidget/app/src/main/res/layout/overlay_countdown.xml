@@ -1,5 +1,5 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="230dp"
+    android:layout_width="224dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="14dp"
@@ -8,7 +8,7 @@
     <LinearLayout
         android:id="@+id/dragHandle"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="40dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
@@ -16,36 +16,36 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="苏打水 LIVE  ⋮⋮"
-            android:textColor="#FFFFFF"
+            android:text="六点见  ☀  ⋮⋮"
+            android:textColor="#5A4632"
             android:textStyle="bold"
-            android:textSize="15sp" />
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/overlayClose"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:gravity="center"
             android:text="×"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp" />
+            android:textColor="#7A6045"
+            android:textSize="22sp" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/overlayLabel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="苏打水 · 距离 18:00 开播还有"
-        android:textColor="#D8D8D8"
+        android:text="距离今天 18:00 开播还有"
+        android:textColor="#775E43"
         android:textSize="12sp" />
 
     <TextView
         android:id="@+id/overlayTime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="5dp"
         android:text="00:00:00"
-        android:textColor="#FFFFFF"
+        android:textColor="#49321E"
         android:textStyle="bold"
         android:textSize="31sp"
         android:fontFamily="monospace" />
@@ -53,8 +53,8 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="今天也准时见面"
-        android:textColor="#AFAFAF"
+        android:layout_marginTop="5dp"
+        android:text="苏打水 · 今天也准时见"
+        android:textColor="#866B4C"
         android:textSize="11sp" />
 </LinearLayout>

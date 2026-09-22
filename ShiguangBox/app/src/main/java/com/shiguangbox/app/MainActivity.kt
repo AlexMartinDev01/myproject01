@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -260,6 +261,10 @@ private fun MainShell(prefs: SharedPreferences) {
                             quickAddOpen = false
                             navController.navigate("manual_favorite")
                         }
+                        QuickAction("收图文", Icons.Outlined.AddPhotoAlternate) {
+                            quickAddOpen = false
+                            navController.navigate("knowledge_image_import")
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
                     FloatingActionButton(
@@ -290,7 +295,8 @@ private fun MainShell(prefs: SharedPreferences) {
                     onNote = { navController.navigate("edit_note/" + it) },
                     onSearch = { navController.navigate("global_search") },
                     onAsk = { navController.navigate("ask_box") },
-                    onHistory = { navController.navigate("history") }
+                    onHistory = { navController.navigate("history") },
+                    onKnowledge = { navController.navigate("knowledge") }
                 )
             }
             composable("notes") {
@@ -310,7 +316,7 @@ private fun MainShell(prefs: SharedPreferences) {
             composable("favorites") {
                 CollectionsScreen(
                     db = db,
-                    onDetail = { navController.navigate("favorite_detail/" + it) },
+                    onDetail = { navController.navigate("knowledge_detail/" + it) },
                     onManualAdd = { navController.navigate("manual_favorite") }
                 )
             }
@@ -330,6 +336,69 @@ private fun MainShell(prefs: SharedPreferences) {
                     onBack = { navController.popBackStack() }
                 )
             }
+            composable("knowledge") {
+                KnowledgeHomeScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() },
+                    onCard = { navController.navigate("knowledge_detail/" + it) },
+                    onTopic = { navController.navigate("topic/" + Uri.encode(it)) },
+                    onImageImport = { navController.navigate("knowledge_image_import") },
+                    onWeekly = { navController.navigate("weekly_knowledge") }
+                )
+            }
+            composable("knowledge_image_import") {
+                KnowledgeImageImportScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() },
+                    onCreated = { id ->
+                        navController.navigate("knowledge_detail/" + id) {
+                            popUpTo("knowledge_image_import") { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(
+                "knowledge_detail/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
+                KnowledgeCardScreen(
+                    db = db,
+                    favoriteId = entry.arguments?.getLong("id") ?: 0L,
+                    onBack = { navController.popBackStack() },
+                    onCard = { navController.navigate("knowledge_detail/" + it) },
+                    onTopic = { navController.navigate("topic/" + Uri.encode(it)) }
+                )
+            }
+            composable(
+                "topic/{name}",
+                arguments = listOf(navArgument("name") { type = NavType.StringType })
+            ) { entry ->
+                val topicName = Uri.decode(entry.arguments?.getString("name").orEmpty())
+                TopicDetailScreen(
+                    db = db,
+                    topic = topicName,
+                    onBack = { navController.popBackStack() },
+                    onCard = { navController.navigate("knowledge_detail/" + it) },
+                    onAsk = { navController.navigate("topic_ask/" + Uri.encode(topicName)) }
+                )
+            }
+            composable(
+                "topic_ask/{name}",
+                arguments = listOf(navArgument("name") { type = NavType.StringType })
+            ) { entry ->
+                TopicAskScreen(
+                    db = db,
+                    topic = Uri.decode(entry.arguments?.getString("name").orEmpty()),
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("weekly_knowledge") {
+                WeeklyKnowledgeScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             composable("mine") {
                 SettingsScreen(
                     db = db,
@@ -345,7 +414,7 @@ private fun MainShell(prefs: SharedPreferences) {
                     onBack = { navController.popBackStack() },
                     onNote = { navController.navigate("edit_note/" + it) },
                     onTask = { navController.navigate("edit_task/" + it) },
-                    onFavorite = { navController.navigate("favorite_detail/" + it) }
+                    onFavorite = { navController.navigate("knowledge_detail/" + it) }
                 )
             }
             composable("ask_box") {
@@ -428,7 +497,8 @@ private fun TodayScreen(
     onNote: (Long) -> Unit,
     onSearch: () -> Unit,
     onAsk: () -> Unit,
-    onHistory: () -> Unit
+    onHistory: () -> Unit,
+    onKnowledge: () -> Unit
 ) {
     val bounds = remember { todayBounds() }
     val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
@@ -549,6 +619,38 @@ private fun TodayScreen(
                         Text("问问拾光盒", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text(
                             "从你自己的记录、待办、收藏和总结里找答案",
+                            color = Muted,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onKnowledge),
+                colors = CardDefaults.cardColors(containerColor = PaleOrange),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.AccountTree,
+                        null,
+                        tint = WarmOrange,
+                        modifier = Modifier.size(34.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("我的知识库", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            "专题、图文知识卡、相关内容和每周回顾",
                             color = Muted,
                             fontSize = 13.sp
                         )

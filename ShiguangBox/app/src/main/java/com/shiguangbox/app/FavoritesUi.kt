@@ -170,6 +170,15 @@ fun CollectionsScreen(
                         )
                     }
 
+                    if (item.topic.isNotBlank() || item.suggestedTopic.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "专题：" + if (item.topic.isNotBlank()) item.topic else "建议 " + item.suggestedTopic,
+                            color = FavSage,
+                            fontSize = 12.sp
+                        )
+                    }
+
                     Spacer(Modifier.height(10.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -506,7 +515,7 @@ fun ManualCollectionScreen(
                                 android.content.Context.MODE_PRIVATE
                             )
                             if (prefs.getBoolean("auto_favorite_ai", false)) {
-                                FavoriteAiWorker.enqueue(context, id)
+                                KnowledgeOrganizeWorker.enqueue(context, id)
                             }
                             onBack()
                         }

@@ -105,7 +105,7 @@ fun SettingsScreen(
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V0.5 AI 第二大脑版", color = SettingsMuted)
+            Text("拾光盒 · V0.6 AI 知识库增强版", color = SettingsMuted)
         }
 
         item {
@@ -193,9 +193,9 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("收藏后自动 AI 整理", fontWeight = FontWeight.Medium)
+                        Text("收藏/图文后自动生成知识卡", fontWeight = FontWeight.Medium)
                         Text(
-                            "分享进拾光盒后后台生成摘要",
+                            "文字、网页或图片收进来后，在后台生成摘要、标签和专题建议",
                             color = SettingsMuted,
                             fontSize = 12.sp
                         )
@@ -265,7 +265,7 @@ fun SettingsScreen(
                 Text("隐私说明", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "记录、待办和收藏默认保存在本机。只有你主动使用 AI 功能时，相应文字才会发送到你配置的 DeepSeek 接口。",
+                    "记录、待办、收藏和导入图片默认保存在本机。启用 AI 整理时，对应文字与所选图片会发送到你配置的 DeepSeek 接口；API Key 不会包含在数据备份中。",
                     color = SettingsMuted,
                     fontSize = 13.sp,
                     lineHeight = 19.sp

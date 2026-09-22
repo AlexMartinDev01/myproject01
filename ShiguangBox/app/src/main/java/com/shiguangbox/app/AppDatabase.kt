@@ -38,6 +38,13 @@ data class FavoriteEntity(
     val note: String = "",
     val aiSummary: String = "",
     val aiTags: String = "",
+    val knowledgeType: String = "收藏",
+    val imagePaths: String = "",
+    val imageAnalysis: String = "",
+    val topic: String = "",
+    val suggestedTopic: String = "",
+    val important: Boolean = false,
+    val processingStatus: String = "已保存",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -104,7 +111,7 @@ interface TaskDao {
 
 @Dao
 interface FavoriteDao {
-    @Query("SELECT * FROM favorites ORDER BY createdAt DESC")
+    @Query("SELECT * FROM favorites ORDER BY important DESC, createdAt DESC")
     fun observeAll(): Flow<List<FavoriteEntity>>
 
     @Query("SELECT * FROM favorites WHERE createdAt BETWEEN :start AND :end ORDER BY createdAt DESC")
@@ -120,14 +127,20 @@ interface FavoriteDao {
            OR note LIKE '%' || :query || '%'
            OR aiSummary LIKE '%' || :query || '%'
            OR aiTags LIKE '%' || :query || '%'
-        ORDER BY createdAt DESC
+           OR imageAnalysis LIKE '%' || :query || '%'
+           OR topic LIKE '%' || :query || '%'
+           OR suggestedTopic LIKE '%' || :query || '%'
+        ORDER BY important DESC, createdAt DESC
     """)
     fun observeSearch(query: String): Flow<List<FavoriteEntity>>
 
     @Query("SELECT * FROM favorites WHERE url = :url LIMIT 1")
     suspend fun findByUrl(url: String): FavoriteEntity?
 
-    @Query("SELECT * FROM favorites ORDER BY createdAt DESC")
+    @Query("SELECT * FROM favorites WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): FavoriteEntity?
+
+    @Query("SELECT * FROM favorites ORDER BY important DESC, createdAt DESC")
     suspend fun getAllOnce(): List<FavoriteEntity>
 
     @Insert
@@ -162,7 +175,7 @@ interface DailySummaryDao {
         FavoriteEntity::class,
         DailySummaryEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -211,6 +224,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE favorites ADD COLUMN knowledgeType TEXT NOT NULL DEFAULT '收藏'")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN imagePaths TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN imageAnalysis TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN topic TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN suggestedTopic TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN important INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN processingStatus TEXT NOT NULL DEFAULT '已保存'")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -218,7 +243,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "shiguangbox.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }

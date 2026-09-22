@@ -65,8 +65,17 @@ fun GlobalSearchScreen(
     val matchedFavorites = remember(favorites, q) {
         if (q.isBlank()) emptyList()
         else favorites.filter {
-            listOf(it.title, it.rawText, it.note, it.aiSummary, it.aiTags, it.platform)
-                .any { text -> text.contains(q, true) }
+            listOf(
+                it.title,
+                it.rawText,
+                it.note,
+                it.aiSummary,
+                it.aiTags,
+                it.platform,
+                it.imageAnalysis,
+                it.topic,
+                it.suggestedTopic
+            ).any { text -> text.contains(q, true) }
         }.take(20)
     }
     val matchedSummaries = remember(summaries, q) {
@@ -144,8 +153,12 @@ fun GlobalSearchScreen(
                 items(matchedFavorites, key = { "f" + it.id }) { favorite ->
                     SearchResultCard(
                         title = favorite.title,
-                        subtitle = favorite.platform +
-                            if (favorite.aiSummary.isNotBlank()) " · 已有 AI 摘要" else "",
+                        subtitle = buildString {
+                            append(favorite.platform)
+                            if (favorite.topic.isNotBlank()) append(" · " + favorite.topic)
+                            if (favorite.knowledgeType == "图文") append(" · 图文")
+                            if (favorite.aiSummary.isNotBlank()) append(" · 已整理")
+                        },
                         icon = Icons.Outlined.BookmarkBorder,
                         onClick = { onFavorite(favorite.id) }
                     )
@@ -504,10 +517,21 @@ private fun buildMemoryDocuments(
     }
 
     favorites.forEach {
-        docs += "收藏 | " + formatBrainTime(it.createdAt) + " | " +
-            it.platform + " | " + it.title +
-            (if (it.note.isNotBlank()) " | 我的备注：" + it.note else "") +
-            (if (it.aiSummary.isNotBlank()) " | AI摘要：" + it.aiSummary else "")
+        docs += buildString {
+            append("知识卡 | ")
+            append(formatBrainTime(it.createdAt))
+            append(" | ")
+            append(it.platform)
+            append(" | ")
+            append(it.title)
+            if (it.topic.isNotBlank()) append(" | 专题：" + it.topic)
+            if (it.note.isNotBlank()) append(" | 我的备注：" + it.note)
+            if (it.aiSummary.isNotBlank()) append(" | AI整理：" + it.aiSummary.take(4200))
+            if (it.imageAnalysis.isNotBlank() && it.imageAnalysis != it.aiSummary) {
+                append(" | 图文分析：" + it.imageAnalysis.take(2600))
+            }
+            if (it.aiTags.isNotBlank()) append(" | 标签：" + it.aiTags)
+        }
     }
 
     summaries.forEach {

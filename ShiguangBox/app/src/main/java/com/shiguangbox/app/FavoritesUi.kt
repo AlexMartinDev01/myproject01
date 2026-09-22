@@ -27,20 +27,13 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val FavCream = Color(0xFFFFF9F0)
-private val FavWarmOrange = Color(0xFFF4B860)
-private val FavSage = Color(0xFFA8B99A)
-private val FavDarkBrown = Color(0xFF49392C)
-private val FavMuted = Color(0xFF8A7969)
-private val FavCard = Color(0xFFFFFDFC)
-private val FavPaleOrange = Color(0xFFFFEBC7)
-
 @Composable
 fun CollectionsScreen(
     db: AppDatabase,
     onDetail: (Long) -> Unit,
     onManualAdd: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     var query by rememberSaveable { mutableStateOf("") }
     var platform by rememberSaveable { mutableStateOf("全部") }
 
@@ -56,13 +49,19 @@ fun CollectionsScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(FavCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("收藏", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = FavDarkBrown)
-            Text("看到好的，就先收进来。", color = FavMuted)
+            Text("收藏", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = journal.text)
+            Text("看到好的，就先收进来。", color = journal.muted)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                journal.stickerEmoji + "  " + journal.name + " · 今天的收藏也贴进手账里",
+                color = journal.secondary,
+                fontSize = 12.sp
+            )
             Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
@@ -122,14 +121,14 @@ fun CollectionsScreen(
         if (shown.isEmpty()) {
             item {
                 FavoriteCard {
-                    Icon(Icons.Outlined.BookmarkBorder, null, tint = FavSage)
+                    Icon(Icons.Outlined.BookmarkBorder, null, tint = journal.secondary)
                     Spacer(Modifier.height(10.dp))
                     Text(
                         if (allItems.isEmpty())
                             "还没有收藏。去抖音、B站、微信读书或浏览器里点“分享 → 收进拾光盒”试试。"
                         else
                             "当前筛选下没有内容。",
-                        color = FavMuted
+                        color = journal.muted
                     )
                 }
             }
@@ -143,18 +142,18 @@ fun CollectionsScreen(
                         Spacer(Modifier.width(10.dp))
                         Text(
                             item.platform,
-                            color = FavMuted,
+                            color = journal.muted,
                             fontSize = 12.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        Text(formatFavoriteTime(item.createdAt), color = FavMuted, fontSize = 12.sp)
+                        Text(formatFavoriteTime(item.createdAt), color = journal.muted, fontSize = 12.sp)
                     }
 
                     Spacer(Modifier.height(10.dp))
 
                     Text(
                         item.title,
-                        color = FavDarkBrown,
+                        color = journal.text,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 3
@@ -164,7 +163,7 @@ fun CollectionsScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             item.rawText.take(150),
-                            color = FavMuted,
+                            color = journal.muted,
                             fontSize = 13.sp,
                             maxLines = 3
                         )
@@ -174,7 +173,7 @@ fun CollectionsScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "专题：" + if (item.topic.isNotBlank()) item.topic else "建议 " + item.suggestedTopic,
-                            color = FavSage,
+                            color = journal.secondary,
                             fontSize = 12.sp
                         )
                     }
@@ -186,17 +185,17 @@ fun CollectionsScreen(
                             Icon(
                                 Icons.Outlined.Link,
                                 null,
-                                tint = FavWarmOrange,
+                                tint = journal.primary,
                                 modifier = Modifier.size(17.dp)
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text("已保存原链接", color = FavWarmOrange, fontSize = 12.sp)
+                            Text("已保存原链接", color = journal.primary, fontSize = 12.sp)
                         } else {
-                            Text("文字收藏", color = FavSage, fontSize = 12.sp)
+                            Text("文字收藏", color = journal.secondary, fontSize = 12.sp)
                         }
 
                         Spacer(Modifier.weight(1f))
-                        Icon(Icons.Outlined.ChevronRight, null, tint = FavMuted)
+                        Icon(Icons.Outlined.ChevronRight, null, tint = journal.muted)
                     }
                 }
             }
@@ -210,6 +209,7 @@ fun CollectionDetailScreen(
     favoriteId: Long,
     onBack: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val item by db.favoriteDao().observeById(favoriteId).collectAsState(initial = null)
@@ -230,7 +230,7 @@ fun CollectionDetailScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(FavCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -245,7 +245,7 @@ fun CollectionDetailScreen(
 
         val current = item
         if (current == null) {
-            item { Text("正在读取收藏…", color = FavMuted) }
+            item { Text("正在读取收藏…", color = journal.muted) }
         } else {
             item {
                 FavoriteCard {
@@ -254,7 +254,7 @@ fun CollectionDetailScreen(
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text(current.platform, fontWeight = FontWeight.Bold)
-                            Text(formatFavoriteTime(current.createdAt), color = FavMuted, fontSize = 12.sp)
+                            Text(formatFavoriteTime(current.createdAt), color = journal.muted, fontSize = 12.sp)
                         }
                     }
 
@@ -275,7 +275,7 @@ fun CollectionDetailScreen(
                     FavoriteCard {
                         Text("原始分享内容", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
-                        Text(current.rawText, color = FavDarkBrown, lineHeight = 22.sp)
+                        Text(current.rawText, color = journal.text, lineHeight = 22.sp)
                     }
                 }
             }
@@ -333,7 +333,7 @@ fun CollectionDetailScreen(
             item {
                 FavoriteCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.AutoAwesome, null, tint = FavWarmOrange)
+                        Icon(Icons.Outlined.AutoAwesome, null, tint = journal.primary)
                         Spacer(Modifier.width(8.dp))
                         Text("DeepSeek AI 整理", fontWeight = FontWeight.Bold)
                     }
@@ -341,16 +341,16 @@ fun CollectionDetailScreen(
                     Spacer(Modifier.height(10.dp))
 
                     if (current.aiSummary.isNotBlank()) {
-                        Text(current.aiSummary, color = FavDarkBrown, lineHeight = 22.sp)
+                        Text(current.aiSummary, color = journal.text, lineHeight = 22.sp)
                         if (current.aiTags.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
-                            Text(current.aiTags, color = FavWarmOrange, fontSize = 12.sp)
+                            Text(current.aiTags, color = journal.primary, fontSize = 12.sp)
                         }
                         Spacer(Modifier.height(10.dp))
                     } else {
                         Text(
                             "只根据这条收藏现有的分享文字和你的备注整理，不会假装看过无法访问的完整视频。",
-                            color = FavMuted,
+                            color = journal.muted,
                             fontSize = 13.sp
                         )
                         Spacer(Modifier.height(10.dp))
@@ -446,6 +446,7 @@ fun ManualCollectionScreen(
     db: AppDatabase,
     onBack: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var rawText by rememberSaveable { mutableStateOf("") }
@@ -455,7 +456,7 @@ fun ManualCollectionScreen(
     var message by rememberSaveable { mutableStateOf("") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(FavCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -467,7 +468,7 @@ fun ManualCollectionScreen(
                 Text("手动收藏", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
 
-            Text("把链接或分享文字粘贴进来。", color = FavMuted)
+            Text("把链接或分享文字粘贴进来。", color = journal.muted)
             Spacer(Modifier.height(10.dp))
 
             OutlinedTextField(
@@ -484,17 +485,17 @@ fun ManualCollectionScreen(
                 FavoriteCard {
                     Text("识别结果", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    Text("来源：" + parsed.platform, color = FavMuted)
-                    Text("标题：" + parsed.title, color = FavDarkBrown)
+                    Text("来源：" + parsed.platform, color = journal.muted)
+                    Text("标题：" + parsed.title, color = journal.text)
                     if (parsed.url.isNotBlank()) {
-                        Text("链接：" + parsed.url, color = FavWarmOrange, fontSize = 12.sp)
+                        Text("链接：" + parsed.url, color = journal.primary, fontSize = 12.sp)
                     }
                 }
             }
         }
 
         if (message.isNotBlank()) {
-            item { Text(message, color = FavSage) }
+            item { Text(message, color = journal.secondary) }
         }
 
         item {
@@ -534,6 +535,7 @@ fun ManualCollectionScreen(
 
 @Composable
 private fun PlatformBadge(platform: String) {
+    val journal = LocalJournalTheme.current
     val icon = when (platform) {
         "抖音" -> Icons.Outlined.PlayCircle
         "B站" -> Icons.Outlined.SmartDisplay
@@ -543,14 +545,14 @@ private fun PlatformBadge(platform: String) {
     }
 
     Surface(
-        color = FavPaleOrange,
+        color = journal.palePrimary,
         shape = RoundedCornerShape(12.dp)
     ) {
         Box(
             modifier = Modifier.size(38.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = FavWarmOrange)
+            Icon(icon, null, tint = journal.primary)
         }
     }
 }
@@ -560,9 +562,10 @@ private fun FavoriteCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = FavCard),
+        colors = CardDefaults.cardColors(containerColor = journal.surface),
         shape = RoundedCornerShape(22.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

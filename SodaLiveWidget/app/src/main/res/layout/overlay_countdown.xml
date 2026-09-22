@@ -16,10 +16,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="六点见  ☀  ⋮⋮"
+            android:text="六点见  ☀  · 长按拖动"
             android:textColor="#5A4632"
             android:textStyle="bold"
-            android:textSize="16sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/overlayClose"

@@ -7,7 +7,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -49,5 +51,25 @@ class ReminderReceiver : BroadcastReceiver() {
             .build()
 
         manager.notify(taskId.toInt(), notification)
+
+        val prefs = context.getSharedPreferences(
+            "shiguangbox_settings",
+            Context.MODE_PRIVATE
+        )
+
+        if (prefs.getBoolean("pet_enabled", false) &&
+            Settings.canDrawOverlays(context)
+        ) {
+            runCatching {
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, PetOverlayService::class.java).apply {
+                        action = PetOverlayService.ACTION_REMINDER
+                        putExtra(PetOverlayService.EXTRA_TASK_ID, taskId)
+                        putExtra(PetOverlayService.EXTRA_TASK_TITLE, title)
+                    }
+                )
+            }
+        }
     }
 }

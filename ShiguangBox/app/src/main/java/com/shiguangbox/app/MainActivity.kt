@@ -449,7 +449,13 @@ private fun MainShell(
                 SettingsScreen(
                     db = db,
                     onAiSettings = { navController.navigate("ai_settings") },
-                    onJournalTheme = { navController.navigate("journal_mood") }
+                    onJournalTheme = { navController.navigate("journal_mood") },
+                    onPetSettings = { navController.navigate("pet_settings") }
+                )
+            }
+            composable("pet_settings") {
+                PetSettingsScreen(
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("ai_settings") {

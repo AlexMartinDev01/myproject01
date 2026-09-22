@@ -33,7 +33,8 @@ private val SettingsSage = Color(0xFFA8B99A)
 fun SettingsScreen(
     db: AppDatabase,
     onAiSettings: () -> Unit,
-    onJournalTheme: () -> Unit
+    onJournalTheme: () -> Unit,
+    onPetSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember {
@@ -106,7 +107,7 @@ fun SettingsScreen(
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V0.8 可分享手账版", color = SettingsMuted)
+            Text("拾光盒 · V0.9 心情桌宠助手版", color = SettingsMuted)
         }
 
         item {
@@ -133,6 +134,26 @@ fun SettingsScreen(
                     color = SettingsMuted,
                     fontSize = 13.sp
                 )
+            }
+        }
+
+        item {
+            SettingsCardBox {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Pets, null, tint = SettingsSage)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("我的桌宠 · 橘团", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            "悬浮提醒、快速记事、快速加待办",
+                            color = SettingsMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                    TextButton(onClick = onPetSettings) {
+                        Text("设置")
+                    }
+                }
             }
         }
 

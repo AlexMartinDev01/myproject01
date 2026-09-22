@@ -12,7 +12,7 @@ object BackupUtils {
 
         val root = JSONObject()
         root.put("format", "shiguangbox-backup-v1")
-        root.put("appVersion", "0.6.0")
+        root.put("appVersion", "0.8.0")
         root.put("exportedAt", Instant.now().toString())
 
         root.put(
@@ -23,6 +23,8 @@ object BackupUtils {
                 put("summaryTime", prefs.getString("summary_time", "22:30") ?: "22:30")
                 put("autoSummary", prefs.getBoolean("auto_summary", false))
                 put("autoFavoriteAi", prefs.getBoolean("auto_favorite_ai", false))
+                put("journalMood", prefs.getString("journal_mood", "calm") ?: "calm")
+                put("journalThemeOffset", prefs.getInt("journal_theme_offset", 0))
             }
         )
 

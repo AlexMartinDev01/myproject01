@@ -62,6 +62,9 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
     fun observeById(id: Long): Flow<NoteEntity?>
 
+    @Query("SELECT * FROM notes ORDER BY createdAt DESC")
+    suspend fun getAllOnce(): List<NoteEntity>
+
     @Insert
     suspend fun insert(note: NoteEntity): Long
 
@@ -85,6 +88,9 @@ interface TaskDao {
 
     @Query("SELECT * FROM tasks WHERE completed = 0 AND remindAt IS NOT NULL AND remindAt > :now")
     suspend fun pendingReminders(now: Long): List<TaskEntity>
+
+    @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
+    suspend fun getAllOnce(): List<TaskEntity>
 
     @Insert
     suspend fun insert(task: TaskEntity): Long
@@ -121,6 +127,9 @@ interface FavoriteDao {
     @Query("SELECT * FROM favorites WHERE url = :url LIMIT 1")
     suspend fun findByUrl(url: String): FavoriteEntity?
 
+    @Query("SELECT * FROM favorites ORDER BY createdAt DESC")
+    suspend fun getAllOnce(): List<FavoriteEntity>
+
     @Insert
     suspend fun insert(item: FavoriteEntity): Long
 
@@ -135,6 +144,12 @@ interface FavoriteDao {
 interface DailySummaryDao {
     @Query("SELECT * FROM daily_summaries WHERE dateKey = :dateKey LIMIT 1")
     fun observeByDate(dateKey: String): Flow<DailySummaryEntity?>
+
+    @Query("SELECT * FROM daily_summaries ORDER BY dateKey DESC")
+    fun observeAll(): Flow<List<DailySummaryEntity>>
+
+    @Query("SELECT * FROM daily_summaries ORDER BY dateKey DESC")
+    suspend fun getAllOnce(): List<DailySummaryEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(summary: DailySummaryEntity)

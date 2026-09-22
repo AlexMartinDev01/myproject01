@@ -543,7 +543,7 @@ private fun TodayScreen(
     val favorites by db.favoriteDao().observeBetween(bounds.first, bounds.second)
         .collectAsState(initial = emptyList())
     val name = prefs.getString("name", "我") ?: "我"
-    val city = prefs.getString("city", "西安") ?: "西安"
+    val city = prefs.getString("city", "") ?: ""
     val date = LocalDate.now()
     val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINA)
 
@@ -552,12 +552,17 @@ private fun TodayScreen(
     var weatherError by remember(city) { mutableStateOf("") }
 
     LaunchedEffect(city) {
-        weatherLoading = true
+        weather = null
         weatherError = ""
-        val result = withContext(Dispatchers.IO) { WeatherClient.fetch(city) }
-        weatherLoading = false
-        result.onSuccess { weather = it }
-            .onFailure { weatherError = it.message ?: "天气加载失败" }
+        if (city.isBlank()) {
+            weatherLoading = false
+        } else {
+            weatherLoading = true
+            val result = withContext(Dispatchers.IO) { WeatherClient.fetch(city) }
+            weatherLoading = false
+            result.onSuccess { weather = it }
+                .onFailure { weatherError = it.message ?: "天气加载失败" }
+        }
     }
 
     LazyColumn(
@@ -599,6 +604,14 @@ private fun TodayScreen(
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         when {
+                            city.isBlank() -> {
+                                Text("还没有设置常用城市", fontWeight = FontWeight.Bold)
+                                Text(
+                                    "到“我的”里填写城市后，这里会显示实时天气。",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp
+                                )
+                            }
                             weatherLoading -> {
                                 Text(city + " · 正在获取天气", fontWeight = FontWeight.Bold)
                                 Text("稍等一下…", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1330,7 +1343,7 @@ private fun MineScreen(
             SettingRow(
                 Icons.Outlined.LocationOn,
                 "常用城市",
-                prefs.getString("city", "西安") ?: "西安"
+                prefs.getString("city", "") ?: ""
             )
         }
         item {

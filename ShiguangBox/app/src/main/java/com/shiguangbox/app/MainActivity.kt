@@ -98,6 +98,15 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
         mutableStateOf(prefs.getBoolean("onboarding_done", false))
     }
 
+    LaunchedEffect(onboardingDone) {
+        if (onboardingDone) {
+            DailySummaryScheduler.schedule(
+                context,
+                prefs.getString("summary_time", "22:30") ?: "22:30"
+            )
+        }
+    }
+
     MaterialTheme(
         colorScheme = lightColorScheme(
             primary = WarmOrange,
@@ -278,7 +287,10 @@ private fun MainShell(prefs: SharedPreferences) {
                     onQuickNote = { navController.navigate("quick_note") },
                     onNewTask = { navController.navigate("new_task") },
                     onTask = { navController.navigate("edit_task/" + it) },
-                    onNote = { navController.navigate("edit_note/" + it) }
+                    onNote = { navController.navigate("edit_note/" + it) },
+                    onSearch = { navController.navigate("global_search") },
+                    onAsk = { navController.navigate("ask_box") },
+                    onHistory = { navController.navigate("history") }
                 )
             }
             composable("notes") {
@@ -319,13 +331,46 @@ private fun MainShell(prefs: SharedPreferences) {
                 )
             }
             composable("mine") {
-                MineScreen(
-                    prefs = prefs,
+                SettingsScreen(
+                    db = db,
                     onAiSettings = { navController.navigate("ai_settings") }
                 )
             }
             composable("ai_settings") {
                 AiSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("global_search") {
+                GlobalSearchScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() },
+                    onNote = { navController.navigate("edit_note/" + it) },
+                    onTask = { navController.navigate("edit_task/" + it) },
+                    onFavorite = { navController.navigate("favorite_detail/" + it) }
+                )
+            }
+            composable("ask_box") {
+                AskMyBoxScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() },
+                    onAiSettings = { navController.navigate("ai_settings") }
+                )
+            }
+            composable("history") {
+                HistoryScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() },
+                    onDay = { navController.navigate("history_day/" + it) }
+                )
+            }
+            composable(
+                "history_day/{date}",
+                arguments = listOf(navArgument("date") { type = NavType.StringType })
+            ) { entry ->
+                HistoryDayScreen(
+                    db = db,
+                    dateKey = entry.arguments?.getString("date") ?: LocalDate.now().toString(),
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable("quick_note") {
                 NoteEditorScreen(
@@ -380,7 +425,10 @@ private fun TodayScreen(
     onQuickNote: () -> Unit,
     onNewTask: () -> Unit,
     onTask: (Long) -> Unit,
-    onNote: (Long) -> Unit
+    onNote: (Long) -> Unit,
+    onSearch: () -> Unit,
+    onAsk: () -> Unit,
+    onHistory: () -> Unit
 ) {
     val bounds = remember { todayBounds() }
     val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
@@ -413,11 +461,21 @@ private fun TodayScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("你好，" + name + " ☀️", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text(
-                date.monthValue.toString() + "月" + date.dayOfMonth + "日 · " + weekday,
-                color = Muted
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("你好，" + name + " ☀️", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        date.monthValue.toString() + "月" + date.dayOfMonth + "日 · " + weekday,
+                        color = Muted
+                    )
+                }
+                IconButton(onClick = onSearch) {
+                    Icon(Icons.Outlined.Search, "全局搜索", tint = DarkBrown)
+                }
+                IconButton(onClick = onHistory) {
+                    Icon(Icons.Outlined.History, "历史回顾", tint = DarkBrown)
+                }
+            }
         }
 
         item {
@@ -464,6 +522,38 @@ private fun TodayScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onAsk),
+                colors = CardDefaults.cardColors(containerColor = PaleGreen),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Psychology,
+                        null,
+                        tint = Sage,
+                        modifier = Modifier.size(34.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("问问拾光盒", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            "从你自己的记录、待办、收藏和总结里找答案",
+                            color = Muted,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
                 }
             }
         }
@@ -541,7 +631,7 @@ private fun TodayScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("整理我的今天", fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
-            Text("可生成本地汇总，也可以交给 DeepSeek 整理。", color = Muted, fontSize = 12.sp)
+            Text("搜索、问答、历史回顾和自动总结都已接入。", color = Muted, fontSize = 12.sp)
         }
     }
 }

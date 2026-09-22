@@ -21,17 +21,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val ImportCream = Color(0xFFFFF9F0)
-private val ImportCard = Color(0xFFFFFDFC)
-private val ImportMuted = Color(0xFF8A7969)
-private val ImportSage = Color(0xFFA8B99A)
-
 @Composable
 fun KnowledgeImageImportScreen(
     db: AppDatabase,
     onBack: () -> Unit,
     onCreated: (Long) -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -63,7 +59,7 @@ fun KnowledgeImageImportScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ImportCream)
+            .background(journal.background)
             .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -76,7 +72,7 @@ fun KnowledgeImageImportScreen(
         Spacer(Modifier.height(12.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = ImportCard),
+            colors = CardDefaults.cardColors(containerColor = journal.surface),
             shape = RoundedCornerShape(22.dp)
         ) {
             Column(Modifier.padding(18.dp)) {
@@ -88,7 +84,7 @@ fun KnowledgeImageImportScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "最多一次选择 6 张。AI 会结合图片中真正可见的信息和你附带的文字一起整理。",
-                    color = ImportMuted,
+                    color = journal.muted,
                     fontSize = 13.sp,
                     lineHeight = 19.sp
                 )
@@ -110,7 +106,7 @@ fun KnowledgeImageImportScreen(
 
                 if (message.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(message, color = ImportSage, fontSize = 12.sp)
+                    Text(message, color = journal.secondary, fontSize = 12.sp)
                 }
             }
         }
@@ -184,7 +180,7 @@ fun KnowledgeImageImportScreen(
 
         Text(
             "图片会先保存在拾光盒本机。执行 AI 分析时，所选图片和附带文字会发送到你配置的 DeepSeek 接口。",
-            color = ImportMuted,
+            color = journal.muted,
             fontSize = 12.sp,
             lineHeight = 18.sp
         )

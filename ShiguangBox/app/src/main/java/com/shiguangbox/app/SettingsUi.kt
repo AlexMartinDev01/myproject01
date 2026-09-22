@@ -32,7 +32,8 @@ private val SettingsSage = Color(0xFFA8B99A)
 @Composable
 fun SettingsScreen(
     db: AppDatabase,
-    onAiSettings: () -> Unit
+    onAiSettings: () -> Unit,
+    onJournalTheme: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember {
@@ -106,6 +107,33 @@ fun SettingsScreen(
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Text("拾光盒 · V0.6 AI 知识库增强版", color = SettingsMuted)
+        }
+
+        item {
+            val journal = LocalJournalTheme.current
+            SettingsCardBox {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(journal.stickerEmoji, fontSize = 32.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("今天的手账", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            journal.name + " · " + journal.moodEmoji + " " + journal.moodLabel,
+                            color = SettingsMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                    TextButton(onClick = onJournalTheme) {
+                        Text("换风格")
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    journal.tagline,
+                    color = SettingsMuted,
+                    fontSize = 13.sp
+                )
+            }
         }
 
         item {

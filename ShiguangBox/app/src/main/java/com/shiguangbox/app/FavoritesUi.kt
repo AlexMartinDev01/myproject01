@@ -437,6 +437,7 @@ fun ManualCollectionScreen(
     db: AppDatabase,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var rawText by rememberSaveable { mutableStateOf("") }
     val preview = remember(rawText) {
@@ -499,7 +500,14 @@ fun ManualCollectionScreen(
                         if (existing != null) {
                             message = "这个链接已经收藏过啦"
                         } else {
-                            db.favoriteDao().insert(parsed)
+                            val id = db.favoriteDao().insert(parsed)
+                            val prefs = context.getSharedPreferences(
+                                "shiguangbox_settings",
+                                android.content.Context.MODE_PRIVATE
+                            )
+                            if (prefs.getBoolean("auto_favorite_ai", false)) {
+                                FavoriteAiWorker.enqueue(context, id)
+                            }
                             onBack()
                         }
                     }

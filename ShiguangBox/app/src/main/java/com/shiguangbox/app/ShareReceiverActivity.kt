@@ -37,27 +37,42 @@ class ShareReceiverActivity : ComponentActivity() {
                 .takeIf { it.isNotBlank() }
                 ?.let { dao.findByUrl(it) }
 
+            val favoriteId: Long
+
             if (existing != null) {
-                dao.update(
-                    existing.copy(
-                        title = parsed.title,
-                        platform = parsed.platform,
-                        rawText = parsed.rawText,
-                        updatedAt = System.currentTimeMillis()
-                    )
+                val updated = existing.copy(
+                    title = parsed.title,
+                    platform = parsed.platform,
+                    rawText = parsed.rawText,
+                    updatedAt = System.currentTimeMillis()
                 )
+                dao.update(updated)
+                favoriteId = existing.id
+
                 Toast.makeText(
                     this@ShareReceiverActivity,
                     "这个内容已经在拾光盒里啦 ✓",
                     Toast.LENGTH_SHORT
                 ).show()
             } else {
-                dao.insert(parsed)
+                favoriteId = dao.insert(parsed)
+
                 Toast.makeText(
                     this@ShareReceiverActivity,
                     "已收进拾光盒 ✓",
                     Toast.LENGTH_SHORT
                 ).show()
+            }
+
+            val prefs = getSharedPreferences(
+                "shiguangbox_settings",
+                MODE_PRIVATE
+            )
+            if (prefs.getBoolean("auto_favorite_ai", false)) {
+                FavoriteAiWorker.enqueue(
+                    this@ShareReceiverActivity,
+                    favoriteId
+                )
             }
 
             finish()

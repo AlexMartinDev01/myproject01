@@ -31,14 +31,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val KnowledgeCream = Color(0xFFFFF9F0)
-private val KnowledgeCardColor = Color(0xFFFFFDFC)
-private val KnowledgeWarm = Color(0xFFF4B860)
-private val KnowledgeSage = Color(0xFFA8B99A)
-private val KnowledgeDark = Color(0xFF49392C)
-private val KnowledgeMuted = Color(0xFF8A7969)
-private val KnowledgePale = Color(0xFFEAF1E4)
-
 @Composable
 fun KnowledgeHomeScreen(
     db: AppDatabase,
@@ -48,6 +40,7 @@ fun KnowledgeHomeScreen(
     onImageImport: () -> Unit,
     onWeekly: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val all by db.favoriteDao().observeAll().collectAsState(initial = emptyList())
 
     val topics = remember(all) {
@@ -65,7 +58,7 @@ fun KnowledgeHomeScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(KnowledgeCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -73,8 +66,20 @@ fun KnowledgeHomeScreen(
             KnowledgeTopRow("我的知识库", onBack)
             Text(
                 "把收藏、截图和图文资料整理成可以长期搜索和提问的知识。",
-                color = KnowledgeMuted
+                color = journal.muted
             )
+            Spacer(Modifier.height(10.dp))
+            Surface(
+                color = journal.palePrimary.copy(alpha = 0.75f),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    journal.stickerEmoji + "  " + journal.name + " · 今天也慢慢把知识收进来",
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    color = journal.text,
+                    fontSize = 13.sp
+                )
+            }
         }
 
         item {
@@ -122,13 +127,13 @@ fun KnowledgeHomeScreen(
             item {
                 KnowledgeBox {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.AutoAwesome, null, tint = KnowledgeWarm)
+                        Icon(Icons.Outlined.AutoAwesome, null, tint = journal.primary)
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text("有 $pendingSuggestions 条知识等待你确认专题", fontWeight = FontWeight.Bold)
                             Text(
                                 "AI 只做建议，不会擅自替你分类。",
-                                color = KnowledgeMuted,
+                                color = journal.muted,
                                 fontSize = 12.sp
                             )
                         }
@@ -146,13 +151,13 @@ fun KnowledgeHomeScreen(
                     modifier = Modifier.clickable { onTopic(pair.first) }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Folder, null, tint = KnowledgeSage)
+                        Icon(Icons.Outlined.Folder, null, tint = journal.secondary)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(pair.first, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                            Text(pair.second.toString() + " 条知识", color = KnowledgeMuted, fontSize = 12.sp)
+                            Text(pair.second.toString() + " 条知识", color = journal.muted, fontSize = 12.sp)
                         }
-                        Icon(Icons.Outlined.ChevronRight, null, tint = KnowledgeMuted)
+                        Icon(Icons.Outlined.ChevronRight, null, tint = journal.muted)
                     }
                 }
             }
@@ -167,18 +172,18 @@ fun KnowledgeHomeScreen(
                     modifier = Modifier.clickable { onCard(itemToReview.id) }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.HistoryEdu, null, tint = KnowledgeWarm)
+                        Icon(Icons.Outlined.HistoryEdu, null, tint = journal.primary)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(itemToReview.title, fontWeight = FontWeight.Bold, maxLines = 2)
                             Text(
                                 formatKnowledgeTime(itemToReview.createdAt) +
                                     if (itemToReview.topic.isNotBlank()) " · " + itemToReview.topic else "",
-                                color = KnowledgeMuted,
+                                color = journal.muted,
                                 fontSize = 12.sp
                             )
                         }
-                        Icon(Icons.Outlined.ChevronRight, null, tint = KnowledgeMuted)
+                        Icon(Icons.Outlined.ChevronRight, null, tint = journal.muted)
                     }
                 }
             }
@@ -191,7 +196,7 @@ fun KnowledgeHomeScreen(
         if (all.isEmpty()) {
             item {
                 KnowledgeBox {
-                    Text("还没有知识卡。可以先收藏一条网页，或者导入一张截图。", color = KnowledgeMuted)
+                    Text("还没有知识卡。可以先收藏一条网页，或者导入一张截图。", color = journal.muted)
                 }
             }
         } else {
@@ -210,6 +215,7 @@ fun KnowledgeCardScreen(
     onCard: (Long) -> Unit,
     onTopic: (String) -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val item by db.favoriteDao().observeById(favoriteId).collectAsState(initial = null)
@@ -235,27 +241,27 @@ fun KnowledgeCardScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(KnowledgeCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { KnowledgeTopRow("知识卡片", onBack) }
 
         if (current == null) {
-            item { Text("正在读取…", color = KnowledgeMuted) }
+            item { Text("正在读取…", color = journal.muted) }
         } else {
             item {
                 KnowledgeBox {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            color = KnowledgePale,
+                            color = journal.paleSecondary,
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
                                 if (current.knowledgeType == "图文") Icons.Outlined.Image
                                 else Icons.Outlined.BookmarkBorder,
                                 null,
-                                tint = KnowledgeSage,
+                                tint = journal.secondary,
                                 modifier = Modifier.padding(10.dp)
                             )
                         }
@@ -265,11 +271,11 @@ fun KnowledgeCardScreen(
                                 current.title,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = KnowledgeDark
+                                color = journal.text
                             )
                             Text(
                                 current.platform + " · " + formatKnowledgeTime(current.createdAt),
-                                color = KnowledgeMuted,
+                                color = journal.muted,
                                 fontSize = 12.sp
                             )
                         }
@@ -289,7 +295,7 @@ fun KnowledgeCardScreen(
                                 if (current.important) Icons.Outlined.Star
                                 else Icons.Outlined.StarBorder,
                                 "重要",
-                                tint = if (current.important) KnowledgeWarm else KnowledgeMuted
+                                tint = if (current.important) journal.primary else journal.muted
                             )
                         }
                     }
@@ -334,15 +340,15 @@ fun KnowledgeCardScreen(
                 item {
                     KnowledgeBox {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.AutoAwesome, null, tint = KnowledgeWarm)
+                            Icon(Icons.Outlined.AutoAwesome, null, tint = journal.primary)
                             Spacer(Modifier.width(8.dp))
                             Text("AI 知识整理", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         }
                         Spacer(Modifier.height(10.dp))
-                        Text(current.aiSummary, color = KnowledgeDark, lineHeight = 23.sp)
+                        Text(current.aiSummary, color = journal.text, lineHeight = 23.sp)
                         if (current.aiTags.isNotBlank()) {
                             Spacer(Modifier.height(10.dp))
-                            Text("标签：" + current.aiTags, color = KnowledgeWarm, fontSize = 13.sp)
+                            Text("标签：" + current.aiTags, color = journal.primary, fontSize = 13.sp)
                         }
                     }
                 }
@@ -353,7 +359,7 @@ fun KnowledgeCardScreen(
                     KnowledgeBox {
                         Text("原始文字", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
-                        Text(current.rawText, color = KnowledgeDark, lineHeight = 22.sp)
+                        Text(current.rawText, color = journal.text, lineHeight = 22.sp)
                     }
                 }
             }
@@ -419,7 +425,7 @@ fun KnowledgeCardScreen(
                         }
                         Text(
                             "只是建议，你也可以在下面自己改。",
-                            color = KnowledgeMuted,
+                            color = journal.muted,
                             fontSize = 12.sp
                         )
                     }
@@ -481,7 +487,7 @@ fun KnowledgeCardScreen(
                 }
                 if (message.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
-                    Text(message, color = KnowledgeSage, fontSize = 12.sp)
+                    Text(message, color = journal.secondary, fontSize = 12.sp)
                 }
             }
 
@@ -546,6 +552,7 @@ fun TopicDetailScreen(
     onCard: (Long) -> Unit,
     onAsk: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val all by db.favoriteDao().observeAll().collectAsState(initial = emptyList())
@@ -556,13 +563,13 @@ fun TopicDetailScreen(
     var error by rememberSaveable(topic) { mutableStateOf("") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(KnowledgeCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             KnowledgeTopRow(topic, onBack)
-            Text(itemsInTopic.size.toString() + " 条知识", color = KnowledgeMuted)
+            Text(itemsInTopic.size.toString() + " 条知识", color = journal.muted)
         }
 
         item {
@@ -615,7 +622,7 @@ fun TopicDetailScreen(
                 KnowledgeBox {
                     Text("专题 AI 总结", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(10.dp))
-                    Text(summary, color = KnowledgeDark, lineHeight = 23.sp)
+                    Text(summary, color = journal.text, lineHeight = 23.sp)
                 }
             }
         }
@@ -623,7 +630,7 @@ fun TopicDetailScreen(
         if (itemsInTopic.isEmpty()) {
             item {
                 KnowledgeBox {
-                    Text("这个专题还没有知识。", color = KnowledgeMuted)
+                    Text("这个专题还没有知识。", color = journal.muted)
                 }
             }
         } else {
@@ -640,6 +647,7 @@ fun TopicAskScreen(
     topic: String,
     onBack: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val all by db.favoriteDao().observeAll().collectAsState(initial = emptyList())
@@ -651,13 +659,13 @@ fun TopicAskScreen(
     var error by rememberSaveable(topic) { mutableStateOf("") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(KnowledgeCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             KnowledgeTopRow("问「" + topic + "」", onBack)
-            Text("只使用这个专题里的知识卡回答。", color = KnowledgeMuted)
+            Text("只使用这个专题里的知识卡回答。", color = journal.muted)
         }
 
         item {
@@ -709,7 +717,7 @@ fun TopicAskScreen(
                 KnowledgeBox {
                     Text("回答", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(10.dp))
-                    Text(answer, color = KnowledgeDark, lineHeight = 23.sp)
+                    Text(answer, color = journal.text, lineHeight = 23.sp)
                 }
             }
         }
@@ -721,6 +729,7 @@ fun WeeklyKnowledgeScreen(
     db: AppDatabase,
     onBack: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val all by db.favoriteDao().observeAll().collectAsState(initial = emptyList())
@@ -740,13 +749,13 @@ fun WeeklyKnowledgeScreen(
         .take(3)
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(KnowledgeCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             KnowledgeTopRow("本周拾光", onBack)
-            Text("只总结最近7天真实加入的知识。", color = KnowledgeMuted)
+            Text("只总结最近7天真实加入的知识。", color = journal.muted)
         }
 
         item {
@@ -771,7 +780,7 @@ fun WeeklyKnowledgeScreen(
                     Text("本周专题", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     topTopics.forEach {
-                        Text("• " + it.first + "  " + it.second + " 条", color = KnowledgeDark)
+                        Text("• " + it.first + "  " + it.second + " 条", color = journal.text)
                     }
                 }
             }
@@ -816,7 +825,7 @@ fun WeeklyKnowledgeScreen(
                 KnowledgeBox {
                     Text("AI 周报", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(10.dp))
-                    Text(report, color = KnowledgeDark, lineHeight = 23.sp)
+                    Text(report, color = journal.text, lineHeight = 23.sp)
                 }
             }
         }
@@ -828,6 +837,7 @@ private fun KnowledgeListCard(
     card: FavoriteEntity,
     onClick: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     KnowledgeBox(
         modifier = Modifier.clickable(onClick = onClick)
     ) {
@@ -836,7 +846,7 @@ private fun KnowledgeListCard(
                 if (card.knowledgeType == "图文") Icons.Outlined.Image
                 else Icons.Outlined.Description,
                 null,
-                tint = KnowledgeSage
+                tint = journal.secondary
             )
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -847,16 +857,16 @@ private fun KnowledgeListCard(
                         if (card.topic.isNotBlank()) append(" · " + card.topic)
                         if (card.processingStatus != "已保存") append(" · " + card.processingStatus)
                     },
-                    color = KnowledgeMuted,
+                    color = journal.muted,
                     fontSize = 12.sp,
                     maxLines = 1
                 )
             }
             if (card.important) {
-                Icon(Icons.Outlined.Star, null, tint = KnowledgeWarm)
+                Icon(Icons.Outlined.Star, null, tint = journal.primary)
                 Spacer(Modifier.width(4.dp))
             }
-            Icon(Icons.Outlined.ChevronRight, null, tint = KnowledgeMuted)
+            Icon(Icons.Outlined.ChevronRight, null, tint = journal.muted)
         }
     }
 }
@@ -867,17 +877,18 @@ private fun KnowledgeMetric(
     value: String,
     label: String
 ) {
+    val journal = LocalJournalTheme.current
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = KnowledgeCardColor),
+        colors = CardDefaults.cardColors(containerColor = journal.surface),
         shape = RoundedCornerShape(18.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = KnowledgeDark)
-            Text(label, color = KnowledgeMuted, fontSize = 12.sp)
+            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = journal.text)
+            Text(label, color = journal.muted, fontSize = 12.sp)
         }
     }
 }
@@ -897,9 +908,10 @@ private fun KnowledgeBox(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = KnowledgeCardColor),
+        colors = CardDefaults.cardColors(containerColor = journal.surface),
         shape = RoundedCornerShape(22.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {

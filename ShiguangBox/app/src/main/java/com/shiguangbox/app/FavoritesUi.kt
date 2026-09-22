@@ -20,7 +20,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -206,6 +208,8 @@ fun CollectionDetailScreen(
     var note by rememberSaveable(favoriteId) { mutableStateOf("") }
     var title by rememberSaveable(favoriteId) { mutableStateOf("") }
     var initialized by rememberSaveable(favoriteId) { mutableStateOf(false) }
+    var aiLoading by rememberSaveable(favoriteId) { mutableStateOf(false) }
+    var aiError by rememberSaveable(favoriteId) { mutableStateOf("") }
 
     LaunchedEffect(item?.id) {
         val current = item
@@ -318,11 +322,92 @@ fun CollectionDetailScreen(
             }
 
             item {
-                Text(
-                    "AI 摘要还没有接入。V0.5 会基于可获得的公开文本做整理，不会假装看过拿不到正文的视频。",
-                    color = FavMuted,
-                    fontSize = 12.sp
-                )
+                FavoriteCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.AutoAwesome, null, tint = FavWarmOrange)
+                        Spacer(Modifier.width(8.dp))
+                        Text("DeepSeek AI 整理", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    if (current.aiSummary.isNotBlank()) {
+                        Text(current.aiSummary, color = FavDarkBrown, lineHeight = 22.sp)
+                        if (current.aiTags.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(current.aiTags, color = FavWarmOrange, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    } else {
+                        Text(
+                            "只根据这条收藏现有的分享文字和你的备注整理，不会假装看过无法访问的完整视频。",
+                            color = FavMuted,
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+
+                    Button(
+                        onClick = {
+                            val apiKey = SecureApiKeyStore.load(context)
+                            if (apiKey.isNullOrBlank()) {
+                                aiError = "请先到“我的 → DeepSeek AI”保存并测试 API Key"
+                                return@Button
+                            }
+
+                            aiLoading = true
+                            aiError = ""
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    DeepSeekClient.summarizeFavorite(
+                                        apiKey = apiKey,
+                                        title = current.title,
+                                        platform = current.platform,
+                                        rawText = current.rawText,
+                                        note = note
+                                    )
+                                }
+                                aiLoading = false
+
+                                if (result.success) {
+                                    val tags = extractSuggestedTags(result.content)
+                                    db.favoriteDao().update(
+                                        current.copy(
+                                            aiSummary = result.content,
+                                            aiTags = tags,
+                                            note = note.trim(),
+                                            title = title.ifBlank { current.title }.trim(),
+                                            updatedAt = System.currentTimeMillis()
+                                        )
+                                    )
+                                } else {
+                                    aiError = result.error
+                                }
+                            }
+                        },
+                        enabled = !aiLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (aiLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Icon(Icons.Outlined.AutoAwesome, null)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (aiLoading) "正在整理…" else if (current.aiSummary.isBlank()) "AI 整理这条收藏" else "重新整理"
+                        )
+                    }
+
+                    if (aiError.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(aiError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
             }
 
             item {
@@ -469,6 +554,16 @@ private fun FavoriteCard(
             content = content
         )
     }
+}
+
+private fun extractSuggestedTags(summary: String): String {
+    val line = summary.lineSequence()
+        .dropWhile { !it.contains("建议标签") }
+        .drop(1)
+        .firstOrNull { it.isNotBlank() }
+        ?.trim()
+        .orEmpty()
+    return line.removePrefix("：").removePrefix(":").trim()
 }
 
 private fun formatFavoriteTime(ms: Long): String {

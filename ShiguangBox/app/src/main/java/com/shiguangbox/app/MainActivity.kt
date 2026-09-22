@@ -1,5 +1,10 @@
 package com.shiguangbox.app
 
+import android.Manifest
+import android.content.Context
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,11 +27,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
+import java.time.*
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 private val Cream = Color(0xFFFFF9F0)
 private val WarmOrange = Color(0xFFF4B860)
@@ -50,13 +65,36 @@ private val navItems = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { ShiguangBoxApp() }
+        setContent {
+            ShiguangBoxApp(
+                requestNotifications = {
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                            2001
+                        )
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun ShiguangBoxApp() {
-    var onboardingDone by rememberSaveable { mutableStateOf(false) }
+fun ShiguangBoxApp(requestNotifications: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("shiguangbox_settings", Context.MODE_PRIVATE)
+    }
+    var onboardingDone by remember {
+        mutableStateOf(prefs.getBoolean("onboarding_done", false))
+    }
 
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -70,18 +108,37 @@ fun ShiguangBoxApp() {
         )
     ) {
         if (!onboardingDone) {
-            SetupScreen(onStart = { onboardingDone = true })
+            SetupScreen(
+                initialName = prefs.getString("name", "苏打水") ?: "苏打水",
+                initialCity = prefs.getString("city", "西安") ?: "西安",
+                initialSummaryTime = prefs.getString("summary_time", "22:30") ?: "22:30",
+                onStart = { name, city, time ->
+                    prefs.edit()
+                        .putString("name", name.ifBlank { "我" })
+                        .putString("city", city.ifBlank { "西安" })
+                        .putString("summary_time", time.ifBlank { "22:30" })
+                        .putBoolean("onboarding_done", true)
+                        .apply()
+                    onboardingDone = true
+                    requestNotifications()
+                }
+            )
         } else {
-            MainShell()
+            MainShell(prefs)
         }
     }
 }
 
 @Composable
-private fun SetupScreen(onStart: () -> Unit) {
-    var name by rememberSaveable { mutableStateOf("苏打水") }
-    var city by rememberSaveable { mutableStateOf("西安") }
-    var summaryTime by rememberSaveable { mutableStateOf("22:30") }
+private fun SetupScreen(
+    initialName: String,
+    initialCity: String,
+    initialSummaryTime: String,
+    onStart: (String, String, String) -> Unit
+) {
+    var name by rememberSaveable { mutableStateOf(initialName) }
+    var city by rememberSaveable { mutableStateOf(initialCity) }
+    var summaryTime by rememberSaveable { mutableStateOf(initialSummaryTime) }
 
     Surface(color = Cream) {
         LazyColumn(
@@ -101,18 +158,18 @@ private fun SetupScreen(onStart: () -> Unit) {
                     Icon(Icons.Outlined.Inventory2, null, tint = WarmOrange, modifier = Modifier.size(44.dp))
                 }
                 Spacer(Modifier.height(22.dp))
-                Text("把生活慢慢收进来", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = DarkBrown)
+                Text("把生活慢慢收进来", fontSize = 30.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("记录想法、安排事情、收藏好内容，\n剩下的交给我整理。", color = Muted, lineHeight = 24.sp)
+                Text("记录想法、安排事情、收藏好内容，\n剩下的慢慢交给拾光盒整理。", color = Muted, lineHeight = 24.sp)
             }
 
-            item { SetupField("你的称呼", "这会是你在拾光盒里的名字", name) { name = it } }
-            item { SetupField("常用城市", "用于天气与本地提醒", city) { city = it } }
-            item { SetupField("每日总结时间", "到点提醒你回顾今天", summaryTime) { summaryTime = it } }
+            item { SetupField("你的称呼", "保存在本机", name) { name = it } }
+            item { SetupField("常用城市", "天气功能下一阶段会使用", city) { city = it } }
+            item { SetupField("每日总结时间", "例如 22:30", summaryTime) { summaryTime = it } }
 
             item {
                 Button(
-                    onClick = onStart,
+                    onClick = { onStart(name, city, summaryTime) },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(20.dp)
                 ) {
@@ -121,7 +178,7 @@ private fun SetupScreen(onStart: () -> Unit) {
                     Icon(Icons.Outlined.ArrowForward, null)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("第一版数据保存在本机，更轻更安心。", color = Muted, fontSize = 13.sp)
+                Text("记录和待办会真实保存在手机本地。", color = Muted, fontSize = 13.sp)
             }
         }
     }
@@ -129,27 +186,24 @@ private fun SetupScreen(onStart: () -> Unit) {
 
 @Composable
 private fun SetupField(title: String, hint: String, value: String, onValue: (String) -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardColor),
-        shape = RoundedCornerShape(22.dp)
-    ) {
-        Column(Modifier.padding(18.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, color = DarkBrown)
-            Text(hint, color = Muted, fontSize = 13.sp)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValue,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true
-            )
-        }
+    WarmCard {
+        Text(title, fontWeight = FontWeight.Bold)
+        Text(hint, color = Muted, fontSize = 13.sp)
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValue,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            singleLine = true
+        )
     }
 }
 
 @Composable
-private fun MainShell() {
+private fun MainShell(prefs: SharedPreferences) {
+    val context = LocalContext.current
+    val db = remember { AppDatabase.get(context) }
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
@@ -165,7 +219,9 @@ private fun MainShell() {
                             selected = currentRoute == item.route,
                             onClick = {
                                 navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
@@ -214,26 +270,896 @@ private fun MainShell() {
         ) {
             composable("today") {
                 TodayScreen(
+                    db = db,
+                    prefs = prefs,
                     onSummary = { navController.navigate("summary") },
                     onQuickNote = { navController.navigate("quick_note") },
-                    onNewTask = { navController.navigate("new_task") }
+                    onNewTask = { navController.navigate("new_task") },
+                    onTask = { navController.navigate("edit_task/" + it) },
+                    onNote = { navController.navigate("edit_note/" + it) }
                 )
             }
-            composable("notes") { NotesScreen(onNew = { navController.navigate("quick_note") }) }
-            composable("tasks") { TasksScreen(onNew = { navController.navigate("new_task") }) }
+            composable("notes") {
+                NotesScreen(
+                    db = db,
+                    onNew = { navController.navigate("quick_note") },
+                    onEdit = { navController.navigate("edit_note/" + it) }
+                )
+            }
+            composable("tasks") {
+                TasksScreen(
+                    db = db,
+                    onNew = { navController.navigate("new_task") },
+                    onEdit = { navController.navigate("edit_task/" + it) }
+                )
+            }
             composable("favorites") { FavoritesScreen() }
-            composable("mine") { MineScreen() }
-            composable("quick_note") { QuickNoteScreen(onBack = { navController.popBackStack() }) }
-            composable("new_task") { NewTaskScreen(onBack = { navController.popBackStack() }) }
-            composable("summary") { SummaryScreen(onBack = { navController.popBackStack() }) }
+            composable("mine") { MineScreen(prefs) }
+            composable("quick_note") {
+                NoteEditorScreen(
+                    db = db,
+                    noteId = null,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                "edit_note/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
+                NoteEditorScreen(
+                    db = db,
+                    noteId = entry.arguments?.getLong("id"),
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("new_task") {
+                TaskEditorScreen(
+                    db = db,
+                    taskId = null,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                "edit_task/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
+                TaskEditorScreen(
+                    db = db,
+                    taskId = entry.arguments?.getLong("id"),
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("summary") {
+                SummaryScreen(db = db, onBack = { navController.popBackStack() })
+            }
         }
     }
 }
 
 @Composable
-private fun QuickAction(label: String, icon: ImageVector, onClick: () -> Unit) {
+private fun TodayScreen(
+    db: AppDatabase,
+    prefs: SharedPreferences,
+    onSummary: () -> Unit,
+    onQuickNote: () -> Unit,
+    onNewTask: () -> Unit,
+    onTask: (Long) -> Unit,
+    onNote: (Long) -> Unit
+) {
+    val bounds = remember { todayBounds() }
+    val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
+        .collectAsState(initial = emptyList())
+    val notes by db.noteDao().observeBetween(bounds.first, bounds.second)
+        .collectAsState(initial = emptyList())
+    val name = prefs.getString("name", "我") ?: "我"
+    val date = LocalDate.now()
+    val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINA)
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Cream),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Text("你好，" + name + " ☀️", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(
+                date.monthValue.toString() + "月" + date.dayOfMonth + "日 · " + weekday,
+                color = Muted
+            )
+        }
+
+        item {
+            WarmCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.WbSunny,
+                        null,
+                        tint = WarmOrange,
+                        modifier = Modifier.size(38.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("天气", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("下一阶段接入实时天气，这里不显示假数据。", color = Muted)
+                    }
+                }
+            }
+        }
+
+        item {
+            val doneCount = tasks.count { it.completed }
+            SectionCard(
+                title = "今天要做",
+                icon = Icons.Outlined.Checklist,
+                trailing = doneCount.toString() + "/" + tasks.size + " 已完成"
+            ) {
+                if (tasks.isEmpty()) {
+                    Text("今天还没有待办，给自己安排一件小事吧。", color = Muted)
+                } else {
+                    tasks.take(5).forEach { task ->
+                        DynamicTaskRow(task) { onTask(task.id) }
+                    }
+                }
+                TextButton(onClick = onNewTask) { Text("＋ 新建待办") }
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "今天记下了",
+                icon = Icons.Outlined.EditNote,
+                trailing = notes.size.toString() + " 条"
+            ) {
+                if (notes.isEmpty()) {
+                    Text("今天还没留下记录。", color = Muted)
+                } else {
+                    notes.take(4).forEach { note ->
+                        DynamicNoteRow(note) { onNote(note.id) }
+                    }
+                }
+                TextButton(onClick = onQuickNote) { Text("＋ 记一下") }
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "今天收进来了",
+                icon = Icons.Outlined.Bookmarks,
+                trailing = "V0.3"
+            ) {
+                Text(
+                    "下一版会支持从抖音、B站、微信读书和网页直接分享到拾光盒。",
+                    color = Muted
+                )
+            }
+        }
+
+        item {
+            Button(
+                onClick = onSummary,
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Icon(Icons.Rounded.AutoAwesome, null)
+                Spacer(Modifier.width(8.dp))
+                Text("整理我的今天", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+            Text("V0.2 先根据真实记录和待办生成本地汇总。", color = Muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun NotesScreen(
+    db: AppDatabase,
+    onNew: () -> Unit,
+    onEdit: (Long) -> Unit
+) {
+    val notes by db.noteDao().observeAll().collectAsState(initial = emptyList())
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Cream),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("记录", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text("现在写下的每一条，关掉 App 后也不会消失。", color = Muted)
+        }
+
+        if (notes.isEmpty()) {
+            item { EmptyCard("还没有记录，先写下第一条吧。") }
+        } else {
+            items(notes, key = { it.id }) { note ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { onEdit(note.id) },
+                    colors = CardDefaults.cardColors(containerColor = CardColor),
+                    shape = RoundedCornerShape(22.dp)
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text(note.content, color = DarkBrown, lineHeight = 22.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TagPill(note.category)
+                            Spacer(Modifier.width(10.dp))
+                            Text(formatDateTime(note.createdAt), color = Muted, fontSize = 12.sp)
+                            Spacer(Modifier.weight(1f))
+                            Icon(
+                                Icons.Outlined.Edit,
+                                null,
+                                tint = Muted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            OutlinedButton(onClick = onNew, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Edit, null)
+                Spacer(Modifier.width(8.dp))
+                Text("写一条新记录")
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteEditorScreen(
+    db: AppDatabase,
+    noteId: Long?,
+    onBack: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+
+    val existing: NoteEntity? = if (noteId != null) {
+        db.noteDao().observeById(noteId).collectAsState(initial = null).value
+    } else {
+        null
+    }
+
+    var initialized by rememberSaveable(noteId) { mutableStateOf(noteId == null) }
+    var text by rememberSaveable(noteId) { mutableStateOf("") }
+    var category by rememberSaveable(noteId) { mutableStateOf("生活") }
+
+    LaunchedEffect(existing?.id) {
+        if (!initialized && existing != null) {
+            text = existing.content
+            category = existing.category
+            initialized = true
+        }
+    }
+
+    SimpleTopScreen(if (noteId == null) "新建记录" else "编辑记录", onBack) {
+        Text("现在在想什么？", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("真实保存到手机本地。", color = Muted)
+        Spacer(Modifier.height(14.dp))
+
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.fillMaxWidth().height(190.dp),
+            shape = RoundedCornerShape(20.dp),
+            placeholder = { Text("写下此刻的想法……") }
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Text("分类", fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("生活", "工作", "学习", "灵感").forEach { item ->
+                FilterChip(
+                    selected = category == item,
+                    onClick = { category = item },
+                    label = { Text(item) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(22.dp))
+
+        Button(
+            onClick = {
+                if (text.isNotBlank()) {
+                    scope.launch {
+                        if (existing == null) {
+                            db.noteDao().insert(
+                                NoteEntity(content = text.trim(), category = category)
+                            )
+                        } else {
+                            db.noteDao().update(
+                                existing.copy(
+                                    content = text.trim(),
+                                    category = category,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                        onBack()
+                    }
+                }
+            },
+            enabled = text.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().height(54.dp)
+        ) {
+            Text(
+                if (noteId == null) "保存记录" else "保存修改",
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        if (existing != null) {
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        db.noteDao().delete(existing)
+                        onBack()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.Outlined.Delete, null)
+                Spacer(Modifier.width(6.dp))
+                Text("删除这条记录")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TasksScreen(
+    db: AppDatabase,
+    onNew: () -> Unit,
+    onEdit: (Long) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val tasks by db.taskDao().observeAll().collectAsState(initial = emptyList())
+    var tab by rememberSaveable { mutableStateOf(0) }
+
+    val today = LocalDate.now()
+    val shown = tasks.filter {
+        when (tab) {
+            0 -> !it.completed &&
+                it.dueAt?.let { ms -> millisToDate(ms) == today } == true
+            1 -> !it.completed &&
+                (it.dueAt == null || millisToDate(it.dueAt) > today)
+            else -> it.completed
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Cream),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("待办 ☀️", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text("这次是真的会保存、会提醒。", color = Muted)
+            Spacer(Modifier.height(14.dp))
+
+            TabRow(selectedTabIndex = tab, containerColor = CardColor) {
+                listOf("今天", "接下来", "已完成").forEachIndexed { index, label ->
+                    Tab(
+                        selected = tab == index,
+                        onClick = { tab = index },
+                        text = { Text(label) }
+                    )
+                }
+            }
+        }
+
+        if (shown.isEmpty()) {
+            item { EmptyCard("这里暂时没有任务。") }
+        } else {
+            items(shown, key = { it.id }) { task ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onEdit(task.id) },
+                    colors = CardDefaults.cardColors(containerColor = CardColor),
+                    shape = RoundedCornerShape(22.dp)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = task.completed,
+                            onCheckedChange = { checked ->
+                                scope.launch {
+                                    if (checked) {
+                                        ReminderScheduler.cancel(context, task.id)
+                                        db.taskDao().update(
+                                            task.copy(
+                                                completed = true,
+                                                completedAt = System.currentTimeMillis()
+                                            )
+                                        )
+
+                                        if (task.repeatType != "不重复") {
+                                            val next = nextRecurringTask(task)
+                                            val id = db.taskDao().insert(next)
+                                            ReminderScheduler.schedule(
+                                                context,
+                                                next.copy(id = id)
+                                            )
+                                        }
+                                    } else {
+                                        val restored = task.copy(
+                                            completed = false,
+                                            completedAt = null
+                                        )
+                                        db.taskDao().update(restored)
+                                        ReminderScheduler.schedule(context, restored)
+                                    }
+                                }
+                            }
+                        )
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                task.title,
+                                fontWeight = FontWeight.SemiBold,
+                                textDecoration =
+                                    if (task.completed) TextDecoration.LineThrough else null,
+                                color = if (task.completed) Muted else DarkBrown
+                            )
+                            Text(taskSubtitle(task), color = Muted, fontSize = 12.sp)
+                        }
+
+                        if (task.priority == "重要") {
+                            Icon(
+                                Icons.Outlined.PriorityHigh,
+                                null,
+                                tint = Color(0xFFE76F51)
+                            )
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                    }
+                }
+            }
+        }
+
+        item {
+            Button(onClick = onNew, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.AddTask, null)
+                Spacer(Modifier.width(8.dp))
+                Text("新建待办")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskEditorScreen(
+    db: AppDatabase,
+    taskId: Long?,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val existing: TaskEntity? = if (taskId != null) {
+        db.taskDao().observeById(taskId).collectAsState(initial = null).value
+    } else {
+        null
+    }
+
+    var initialized by rememberSaveable(taskId) { mutableStateOf(taskId == null) }
+    var naturalText by rememberSaveable(taskId) { mutableStateOf("") }
+    var title by rememberSaveable(taskId) { mutableStateOf("") }
+    var dateText by rememberSaveable(taskId) {
+        mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE))
+    }
+    var timeText by rememberSaveable(taskId) { mutableStateOf("18:00") }
+    var repeatType by rememberSaveable(taskId) { mutableStateOf("不重复") }
+    var priority by rememberSaveable(taskId) { mutableStateOf("普通") }
+    var parseMessage by rememberSaveable(taskId) { mutableStateOf("") }
+
+    LaunchedEffect(existing?.id) {
+        if (!initialized && existing != null) {
+            title = existing.title
+            existing.dueAt?.let {
+                val dt = Instant.ofEpochMilli(it)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime()
+                dateText = dt.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                timeText = dt.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+            }
+            repeatType = existing.repeatType
+            priority = existing.priority
+            initialized = true
+        }
+    }
+
+    SimpleTopScreen(if (taskId == null) "新建待办" else "编辑待办", onBack) {
+        Text("要做什么？", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("可以直接输入“明天下午三点提醒我给老师发材料”。", color = Muted)
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = naturalText,
+            onValueChange = { naturalText = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("自然语言输入（可选）") },
+            placeholder = { Text("明天下午三点提醒我给老师发材料") },
+            shape = RoundedCornerShape(18.dp)
+        )
+
+        TextButton(
+            onClick = {
+                val parsed = parseNaturalTask(naturalText)
+                if (parsed != null) {
+                    title = parsed.title
+                    dateText = parsed.date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    timeText = parsed.time.format(DateTimeFormatter.ofPattern("HH:mm"))
+                    parseMessage = "✓ 已识别，可以继续调整"
+                } else {
+                    parseMessage = "没有完全识别，请在下面手动填写"
+                    if (title.isBlank()) title = naturalText.trim()
+                }
+            },
+            enabled = naturalText.isNotBlank()
+        ) {
+            Icon(Icons.Outlined.AutoAwesome, null)
+            Spacer(Modifier.width(6.dp))
+            Text("识别一下")
+        }
+
+        if (parseMessage.isNotBlank()) {
+            Text(parseMessage, color = Sage, fontSize = 13.sp)
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        OutlinedTextField(
+            value = title,
+            onValueChange = { title = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("任务名称") },
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = dateText,
+            onValueChange = { dateText = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("日期 yyyy-MM-dd") },
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = timeText,
+            onValueChange = { timeText = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("时间 HH:mm") },
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(12.dp))
+        Text("重复", fontWeight = FontWeight.Bold)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("不重复", "每天", "每周", "每月").forEach { item ->
+                FilterChip(
+                    selected = repeatType == item,
+                    onClick = { repeatType = item },
+                    label = { Text(item) }
+                )
+            }
+        }
+
+        Text("优先级", fontWeight = FontWeight.Bold)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("普通", "重要").forEach { item ->
+                FilterChip(
+                    selected = priority == item,
+                    onClick = { priority = item },
+                    label = { Text(item) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                val dueAt = parseDateTime(dateText, timeText)
+
+                if (title.isNotBlank() && dueAt != null) {
+                    scope.launch {
+                        val task = if (existing == null) {
+                            TaskEntity(
+                                title = title.trim(),
+                                dueAt = dueAt,
+                                remindAt = dueAt,
+                                repeatType = repeatType,
+                                priority = priority
+                            )
+                        } else {
+                            existing.copy(
+                                title = title.trim(),
+                                dueAt = dueAt,
+                                remindAt = dueAt,
+                                repeatType = repeatType,
+                                priority = priority
+                            )
+                        }
+
+                        if (existing == null) {
+                            val id = db.taskDao().insert(task)
+                            ReminderScheduler.schedule(
+                                context,
+                                task.copy(id = id)
+                            )
+                        } else {
+                            ReminderScheduler.cancel(context, existing.id)
+                            db.taskDao().update(task)
+                            ReminderScheduler.schedule(context, task)
+                        }
+
+                        onBack()
+                    }
+                } else {
+                    parseMessage = "请检查任务名称、日期和时间格式"
+                }
+            },
+            enabled = title.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().height(54.dp)
+        ) {
+            Text(
+                if (taskId == null) "创建待办并提醒" else "保存修改",
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        if (existing != null) {
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        ReminderScheduler.cancel(context, existing.id)
+                        db.taskDao().delete(existing)
+                        onBack()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.Outlined.Delete, null)
+                Spacer(Modifier.width(6.dp))
+                Text("删除这个待办")
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoritesScreen() {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Cream),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("收藏", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text("V0.3 会接入真正的系统分享收藏。", color = Muted)
+        }
+        item {
+            EmptyCard("下一版开始：抖音 / B站 / 微信读书 / 网页 → 分享 → 拾光盒。")
+        }
+    }
+}
+
+@Composable
+private fun MineScreen(prefs: SharedPreferences) {
+    val context = LocalContext.current
+    val notificationsGranted =
+        Build.VERSION.SDK_INT < 33 ||
+            ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Cream),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text("拾光盒 · V0.2 真实可用版", color = Muted)
+        }
+        item {
+            SettingRow(
+                Icons.Outlined.Badge,
+                "称呼",
+                prefs.getString("name", "我") ?: "我"
+            )
+        }
+        item {
+            SettingRow(
+                Icons.Outlined.LocationOn,
+                "常用城市",
+                prefs.getString("city", "西安") ?: "西安"
+            )
+        }
+        item {
+            SettingRow(
+                Icons.Outlined.Schedule,
+                "每日总结时间",
+                prefs.getString("summary_time", "22:30") ?: "22:30"
+            )
+        }
+        item {
+            SettingRow(
+                Icons.Outlined.NotificationsNone,
+                "通知权限",
+                if (notificationsGranted) "已开启" else "未开启，请到系统设置允许通知"
+            )
+        }
+        item {
+            SettingRow(Icons.Outlined.Lock, "数据保存", "Room 本地数据库")
+        }
+        item {
+            SettingRow(Icons.Outlined.RestartAlt, "重启后提醒", "会自动恢复未来待办提醒")
+        }
+        item {
+            SettingRow(Icons.Outlined.AutoAwesome, "AI 整理", "V0.5 接入")
+        }
+    }
+}
+
+@Composable
+private fun SummaryScreen(db: AppDatabase, onBack: () -> Unit) {
+    val bounds = remember { todayBounds() }
+    val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
+        .collectAsState(initial = emptyList())
+    val notes by db.noteDao().observeBetween(bounds.first, bounds.second)
+        .collectAsState(initial = emptyList())
+
+    val done = tasks.filter { it.completed }
+    val undone = tasks.filter { !it.completed }
+
+    SimpleTopScreen("今日整理", onBack) {
+        Text("今天辛苦啦 ☀️", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Text(
+            LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy年M月d日")),
+            color = Muted
+        )
+        Spacer(Modifier.height(16.dp))
+
+        SummaryBlock("今天完成了什么", Icons.Outlined.CheckCircle) {
+            if (done.isEmpty()) {
+                Text("今天还没有勾选完成的任务。", color = Muted)
+            } else {
+                done.forEach { Text("✓ " + it.title) }
+            }
+        }
+
+        SummaryBlock("今天记下了什么", Icons.Outlined.EditNote) {
+            if (notes.isEmpty()) {
+                Text("今天还没有记录。", color = Muted)
+            } else {
+                Text("今天一共写了 " + notes.size + " 条记录。")
+                notes.take(3).forEach {
+                    Text("• " + it.content.take(45))
+                }
+            }
+        }
+
+        SummaryBlock("还没完成", Icons.Outlined.ListAlt) {
+            if (undone.isEmpty()) {
+                Text("今天的待办都完成啦。", color = Sage)
+            } else {
+                undone.forEach { Text("○ " + it.title) }
+            }
+        }
+
+        Text(
+            "这是 V0.2 的真实本地汇总，不会编造内容。之后接入 AI 后，会在这些真实数据基础上生成更自然的日报。",
+            color = Muted,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun DynamicTaskRow(task: TaskEntity, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            if (task.completed) Icons.Outlined.CheckCircle
+            else Icons.Outlined.RadioButtonUnchecked,
+            null,
+            tint = if (task.completed) Sage else Muted
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            task.title,
+            color = if (task.completed) Muted else DarkBrown,
+            textDecoration =
+                if (task.completed) TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f)
+        )
+        task.dueAt?.let {
+            Text(formatTime(it), color = Muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun DynamicNoteRow(note: NoteEntity, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 5.dp)
+    ) {
+        Text(
+            formatTime(note.createdAt),
+            color = Muted,
+            modifier = Modifier.width(58.dp),
+            fontSize = 13.sp
+        )
+        Text(note.content, color = DarkBrown, maxLines = 2)
+    }
+}
+
+@Composable
+private fun SettingRow(icon: ImageVector, title: String, value: String) {
+    WarmCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Sage)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold)
+                Text(value, color = Muted, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyCard(text: String) {
+    WarmCard {
+        Text(text, color = Muted)
+    }
+}
+
+@Composable
+private fun QuickAction(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
     Surface(
-        modifier = Modifier.padding(vertical = 4.dp).clickable(onClick = onClick),
+        modifier = Modifier
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
         color = CardColor,
         shadowElevation = 4.dp
@@ -250,358 +1176,36 @@ private fun QuickAction(label: String, icon: ImageVector, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TodayScreen(onSummary: () -> Unit, onQuickNote: () -> Unit, onNewTask: () -> Unit) {
+private fun SimpleTopScreen(
+    title: String,
+    onBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Cream),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(20.dp)
     ) {
         item {
-            Text("下午好，苏打水 ☀️", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkBrown)
-            Text("9月22日 · 星期二", color = Muted)
-        }
-
-        item {
-            WarmCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.WbSunny, null, tint = WarmOrange, modifier = Modifier.size(42.dp))
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Text("24°C  晴", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text("18～27°C · 下午有点晒", color = Muted)
-                        Spacer(Modifier.height(6.dp))
-                        Text("今天适合出门，记得防晒。", color = DarkBrown)
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Outlined.ArrowBack, "返回")
                 }
+                Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
-        }
-
-        item {
-            SectionCard(
-                title = "今天要做",
-                icon = Icons.Outlined.Checklist,
-                trailing = "3/5 已完成"
-            ) {
-                TaskRow(true, "完成组会 PPT")
-                TaskRow(true, "回复咨询消息")
-                TaskRow(false, "18:00 直播")
-                TaskRow(false, "整理视频素材")
-                TextButton(onClick = onNewTask) { Text("＋ 新建待办") }
-            }
-        }
-
-        item {
-            SectionCard(title = "今天记下了", icon = Icons.Outlined.EditNote, trailing = "4 条") {
-                NoteRow("10:38", "想到一期视频：0 实习到底应该先补什么？")
-                NoteRow("14:12", "导师让我看看 MoS₂ 的相关论文。")
-                TextButton(onClick = onQuickNote) { Text("＋ 记一下") }
-            }
-        }
-
-        item {
-            SectionCard(title = "今天收进来了", icon = Icons.Outlined.Bookmarks, trailing = "4 条") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TagPill("B站 ×2")
-                    TagPill("抖音 ×1")
-                    TagPill("微信读书 ×1")
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("为什么大学生找工作越来越难？", fontWeight = FontWeight.Bold)
-                Text("就业 · 大学生 · 职业规划", color = Muted, fontSize = 13.sp)
-            }
-        }
-
-        item {
-            Button(
-                onClick = onSummary,
-                modifier = Modifier.fillMaxWidth().height(58.dp),
-                shape = RoundedCornerShape(22.dp)
-            ) {
-                Icon(Icons.Rounded.AutoAwesome, null)
-                Spacer(Modifier.width(8.dp))
-                Text("总结我的今天", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            }
-            Text(
-                "根据今天的记录、待办与收藏生成总结",
-                color = Muted,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 6.dp)
-            )
+            Spacer(Modifier.height(6.dp))
+            Column(content = content)
         }
     }
 }
 
 @Composable
-private fun NotesScreen(onNew: () -> Unit) {
-    val notes = listOf(
-        "今天第一次直播比想象中顺利，后半段慢慢找到节奏了。",
-        "想到一期新视频：0实习到底应该先补什么。",
-        "导师让我继续看看 MoS₂ 的相关文章。",
-        "今天咨询里反复出现“没有项目怎么办”这个问题。"
-    )
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("记录", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("把此刻的想法，慢慢收进来。", color = Muted)
-        }
-        items(notes) { note ->
-            WarmCard {
-                Text(note, color = DarkBrown, lineHeight = 22.sp)
-                Spacer(Modifier.height(10.dp))
-                Row {
-                    TagPill("生活")
-                    Spacer(Modifier.width(8.dp))
-                    Text("今天", color = Muted, fontSize = 12.sp)
-                }
-            }
-        }
-        item {
-            OutlinedButton(onClick = onNew, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.Edit, null)
-                Spacer(Modifier.width(8.dp))
-                Text("写一条新记录")
-            }
-        }
-    }
-}
-
-@Composable
-private fun TasksScreen(onNew: () -> Unit) {
-    val tasks = remember {
-        mutableStateListOf(
-            Pair("完成组会 PPT", true),
-            Pair("18:00 直播", false),
-            Pair("回复咨询消息", true),
-            Pair("整理视频素材", false),
-            Pair("阅读 1 篇论文", false)
-        )
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("待办 ☀️", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("把想做的事，一件件变成真实的生活。", color = Muted)
-        }
-        items(tasks.indices.toList()) { index ->
-            val item = tasks[index]
-            WarmCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = item.second,
-                        onCheckedChange = { checked -> tasks[index] = item.copy(second = checked) }
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(item.first, fontWeight = FontWeight.SemiBold)
-                        Text(if (item.first.contains("18:00")) "今天 18:00" else "今天", color = Muted, fontSize = 12.sp)
-                    }
-                    Icon(Icons.Outlined.MoreHoriz, null, tint = Muted)
-                }
-            }
-        }
-        item {
-            Button(onClick = onNew, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.AddTask, null)
-                Spacer(Modifier.width(8.dp))
-                Text("新建待办")
-            }
-        }
-    }
-}
-
-@Composable
-private fun FavoritesScreen() {
-    val favorites = listOf(
-        Triple("普通人怎么做好第一次直播？", "抖音", "直播 · 自媒体 · 表达"),
-        Triple("从零理解 Transformer Attention", "B站", "AI · 深度学习 · Transformer"),
-        Triple("纳瓦尔宝典", "微信读书", "成长 · 思考")
-    )
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("收藏", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("把有价值的内容，留在时光里 🌿", color = Muted)
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("搜索我的收藏") },
-                leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                readOnly = true,
-                shape = RoundedCornerShape(18.dp)
-            )
-        }
-        items(favorites) { item ->
-            WarmCard {
-                Text(item.first, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(item.second, color = Muted, fontSize = 13.sp)
-                Spacer(Modifier.height(10.dp))
-                Text("AI 摘要：这是一条示例收藏，后续阶段会接入真实分享与 AI 自动整理。", color = DarkBrown)
-                Spacer(Modifier.height(10.dp))
-                Text(item.third, color = WarmOrange, fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun MineScreen() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V0.1 原型版", color = Muted)
-        }
-        item { SettingRow(Icons.Outlined.LocationOn, "常用城市", "西安") }
-        item { SettingRow(Icons.Outlined.Schedule, "每日总结时间", "22:30") }
-        item { SettingRow(Icons.Outlined.NotificationsNone, "通知提醒", "已开启") }
-        item { SettingRow(Icons.Outlined.Lock, "数据保存", "当前仅保存在本机") }
-        item { SettingRow(Icons.Outlined.AutoAwesome, "AI 整理", "下一阶段接入") }
-    }
-}
-
-@Composable
-private fun SettingRow(icon: ImageVector, title: String, value: String) {
-    WarmCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Sage)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold)
-                Text(value, color = Muted, fontSize = 13.sp)
-            }
-            Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
-        }
-    }
-}
-
-@Composable
-private fun QuickNoteScreen(onBack: () -> Unit) {
-    var text by rememberSaveable {
-        mutableStateOf("今天第一次直播比想象中顺利，但是开场还是有一点紧张。")
-    }
-    SimpleTopScreen("记录", onBack) {
-        Text("现在在想什么？", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("把此刻的想法，放进拾光盒吧。", color = Muted)
-        Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.fillMaxWidth().height(190.dp),
-            shape = RoundedCornerShape(20.dp)
-        )
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TagPill("生活")
-            TagPill("工作")
-            TagPill("学习")
-            TagPill("灵感")
-        }
-        Spacer(Modifier.height(22.dp))
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            Text("保存", fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun NewTaskScreen(onBack: () -> Unit) {
-    var naturalText by rememberSaveable { mutableStateOf("明天下午三点提醒我给老师发材料") }
-    SimpleTopScreen("新建待办", onBack) {
-        Text("要做什么？", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("用自然的语言告诉我，我来帮你整理。", color = Muted)
-        Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = naturalText,
-            onValueChange = { naturalText = it },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp)
-        )
-        Spacer(Modifier.height(14.dp))
-        SectionCard(title = "系统识别", icon = Icons.Outlined.AutoAwesome, trailing = "") {
-            InfoLine("任务内容", "给老师发材料")
-            InfoLine("日期", "明天")
-            InfoLine("时间", "15:00")
-            InfoLine("提醒", "到点提醒")
-        }
-        Spacer(Modifier.height(18.dp))
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            Text("创建待办", fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun SummaryScreen(onBack: () -> Unit) {
-    SimpleTopScreen("AI 今日总结", onBack) {
-        Text("今天辛苦啦 ☀️", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Text("2026年9月22日 · 星期二", color = Muted)
-        Spacer(Modifier.height(16.dp))
-
-        SummaryBlock("今天完成了什么", Icons.Outlined.CheckCircle) {
-            Text("今天共完成 3 项任务，主要集中在学习、自媒体和咨询工作。")
-        }
-        SummaryBlock("今天发生了什么", Icons.Outlined.EditNote) {
-            Text("今天的记录里，直播准备和研究生学习出现得最多，整体节奏比较充实。")
-        }
-        SummaryBlock("今天学到了什么", Icons.Outlined.Lightbulb) {
-            Text("收藏内容主要集中在直播表达与 AI 学习，有两条内容值得之后继续深入整理。")
-        }
-        SummaryBlock("明天可以先做", Icons.Outlined.ListAlt) {
-            Text("• 整理视频素材\n• 阅读并整理 1 篇 MoS₂ 相关论文")
-        }
-
-        Spacer(Modifier.height(10.dp))
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("保存为今日日记")
-        }
-        OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-            Text("复制今日总结")
-        }
-    }
-}
-
-@Composable
-private fun SimpleTopScreen(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().background(Cream).padding(20.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "返回") }
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.height(10.dp))
-        Column(content = content)
-    }
-}
-
-@Composable
-private fun SummaryBlock(title: String, icon: ImageVector, content: @Composable ColumnScope.() -> Unit) {
+private fun SummaryBlock(
+    title: String,
+    icon: ImageVector,
+    content: @Composable ColumnScope.() -> Unit
+) {
     SectionCard(title, icon, "") { content() }
     Spacer(Modifier.height(12.dp))
-}
-
-@Composable
-private fun InfoLine(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-        Text(label, color = Muted, modifier = Modifier.width(84.dp))
-        Text(value, color = DarkBrown, fontWeight = FontWeight.Medium)
-    }
 }
 
 @Composable
@@ -611,7 +1215,10 @@ private fun WarmCard(content: @Composable ColumnScope.() -> Unit) {
         shape = RoundedCornerShape(22.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), content = content)
+        Column(
+            Modifier.fillMaxWidth().padding(18.dp),
+            content = content
+        )
     }
 }
 
@@ -625,41 +1232,27 @@ private fun SectionCard(
     WarmCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PaleGreen),
+                Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(PaleGreen),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, null, tint = Sage)
             }
             Spacer(Modifier.width(10.dp))
-            Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (trailing.isNotBlank()) Text(trailing, color = Muted, fontSize = 13.sp)
+            Text(
+                title,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            if (trailing.isNotBlank()) {
+                Text(trailing, color = Muted, fontSize = 13.sp)
+            }
         }
         Spacer(Modifier.height(12.dp))
         content()
-    }
-}
-
-@Composable
-private fun TaskRow(done: Boolean, text: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            if (done) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-            null,
-            tint = if (done) Sage else Muted
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text, color = if (done) Muted else DarkBrown)
-    }
-}
-
-@Composable
-private fun NoteRow(time: String, text: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-        Text(time, color = Muted, modifier = Modifier.width(56.dp), fontSize = 13.sp)
-        Text(text, color = DarkBrown)
     }
 }
 
@@ -669,6 +1262,201 @@ private fun TagPill(text: String) {
         color = PaleOrange,
         shape = RoundedCornerShape(50)
     ) {
-        Text(text, color = DarkBrown, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+        Text(
+            text,
+            color = DarkBrown,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
+}
+
+private data class ParsedTask(
+    val title: String,
+    val date: LocalDate,
+    val time: LocalTime
+)
+
+private fun parseNaturalTask(input: String): ParsedTask? {
+    if (input.isBlank()) return null
+
+    var date = LocalDate.now()
+
+    when {
+        input.contains("后天") -> date = date.plusDays(2)
+        input.contains("明天") -> date = date.plusDays(1)
+    }
+
+    var hour: Int? = null
+    var minute = 0
+
+    Regex("(\\d{1,2}):(\\d{2})").find(input)?.let {
+        hour = it.groupValues[1].toIntOrNull()
+        minute = it.groupValues[2].toIntOrNull() ?: 0
+    }
+
+    if (hour == null) {
+        val map = mapOf(
+            "一" to 1,
+            "二" to 2,
+            "两" to 2,
+            "三" to 3,
+            "四" to 4,
+            "五" to 5,
+            "六" to 6,
+            "七" to 7,
+            "八" to 8,
+            "九" to 9,
+            "十" to 10,
+            "十一" to 11,
+            "十二" to 12
+        )
+
+        val token = Regex("([一二两三四五六七八九十]{1,2})点")
+            .find(input)
+            ?.groupValues
+            ?.get(1)
+
+        hour = token?.let { map[it] }
+
+        if (input.contains("半") && hour != null) {
+            minute = 30
+        }
+    }
+
+    if (hour == null) return null
+
+    if ((input.contains("下午") || input.contains("晚上")) && hour!! < 12) {
+        hour = hour!! + 12
+    }
+
+    if (input.contains("中午") && hour!! < 11) {
+        hour = hour!! + 12
+    }
+
+    var title = input
+        .replace("今天", "")
+        .replace("明天", "")
+        .replace("后天", "")
+        .replace("上午", "")
+        .replace("下午", "")
+        .replace("中午", "")
+        .replace("晚上", "")
+        .replace(Regex("\\d{1,2}:\\d{2}"), "")
+        .replace(Regex("[一二两三四五六七八九十]{1,2}点(半)?"), "")
+        .replace("提醒我", "")
+        .replace("记得", "")
+        .trim()
+
+    if (title.isBlank()) {
+        title = input.trim()
+    }
+
+    return ParsedTask(
+        title = title,
+        date = date,
+        time = LocalTime.of(
+            hour!!.coerceIn(0, 23),
+            minute.coerceIn(0, 59)
+        )
+    )
+}
+
+private fun parseDateTime(dateText: String, timeText: String): Long? {
+    return try {
+        val date = LocalDate.parse(dateText, DateTimeFormatter.ISO_LOCAL_DATE)
+        val time = LocalTime.parse(
+            timeText,
+            DateTimeFormatter.ofPattern("HH:mm")
+        )
+        date.atTime(time)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun todayBounds(): Pair<Long, Long> {
+    val zone = ZoneId.systemDefault()
+    val start = LocalDate.now()
+        .atStartOfDay(zone)
+        .toInstant()
+        .toEpochMilli()
+    val end = LocalDate.now()
+        .plusDays(1)
+        .atStartOfDay(zone)
+        .toInstant()
+        .toEpochMilli() - 1
+
+    return start to end
+}
+
+private fun millisToDate(ms: Long): LocalDate {
+    return Instant.ofEpochMilli(ms)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate()
+}
+
+private fun formatTime(ms: Long): String {
+    return Instant.ofEpochMilli(ms)
+        .atZone(ZoneId.systemDefault())
+        .toLocalTime()
+        .format(DateTimeFormatter.ofPattern("HH:mm"))
+}
+
+private fun formatDateTime(ms: Long): String {
+    return Instant.ofEpochMilli(ms)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDateTime()
+        .format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+}
+
+private fun taskSubtitle(task: TaskEntity): String {
+    val due = task.dueAt ?: return "未设置时间"
+
+    val dt = Instant.ofEpochMilli(due)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDateTime()
+
+    val text = dt.format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+
+    return if (task.repeatType == "不重复") {
+        text
+    } else {
+        text + " · " + task.repeatType
+    }
+}
+
+private fun nextRecurringTask(task: TaskEntity): TaskEntity {
+    val due = task.dueAt ?: System.currentTimeMillis()
+    val reminder = task.remindAt ?: due
+    val zone = ZoneId.systemDefault()
+
+    val dueZoned = Instant.ofEpochMilli(due).atZone(zone)
+    val reminderZoned = Instant.ofEpochMilli(reminder).atZone(zone)
+
+    val nextDue = when (task.repeatType) {
+        "每天" -> dueZoned.plusDays(1)
+        "每周" -> dueZoned.plusWeeks(1)
+        "每月" -> dueZoned.plusMonths(1)
+        else -> dueZoned
+    }
+
+    val nextReminder = when (task.repeatType) {
+        "每天" -> reminderZoned.plusDays(1)
+        "每周" -> reminderZoned.plusWeeks(1)
+        "每月" -> reminderZoned.plusMonths(1)
+        else -> reminderZoned
+    }
+
+    return task.copy(
+        id = 0,
+        dueAt = nextDue.toInstant().toEpochMilli(),
+        remindAt = nextReminder.toInstant().toEpochMilli(),
+        completed = false,
+        completedAt = null,
+        createdAt = System.currentTimeMillis()
+    )
 }

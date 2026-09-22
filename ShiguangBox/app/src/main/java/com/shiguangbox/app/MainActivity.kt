@@ -247,7 +247,7 @@ private fun MainShell(prefs: SharedPreferences) {
                         }
                         QuickAction("收收藏", Icons.Outlined.BookmarkAdd) {
                             quickAddOpen = false
-                            navController.navigate("favorites")
+                            navController.navigate("manual_favorite")
                         }
                         Spacer(Modifier.height(8.dp))
                     }
@@ -293,7 +293,29 @@ private fun MainShell(prefs: SharedPreferences) {
                     onEdit = { navController.navigate("edit_task/" + it) }
                 )
             }
-            composable("favorites") { FavoritesScreen() }
+            composable("favorites") {
+                CollectionsScreen(
+                    db = db,
+                    onDetail = { navController.navigate("favorite_detail/" + it) },
+                    onManualAdd = { navController.navigate("manual_favorite") }
+                )
+            }
+            composable("manual_favorite") {
+                ManualCollectionScreen(
+                    db = db,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                "favorite_detail/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
+                CollectionDetailScreen(
+                    db = db,
+                    favoriteId = entry.arguments?.getLong("id") ?: 0L,
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable("mine") { MineScreen(prefs) }
             composable("quick_note") {
                 NoteEditorScreen(
@@ -350,6 +372,8 @@ private fun TodayScreen(
     val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
         .collectAsState(initial = emptyList())
     val notes by db.noteDao().observeBetween(bounds.first, bounds.second)
+        .collectAsState(initial = emptyList())
+    val favorites by db.favoriteDao().observeBetween(bounds.first, bounds.second)
         .collectAsState(initial = emptyList())
     val name = prefs.getString("name", "我") ?: "我"
     val date = LocalDate.now()
@@ -425,12 +449,27 @@ private fun TodayScreen(
             SectionCard(
                 title = "今天收进来了",
                 icon = Icons.Outlined.Bookmarks,
-                trailing = "V0.3"
+                trailing = favorites.size.toString() + " 条"
             ) {
-                Text(
-                    "下一版会支持从抖音、B站、微信读书和网页直接分享到拾光盒。",
-                    color = Muted
-                )
+                if (favorites.isEmpty()) {
+                    Text("今天还没有收藏。刷到好内容时直接“分享 → 收进拾光盒”。", color = Muted)
+                } else {
+                    val douyin = favorites.count { it.platform == "抖音" }
+                    val bili = favorites.count { it.platform == "B站" }
+                    val weread = favorites.count { it.platform == "微信读书" }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (douyin > 0) TagPill("抖音 ×" + douyin)
+                        if (bili > 0) TagPill("B站 ×" + bili)
+                        if (weread > 0) TagPill("微信读书 ×" + weread)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        favorites.first().title,
+                        color = DarkBrown,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2
+                    )
+                }
             }
         }
 
@@ -986,7 +1025,7 @@ private fun MineScreen(prefs: SharedPreferences) {
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V0.2 真实可用版", color = Muted)
+            Text("拾光盒 · V0.3 万能收藏版", color = Muted)
         }
         item {
             SettingRow(

@@ -1,38 +1,78 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:background="#FAFAF7">
+    android:fillViewport="true"
+    android:background="#F7F7F4">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="苏打水直播悬浮倒计时"
-        android:textStyle="bold"
-        android:textSize="26sp"
-        android:textColor="#111111" />
-
-    <TextView
-        android:id="@+id/hintText"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
-        android:textColor="#555555"
-        android:textSize="16sp"
-        android:lineSpacingExtra="6dp" />
+        android:orientation="vertical"
+        android:padding="24dp">
 
-    <Button
-        android:id="@+id/startOverlayButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="开启悬浮倒计时" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="苏打水 LIVE"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:textColor="#777777" />
 
-    <Button
-        android:id="@+id/stopOverlayButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="关闭悬浮倒计时" />
-</LinearLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="让倒计时悬浮在\n抖音、微信和任何窗口上"
+            android:textStyle="bold"
+            android:textSize="29sp"
+            android:textColor="#111111"
+            android:lineSpacingExtra="4dp" />
+
+        <TextView
+            android:id="@+id/permissionStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:padding="16dp"
+            android:background="@drawable/widget_bg"
+            android:text="① 先开启系统悬浮窗权限"
+            android:textStyle="bold"
+            android:textSize="17sp"
+            android:textColor="#111111" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="只需要第一次设置：\n\n1. 点击下面的「去开启悬浮窗权限」\n2. 系统页面会自动打开\n3. 把「允许显示在其他应用上层」打开\n4. 返回后，我会自动启动倒计时\n\n以后再打开 App，不需要重复设置，会直接出现悬浮倒计时。"
+            android:textSize="16sp"
+            android:textColor="#4D4D4D"
+            android:lineSpacingExtra="7dp" />
+
+        <Button
+            android:id="@+id/startOverlayButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="28dp"
+            android:text="去开启悬浮窗权限"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="开启后：刷抖音、聊微信、看小红书、浏览网页时都会继续悬浮显示。"
+            android:textSize="14sp"
+            android:textColor="#777777"
+            android:gravity="center" />
+
+        <Button
+            android:id="@+id/stopOverlayButton"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="28dp"
+            android:text="关闭正在运行的悬浮窗" />
+
+    </LinearLayout>
+</ScrollView>

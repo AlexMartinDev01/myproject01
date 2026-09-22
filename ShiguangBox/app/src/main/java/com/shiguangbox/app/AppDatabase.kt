@@ -36,6 +36,17 @@ data class FavoriteEntity(
     val platform: String = "其他",
     val rawText: String = "",
     val note: String = "",
+    val aiSummary: String = "",
+    val aiTags: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "daily_summaries")
+data class DailySummaryEntity(
+    @PrimaryKey val dateKey: String,
+    val content: String,
+    val model: String = "deepseek-flash",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -101,6 +112,8 @@ interface FavoriteDao {
         WHERE title LIKE '%' || :query || '%'
            OR rawText LIKE '%' || :query || '%'
            OR note LIKE '%' || :query || '%'
+           OR aiSummary LIKE '%' || :query || '%'
+           OR aiTags LIKE '%' || :query || '%'
         ORDER BY createdAt DESC
     """)
     fun observeSearch(query: String): Flow<List<FavoriteEntity>>
@@ -118,15 +131,30 @@ interface FavoriteDao {
     suspend fun delete(item: FavoriteEntity)
 }
 
+@Dao
+interface DailySummaryDao {
+    @Query("SELECT * FROM daily_summaries WHERE dateKey = :dateKey LIMIT 1")
+    fun observeByDate(dateKey: String): Flow<DailySummaryEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(summary: DailySummaryEntity)
+}
+
 @Database(
-    entities = [NoteEntity::class, TaskEntity::class, FavoriteEntity::class],
-    version = 2,
+    entities = [
+        NoteEntity::class,
+        TaskEntity::class,
+        FavoriteEntity::class,
+        DailySummaryEntity::class
+    ],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun taskDao(): TaskDao
     abstract fun favoriteDao(): FavoriteDao
+    abstract fun dailySummaryDao(): DailySummaryDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -150,6 +178,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE favorites ADD COLUMN aiSummary TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN aiTags TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS daily_summaries (
+                        dateKey TEXT NOT NULL PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        model TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -157,7 +203,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "shiguangbox.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

@@ -288,6 +288,10 @@ private fun MainShell(
                             quickAddOpen = false
                             navController.navigate("knowledge_image_import")
                         }
+                        QuickAction("晒手账", Icons.Outlined.CollectionsBookmark) {
+                            quickAddOpen = false
+                            navController.navigate("daily_journal")
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
                     FloatingActionButton(
@@ -320,7 +324,8 @@ private fun MainShell(
                     onAsk = { navController.navigate("ask_box") },
                     onHistory = { navController.navigate("history") },
                     onKnowledge = { navController.navigate("knowledge") },
-                    onMood = { navController.navigate("journal_mood") }
+                    onMood = { navController.navigate("journal_mood") },
+                    onJournalPage = { navController.navigate("daily_journal") }
                 )
             }
             composable("notes") {
@@ -431,6 +436,14 @@ private fun MainShell(
                     onBack = { navController.popBackStack() }
                 )
             }
+            composable("daily_journal") {
+                DailyJournalScreen(
+                    db = db,
+                    prefs = prefs,
+                    onBack = { navController.popBackStack() },
+                    onOpenSummary = { navController.navigate("summary") }
+                )
+            }
 
             composable("mine") {
                 SettingsScreen(
@@ -533,7 +546,8 @@ private fun TodayScreen(
     onAsk: () -> Unit,
     onHistory: () -> Unit,
     onKnowledge: () -> Unit,
-    onMood: () -> Unit
+    onMood: () -> Unit,
+    onJournalPage: () -> Unit
 ) {
     val bounds = remember { todayBounds() }
     val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
@@ -590,6 +604,16 @@ private fun TodayScreen(
 
         item {
             JournalDayHeader(onOpen = onMood)
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onJournalPage,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(Icons.Outlined.CollectionsBookmark, null)
+                Spacer(Modifier.width(8.dp))
+                Text("打开今天的完整手账页")
+            }
         }
 
         item {

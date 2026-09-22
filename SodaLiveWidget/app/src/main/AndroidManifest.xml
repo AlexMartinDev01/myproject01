@@ -1,7 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <application
         android:allowBackup="true"
-        android:label="苏打水直播倒计时"
+        android:label="苏打水直播悬浮倒计时"
         android:theme="@style/AppTheme">
 
         <activity
@@ -13,18 +17,8 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".CountdownWidgetProvider"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="android.intent.action.TIME_SET" />
-                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-                <action android:name="android.intent.action.DATE_CHANGED" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/countdown_widget_info" />
-        </receiver>
+        <service
+            android:name=".OverlayService"
+            android:exported="false" />
     </application>
 </manifest>

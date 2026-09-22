@@ -9,7 +9,7 @@ import java.net.URL
 
 object DeepSeekClient {
 
-    const val MODEL = "deepseek-flash"
+    const val MODEL = "deepseek-v4-flash"
     private const val ENDPOINT = "https://api.deepseek.com/chat/completions"
 
     data class Result(
@@ -63,6 +63,39 @@ object DeepSeekClient {
             """.trimIndent(),
             user = content,
             maxTokens = 700
+        )
+    }
+
+    fun answerFromMemory(
+        apiKey: String,
+        question: String,
+        contextItems: List<String>
+    ): Result {
+        val material = buildString {
+            appendLine("用户问题：" + question)
+            appendLine()
+            appendLine("以下是从用户自己的拾光盒中检索到的相关内容：")
+            if (contextItems.isEmpty()) {
+                appendLine("没有找到明确相关的历史内容。")
+            } else {
+                contextItems.take(24).forEachIndexed { index, item ->
+                    appendLine("[" + (index + 1) + "] " + item.take(900))
+                }
+            }
+        }
+
+        return chat(
+            apiKey = apiKey,
+            system = """
+                你是“拾光盒”的个人资料问答助手。
+                你的主要依据只能是用户提供给你的“拾光盒检索结果”。
+                如果检索内容不足以回答，请明确说“我在你的拾光盒里暂时没找到足够依据”，然后指出还缺什么，不要编造历史记录。
+                如果能回答，先直接回答，再列出你依据了哪些记录类型和日期/标题。
+                不要把一般常识伪装成用户自己的经历。
+                语言自然、简洁、中文优先。
+            """.trimIndent(),
+            user = material,
+            maxTokens = 1100
         )
     }
 
@@ -136,7 +169,7 @@ object DeepSeekClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Authorization", "Bearer " + apiKey)
-                setRequestProperty("User-Agent", "ShiguangBox/0.4")
+                setRequestProperty("User-Agent", "ShiguangBox/0.5")
             }
 
             val body = JSONObject().apply {

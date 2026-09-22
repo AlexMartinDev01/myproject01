@@ -26,13 +26,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val BrainCream = Color(0xFFFFF9F0)
-private val BrainCard = Color(0xFFFFFDFC)
-private val BrainWarm = Color(0xFFF4B860)
-private val BrainSage = Color(0xFFA8B99A)
-private val BrainDark = Color(0xFF49392C)
-private val BrainMuted = Color(0xFF8A7969)
-
 @Composable
 fun GlobalSearchScreen(
     db: AppDatabase,
@@ -41,6 +34,7 @@ fun GlobalSearchScreen(
     onTask: (Long) -> Unit,
     onFavorite: (Long) -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val notes by db.noteDao().observeAll().collectAsState(initial = emptyList())
     val tasks by db.taskDao().observeAll().collectAsState(initial = emptyList())
     val favorites by db.favoriteDao().observeAll().collectAsState(initial = emptyList())
@@ -84,7 +78,7 @@ fun GlobalSearchScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(BrainCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -111,9 +105,9 @@ fun GlobalSearchScreen(
         if (q.isBlank()) {
             item {
                 BrainCardBox {
-                    Icon(Icons.Outlined.Search, null, tint = BrainSage)
+                    Icon(Icons.Outlined.Search, null, tint = journal.secondary)
                     Spacer(Modifier.height(10.dp))
-                    Text("输入一个关键词，就能同时搜索你自己的记录、任务、收藏和 AI 总结。", color = BrainMuted)
+                    Text("输入一个关键词，就能同时搜索你自己的记录、任务、收藏和 AI 总结。", color = journal.muted)
                 }
             }
         } else {
@@ -121,7 +115,7 @@ fun GlobalSearchScreen(
                 matchedNotes.size + matchedTasks.size + matchedFavorites.size + matchedSummaries.size
 
             item {
-                Text("找到 $total 条相关内容", color = BrainMuted, fontSize = 13.sp)
+                Text("找到 $total 条相关内容", color = journal.muted, fontSize = 13.sp)
             }
 
             if (matchedNotes.isNotEmpty()) {
@@ -169,9 +163,9 @@ fun GlobalSearchScreen(
                 item { SectionTitle("每日总结", Icons.Outlined.AutoAwesome) }
                 items(matchedSummaries, key = { "s" + it.dateKey }) { summary ->
                     BrainCardBox {
-                        Text(summary.dateKey, color = BrainMuted, fontSize = 12.sp)
+                        Text(summary.dateKey, color = journal.muted, fontSize = 12.sp)
                         Spacer(Modifier.height(6.dp))
-                        Text(summary.content.take(220), color = BrainDark, maxLines = 6)
+                        Text(summary.content.take(220), color = journal.text, maxLines = 6)
                     }
                 }
             }
@@ -179,7 +173,7 @@ fun GlobalSearchScreen(
             if (total == 0) {
                 item {
                     BrainCardBox {
-                        Text("暂时没找到。可以换一个更短的关键词试试。", color = BrainMuted)
+                        Text("暂时没找到。可以换一个更短的关键词试试。", color = journal.muted)
                     }
                 }
             }
@@ -193,6 +187,7 @@ fun AskMyBoxScreen(
     onBack: () -> Unit,
     onAiSettings: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val notes by db.noteDao().observeAll().collectAsState(initial = emptyList())
@@ -207,7 +202,7 @@ fun AskMyBoxScreen(
     var sourcePreview by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(BrainCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -215,7 +210,7 @@ fun AskMyBoxScreen(
             TopRow("问问拾光盒", onBack)
             Text(
                 "它先查你的资料，再让 DeepSeek 基于这些资料回答。",
-                color = BrainMuted
+                color = journal.muted
             )
         }
 
@@ -291,12 +286,12 @@ fun AskMyBoxScreen(
             item {
                 BrainCardBox {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Psychology, null, tint = BrainWarm)
+                        Icon(Icons.Outlined.Psychology, null, tint = journal.primary)
                         Spacer(Modifier.width(8.dp))
                         Text("回答", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
                     Spacer(Modifier.height(10.dp))
-                    Text(answer, color = BrainDark, lineHeight = 23.sp)
+                    Text(answer, color = journal.text, lineHeight = 23.sp)
                 }
             }
         }
@@ -307,7 +302,7 @@ fun AskMyBoxScreen(
                     Text("本次检索到的主要依据", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     sourcePreview.forEach {
-                        Text("• " + it.take(180), color = BrainMuted, fontSize = 12.sp)
+                        Text("• " + it.take(180), color = journal.muted, fontSize = 12.sp)
                         Spacer(Modifier.height(5.dp))
                     }
                 }
@@ -322,6 +317,7 @@ fun HistoryScreen(
     onBack: () -> Unit,
     onDay: (String) -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val notes by db.noteDao().observeAll().collectAsState(initial = emptyList())
     val tasks by db.taskDao().observeAll().collectAsState(initial = emptyList())
     val favorites by db.favoriteDao().observeAll().collectAsState(initial = emptyList())
@@ -340,19 +336,19 @@ fun HistoryScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(BrainCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             TopRow("历史回顾", onBack)
-            Text("按天回看你记录过、做过、收藏过什么。", color = BrainMuted)
+            Text("按天回看你记录过、做过、收藏过什么。", color = journal.muted)
         }
 
         if (days.isEmpty()) {
             item {
                 BrainCardBox {
-                    Text("还没有可以回顾的历史。", color = BrainMuted)
+                    Text("还没有可以回顾的历史。", color = journal.muted)
                 }
             }
         } else {
@@ -381,7 +377,7 @@ fun HistoryScreen(
                                 )
                                 Text(
                                     "记录 $noteCount · 待办 $taskCount · 收藏 $favoriteCount",
-                                    color = BrainMuted,
+                                    color = journal.muted,
                                     fontSize = 13.sp
                                 )
                             }
@@ -392,7 +388,7 @@ fun HistoryScreen(
                                     leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null) }
                                 )
                             }
-                            Icon(Icons.Outlined.ChevronRight, null, tint = BrainMuted)
+                            Icon(Icons.Outlined.ChevronRight, null, tint = journal.muted)
                         }
                     }
                 }
@@ -407,6 +403,7 @@ fun HistoryDayScreen(
     dateKey: String,
     onBack: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     val date = remember(dateKey) {
         runCatching { LocalDate.parse(dateKey) }.getOrElse { LocalDate.now() }
     }
@@ -422,7 +419,7 @@ fun HistoryDayScreen(
         .collectAsState(initial = null)
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(BrainCream),
+        modifier = Modifier.fillMaxSize().background(journal.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -437,12 +434,12 @@ fun HistoryDayScreen(
             item {
                 BrainCardBox {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.AutoAwesome, null, tint = BrainWarm)
+                        Icon(Icons.Outlined.AutoAwesome, null, tint = journal.primary)
                         Spacer(Modifier.width(8.dp))
                         Text("AI 每日总结", fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(10.dp))
-                    Text(it.content, color = BrainDark, lineHeight = 22.sp)
+                    Text(it.content, color = journal.text, lineHeight = 22.sp)
                 }
             }
         }
@@ -452,12 +449,12 @@ fun HistoryDayScreen(
                 Text("待办", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 if (tasks.isEmpty()) {
-                    Text("这一天没有待办。", color = BrainMuted)
+                    Text("这一天没有待办。", color = journal.muted)
                 } else {
                     tasks.forEach {
                         Text(
                             (if (it.completed) "✓ " else "○ ") + it.title,
-                            color = if (it.completed) BrainMuted else BrainDark
+                            color = if (it.completed) journal.muted else journal.text
                         )
                     }
                 }
@@ -469,10 +466,10 @@ fun HistoryDayScreen(
                 Text("记录", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 if (notes.isEmpty()) {
-                    Text("这一天没有记录。", color = BrainMuted)
+                    Text("这一天没有记录。", color = journal.muted)
                 } else {
                     notes.forEach {
-                        Text("• " + it.content, color = BrainDark)
+                        Text("• " + it.content, color = journal.text)
                         Spacer(Modifier.height(6.dp))
                     }
                 }
@@ -484,10 +481,10 @@ fun HistoryDayScreen(
                 Text("收藏", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 if (favorites.isEmpty()) {
-                    Text("这一天没有收藏。", color = BrainMuted)
+                    Text("这一天没有收藏。", color = journal.muted)
                 } else {
                     favorites.forEach {
-                        Text("• [" + it.platform + "] " + it.title, color = BrainDark)
+                        Text("• [" + it.platform + "] " + it.title, color = journal.text)
                         Spacer(Modifier.height(6.dp))
                     }
                 }
@@ -593,15 +590,16 @@ private fun SearchResultCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     BrainCardBox(modifier = Modifier.clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = BrainSage)
+            Icon(icon, null, tint = journal.secondary)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, color = BrainDark, fontWeight = FontWeight.Medium)
-                Text(subtitle, color = BrainMuted, fontSize = 12.sp)
+                Text(title, color = journal.text, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = journal.muted, fontSize = 12.sp)
             }
-            Icon(Icons.Outlined.ChevronRight, null, tint = BrainMuted)
+            Icon(Icons.Outlined.ChevronRight, null, tint = journal.muted)
         }
     }
 }
@@ -611,8 +609,9 @@ private fun SectionTitle(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
+    val journal = LocalJournalTheme.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = BrainWarm, modifier = Modifier.size(19.dp))
+        Icon(icon, null, tint = journal.primary, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(6.dp))
         Text(text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
     }
@@ -633,9 +632,10 @@ private fun BrainCardBox(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val journal = LocalJournalTheme.current
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = BrainCard),
+        colors = CardDefaults.cardColors(containerColor = journal.surface),
         shape = RoundedCornerShape(22.dp)
     ) {
         Column(

@@ -20,6 +20,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".LockScreenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="false"
+            android:theme="@style/LockScreenTheme" />
+
         <service
             android:name=".OverlayService"
             android:exported="false" />

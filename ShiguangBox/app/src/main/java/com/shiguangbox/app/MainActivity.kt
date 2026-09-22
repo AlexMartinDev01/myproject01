@@ -46,15 +46,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val Cream = Color(0xFFFFF9F0)
-private val WarmOrange = Color(0xFFF4B860)
-private val Sage = Color(0xFFA8B99A)
-private val DarkBrown = Color(0xFF49392C)
-private val Muted = Color(0xFF8A7969)
-private val CardColor = Color(0xFFFFFDFC)
-private val PaleOrange = Color(0xFFFFEBC7)
-private val PaleGreen = Color(0xFFEAF1E4)
-
 data class NavItem(val route: String, val label: String, val icon: ImageVector)
 
 private val navItems = listOf(
@@ -98,6 +89,38 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
     var onboardingDone by remember {
         mutableStateOf(prefs.getBoolean("onboarding_done", false))
     }
+    var journalMood by remember {
+        mutableStateOf(prefs.getString("journal_mood", "calm") ?: "calm")
+    }
+    var journalThemeOffset by remember {
+        mutableIntStateOf(prefs.getInt("journal_theme_offset", 0))
+    }
+
+    val journalProfile = remember(journalMood, journalThemeOffset) {
+        resolveJournalTheme(
+            moodId = journalMood,
+            date = LocalDate.now(),
+            offset = journalThemeOffset
+        )
+    }
+
+    val selectMood: (String) -> Unit = { moodId ->
+        journalMood = moodId
+        journalThemeOffset = 0
+        prefs.edit()
+            .putString("journal_mood", moodId)
+            .putInt("journal_theme_offset", 0)
+            .putString("journal_mood_date", LocalDate.now().toString())
+            .apply()
+    }
+
+    val shuffleJournalTheme: () -> Unit = {
+        journalThemeOffset += 1
+        prefs.edit()
+            .putInt("journal_theme_offset", journalThemeOffset)
+            .putString("journal_mood_date", LocalDate.now().toString())
+            .apply()
+    }
 
     LaunchedEffect(onboardingDone) {
         if (onboardingDone) {
@@ -108,26 +131,16 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
         }
     }
 
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = WarmOrange,
-            secondary = Sage,
-            background = Cream,
-            surface = CardColor,
-            onPrimary = Color.White,
-            onBackground = DarkBrown,
-            onSurface = DarkBrown
-        )
-    ) {
+    JournalMaterialTheme(profile = journalProfile) {
         if (!onboardingDone) {
             SetupScreen(
                 initialName = prefs.getString("name", "苏打水") ?: "苏打水",
-                initialCity = prefs.getString("city", "西安") ?: "西安",
+                initialCity = prefs.getString("city", "") ?: "",
                 initialSummaryTime = prefs.getString("summary_time", "22:30") ?: "22:30",
                 onStart = { name, city, time ->
                     prefs.edit()
                         .putString("name", name.ifBlank { "我" })
-                        .putString("city", city.ifBlank { "西安" })
+                        .putString("city", city.trim())
                         .putString("summary_time", time.ifBlank { "22:30" })
                         .putBoolean("onboarding_done", true)
                         .apply()
@@ -136,7 +149,12 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
                 }
             )
         } else {
-            MainShell(prefs)
+            MainShell(
+                prefs = prefs,
+                journalMood = journalMood,
+                onSelectMood = selectMood,
+                onShuffleTheme = shuffleJournalTheme
+            )
         }
     }
 }
@@ -152,7 +170,7 @@ private fun SetupScreen(
     var city by rememberSaveable { mutableStateOf(initialCity) }
     var summaryTime by rememberSaveable { mutableStateOf(initialSummaryTime) }
 
-    Surface(color = Cream) {
+    Surface(color = MaterialTheme.colorScheme.background) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(24.dp),
@@ -164,19 +182,19 @@ private fun SetupScreen(
                     modifier = Modifier
                         .size(78.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(PaleOrange),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Inventory2, null, tint = WarmOrange, modifier = Modifier.size(44.dp))
+                    Icon(Icons.Outlined.Inventory2, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
                 }
                 Spacer(Modifier.height(22.dp))
                 Text("把生活慢慢收进来", fontSize = 30.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("记录想法、安排事情、收藏好内容，\n剩下的慢慢交给拾光盒整理。", color = Muted, lineHeight = 24.sp)
+                Text("记录想法、安排事情、收藏好内容，\n剩下的慢慢交给拾光盒整理。", color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 24.sp)
             }
 
             item { SetupField("你的称呼", "保存在本机", name) { name = it } }
-            item { SetupField("常用城市", "天气功能下一阶段会使用", city) { city = it } }
+            item { SetupField("常用城市", "用于首页实时天气；也可以之后再设置", city) { city = it } }
             item { SetupField("每日总结时间", "例如 22:30", summaryTime) { summaryTime = it } }
 
             item {
@@ -190,7 +208,7 @@ private fun SetupScreen(
                     Icon(Icons.Outlined.ArrowForward, null)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("记录和待办会真实保存在手机本地。", color = Muted, fontSize = 13.sp)
+                Text("记录和待办会真实保存在手机本地。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
         }
     }
@@ -200,7 +218,7 @@ private fun SetupScreen(
 private fun SetupField(title: String, hint: String, value: String, onValue: (String) -> Unit) {
     WarmCard {
         Text(title, fontWeight = FontWeight.Bold)
-        Text(hint, color = Muted, fontSize = 13.sp)
+        Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             value = value,
@@ -213,7 +231,12 @@ private fun SetupField(title: String, hint: String, value: String, onValue: (Str
 }
 
 @Composable
-private fun MainShell(prefs: SharedPreferences) {
+private fun MainShell(
+    prefs: SharedPreferences,
+    journalMood: String,
+    onSelectMood: (String) -> Unit,
+    onShuffleTheme: () -> Unit
+) {
     val context = LocalContext.current
     val db = remember { AppDatabase.get(context) }
     val navController = rememberNavController()
@@ -222,10 +245,10 @@ private fun MainShell(prefs: SharedPreferences) {
     var quickAddOpen by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = Cream,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (currentRoute in navItems.map { it.route }) {
-                NavigationBar(containerColor = CardColor) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     navItems.forEach { item ->
                         NavigationBarItem(
                             selected = currentRoute == item.route,
@@ -269,7 +292,7 @@ private fun MainShell(prefs: SharedPreferences) {
                     }
                     FloatingActionButton(
                         onClick = { quickAddOpen = !quickAddOpen },
-                        containerColor = Sage,
+                        containerColor = MaterialTheme.colorScheme.secondary,
                         contentColor = Color.White,
                         shape = CircleShape
                     ) {
@@ -296,7 +319,8 @@ private fun MainShell(prefs: SharedPreferences) {
                     onSearch = { navController.navigate("global_search") },
                     onAsk = { navController.navigate("ask_box") },
                     onHistory = { navController.navigate("history") },
-                    onKnowledge = { navController.navigate("knowledge") }
+                    onKnowledge = { navController.navigate("knowledge") },
+                    onMood = { navController.navigate("journal_mood") }
                 )
             }
             composable("notes") {
@@ -395,6 +419,15 @@ private fun MainShell(prefs: SharedPreferences) {
             composable("weekly_knowledge") {
                 WeeklyKnowledgeScreen(
                     db = db,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable("journal_mood") {
+                MoodJournalScreen(
+                    currentMoodId = journalMood,
+                    onSelectMood = onSelectMood,
+                    onShuffle = onShuffleTheme,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -498,7 +531,8 @@ private fun TodayScreen(
     onSearch: () -> Unit,
     onAsk: () -> Unit,
     onHistory: () -> Unit,
-    onKnowledge: () -> Unit
+    onKnowledge: () -> Unit,
+    onMood: () -> Unit
 ) {
     val bounds = remember { todayBounds() }
     val tasks by db.taskDao().observeBetween(bounds.first, bounds.second)
@@ -526,7 +560,7 @@ private fun TodayScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -536,16 +570,20 @@ private fun TodayScreen(
                     Text("你好，" + name + " ☀️", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                     Text(
                         date.monthValue.toString() + "月" + date.dayOfMonth + "日 · " + weekday,
-                        color = Muted
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onSearch) {
-                    Icon(Icons.Outlined.Search, "全局搜索", tint = DarkBrown)
+                    Icon(Icons.Outlined.Search, "全局搜索", tint = MaterialTheme.colorScheme.onBackground)
                 }
                 IconButton(onClick = onHistory) {
-                    Icon(Icons.Outlined.History, "历史回顾", tint = DarkBrown)
+                    Icon(Icons.Outlined.History, "历史回顾", tint = MaterialTheme.colorScheme.onBackground)
                 }
             }
+        }
+
+        item {
+            JournalDayHeader(onOpen = onMood)
         }
 
         item {
@@ -554,7 +592,7 @@ private fun TodayScreen(
                     Icon(
                         Icons.Outlined.WbSunny,
                         null,
-                        tint = WarmOrange,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(42.dp)
                     )
                     Spacer(Modifier.width(14.dp))
@@ -562,7 +600,7 @@ private fun TodayScreen(
                         when {
                             weatherLoading -> {
                                 Text(city + " · 正在获取天气", fontWeight = FontWeight.Bold)
-                                Text("稍等一下…", color = Muted)
+                                Text("稍等一下…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             weather != null -> {
                                 val w = weather!!
@@ -580,15 +618,15 @@ private fun TodayScreen(
                                         w.rainProbability,
                                         w.apparentTemperature
                                     ),
-                                    color = Muted,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp
                                 )
                                 Spacer(Modifier.height(5.dp))
-                                Text(w.advice, color = DarkBrown)
+                                Text(w.advice, color = MaterialTheme.colorScheme.onBackground)
                             }
                             else -> {
                                 Text(city + " · 天气暂时没加载出来", fontWeight = FontWeight.Bold)
-                                Text(weatherError, color = Muted, fontSize = 13.sp)
+                                Text(weatherError, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                             }
                         }
                     }
@@ -601,7 +639,7 @@ private fun TodayScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onAsk),
-                colors = CardDefaults.cardColors(containerColor = PaleGreen),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 shape = RoundedCornerShape(22.dp)
             ) {
                 Row(
@@ -611,7 +649,7 @@ private fun TodayScreen(
                     Icon(
                         Icons.Outlined.Psychology,
                         null,
-                        tint = Sage,
+                        tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.size(34.dp)
                     )
                     Spacer(Modifier.width(12.dp))
@@ -619,11 +657,11 @@ private fun TodayScreen(
                         Text("问问拾光盒", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text(
                             "从你自己的记录、待办、收藏和总结里找答案",
-                            color = Muted,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
                         )
                     }
-                    Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                    Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -633,7 +671,7 @@ private fun TodayScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onKnowledge),
-                colors = CardDefaults.cardColors(containerColor = PaleOrange),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 shape = RoundedCornerShape(22.dp)
             ) {
                 Row(
@@ -643,7 +681,7 @@ private fun TodayScreen(
                     Icon(
                         Icons.Outlined.AccountTree,
                         null,
-                        tint = WarmOrange,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(34.dp)
                     )
                     Spacer(Modifier.width(12.dp))
@@ -651,11 +689,11 @@ private fun TodayScreen(
                         Text("我的知识库", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text(
                             "专题、图文知识卡、相关内容和每周回顾",
-                            color = Muted,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
                         )
                     }
-                    Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                    Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -668,7 +706,7 @@ private fun TodayScreen(
                 trailing = doneCount.toString() + "/" + tasks.size + " 已完成"
             ) {
                 if (tasks.isEmpty()) {
-                    Text("今天还没有待办，给自己安排一件小事吧。", color = Muted)
+                    Text("今天还没有待办，给自己安排一件小事吧。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     tasks.take(5).forEach { task ->
                         DynamicTaskRow(task) { onTask(task.id) }
@@ -685,7 +723,7 @@ private fun TodayScreen(
                 trailing = notes.size.toString() + " 条"
             ) {
                 if (notes.isEmpty()) {
-                    Text("今天还没留下记录。", color = Muted)
+                    Text("今天还没留下记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     notes.take(4).forEach { note ->
                         DynamicNoteRow(note) { onNote(note.id) }
@@ -702,7 +740,7 @@ private fun TodayScreen(
                 trailing = favorites.size.toString() + " 条"
             ) {
                 if (favorites.isEmpty()) {
-                    Text("今天还没有收藏。刷到好内容时直接“分享 → 收进拾光盒”。", color = Muted)
+                    Text("今天还没有收藏。刷到好内容时直接“分享 → 收进拾光盒”。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     val douyin = favorites.count { it.platform == "抖音" }
                     val bili = favorites.count { it.platform == "B站" }
@@ -715,7 +753,7 @@ private fun TodayScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         favorites.first().title,
-                        color = DarkBrown,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2
                     )
@@ -733,7 +771,7 @@ private fun TodayScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("整理我的今天", fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
-            Text("搜索、问答、历史回顾和自动总结都已接入。", color = Muted, fontSize = 12.sp)
+            Text("搜索、问答、历史回顾和自动总结都已接入。", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }
@@ -747,13 +785,13 @@ private fun NotesScreen(
     val notes by db.noteDao().observeAll().collectAsState(initial = emptyList())
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             Text("记录", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("现在写下的每一条，关掉 App 后也不会消失。", color = Muted)
+            Text("现在写下的每一条，关掉 App 后也不会消失。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         if (notes.isEmpty()) {
@@ -762,21 +800,21 @@ private fun NotesScreen(
             items(notes, key = { it.id }) { note ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onEdit(note.id) },
-                    colors = CardDefaults.cardColors(containerColor = CardColor),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(22.dp)
                 ) {
                     Column(Modifier.padding(18.dp)) {
-                        Text(note.content, color = DarkBrown, lineHeight = 22.sp)
+                        Text(note.content, color = MaterialTheme.colorScheme.onBackground, lineHeight = 22.sp)
                         Spacer(Modifier.height(10.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TagPill(note.category)
                             Spacer(Modifier.width(10.dp))
-                            Text(formatDateTime(note.createdAt), color = Muted, fontSize = 12.sp)
+                            Text(formatDateTime(note.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                             Spacer(Modifier.weight(1f))
                             Icon(
                                 Icons.Outlined.Edit,
                                 null,
-                                tint = Muted,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -823,7 +861,7 @@ private fun NoteEditorScreen(
 
     SimpleTopScreen(if (noteId == null) "新建记录" else "编辑记录", onBack) {
         Text("现在在想什么？", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("真实保存到手机本地。", color = Muted)
+        Text("真实保存到手机本地。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(14.dp))
 
         OutlinedTextField(
@@ -925,16 +963,16 @@ private fun TasksScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             Text("待办 ☀️", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("这次是真的会保存、会提醒。", color = Muted)
+            Text("这次是真的会保存、会提醒。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(14.dp))
 
-            TabRow(selectedTabIndex = tab, containerColor = CardColor) {
+            TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.surface) {
                 listOf("今天", "接下来", "已完成").forEachIndexed { index, label ->
                     Tab(
                         selected = tab == index,
@@ -953,7 +991,7 @@ private fun TasksScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onEdit(task.id) },
-                    colors = CardDefaults.cardColors(containerColor = CardColor),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(22.dp)
                 ) {
                     Row(
@@ -1001,9 +1039,9 @@ private fun TasksScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 textDecoration =
                                     if (task.completed) TextDecoration.LineThrough else null,
-                                color = if (task.completed) Muted else DarkBrown
+                                color = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground
                             )
-                            Text(taskSubtitle(task), color = Muted, fontSize = 12.sp)
+                            Text(taskSubtitle(task), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
 
                         if (task.priority == "重要") {
@@ -1013,7 +1051,7 @@ private fun TasksScreen(
                                 tint = Color(0xFFE76F51)
                             )
                         }
-                        Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                        Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -1073,7 +1111,7 @@ private fun TaskEditorScreen(
 
     SimpleTopScreen(if (taskId == null) "新建待办" else "编辑待办", onBack) {
         Text("要做什么？", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("可以直接输入“明天下午三点提醒我给老师发材料”。", color = Muted)
+        Text("可以直接输入“明天下午三点提醒我给老师发材料”。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
         OutlinedTextField(
@@ -1106,7 +1144,7 @@ private fun TaskEditorScreen(
         }
 
         if (parseMessage.isNotBlank()) {
-            Text(parseMessage, color = Sage, fontSize = 13.sp)
+            Text(parseMessage, color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
         }
 
         Spacer(Modifier.height(6.dp))
@@ -1244,13 +1282,13 @@ private fun TaskEditorScreen(
 @Composable
 private fun FavoritesScreen() {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             Text("收藏", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("V0.3 会接入真正的系统分享收藏。", color = Muted)
+            Text("今天的内容会按你的手账主题轻轻收好。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             EmptyCard("下一版开始：抖音 / B站 / 微信读书 / 网页 → 分享 → 拾光盒。")
@@ -1272,13 +1310,13 @@ private fun MineScreen(
             ) == PackageManager.PERMISSION_GRANTED
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V0.4 AI天气版", color = Muted)
+            Text("拾光盒 · V0.7 心情手账版", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             SettingRow(
@@ -1354,7 +1392,7 @@ private fun SummaryScreen(
         Text("今天辛苦啦 ☀️", fontSize = 30.sp, fontWeight = FontWeight.Bold)
         Text(
             LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy年M月d日")),
-            color = Muted
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(16.dp))
 
@@ -1371,7 +1409,7 @@ private fun SummaryScreen(
 
         SummaryBlock("今天完成了什么", Icons.Outlined.CheckCircle) {
             if (done.isEmpty()) {
-                Text("今天还没有勾选完成的任务。", color = Muted)
+                Text("今天还没有勾选完成的任务。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 done.forEach { Text("✓ " + it.title) }
             }
@@ -1379,7 +1417,7 @@ private fun SummaryScreen(
 
         SummaryBlock("今天记下了什么", Icons.Outlined.EditNote) {
             if (notes.isEmpty()) {
-                Text("今天还没有记录。", color = Muted)
+                Text("今天还没有记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Text("今天一共写了 " + notes.size + " 条记录。")
                 notes.take(3).forEach {
@@ -1390,7 +1428,7 @@ private fun SummaryScreen(
 
         SummaryBlock("还没完成", Icons.Outlined.ListAlt) {
             if (undone.isEmpty()) {
-                Text("今天的待办都完成啦。", color = Sage)
+                Text("今天的待办都完成啦。", color = MaterialTheme.colorScheme.secondary)
             } else {
                 undone.forEach { Text("○ " + it.title) }
             }
@@ -1398,7 +1436,7 @@ private fun SummaryScreen(
 
         Text(
             "上面保留本地真实汇总作为兜底；DeepSeek 总结只基于这些真实数据生成。",
-            color = Muted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp
         )
     }
@@ -1417,18 +1455,18 @@ private fun DynamicTaskRow(task: TaskEntity, onClick: () -> Unit) {
             if (task.completed) Icons.Outlined.CheckCircle
             else Icons.Outlined.RadioButtonUnchecked,
             null,
-            tint = if (task.completed) Sage else Muted
+            tint = if (task.completed) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.width(8.dp))
         Text(
             task.title,
-            color = if (task.completed) Muted else DarkBrown,
+            color = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
             textDecoration =
                 if (task.completed) TextDecoration.LineThrough else null,
             modifier = Modifier.weight(1f)
         )
         task.dueAt?.let {
-            Text(formatTime(it), color = Muted, fontSize = 12.sp)
+            Text(formatTime(it), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }
@@ -1443,11 +1481,11 @@ private fun DynamicNoteRow(note: NoteEntity, onClick: () -> Unit) {
     ) {
         Text(
             formatTime(note.createdAt),
-            color = Muted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(58.dp),
             fontSize = 13.sp
         )
-        Text(note.content, color = DarkBrown, maxLines = 2)
+        Text(note.content, color = MaterialTheme.colorScheme.onBackground, maxLines = 2)
     }
 }
 
@@ -1455,11 +1493,11 @@ private fun DynamicNoteRow(note: NoteEntity, onClick: () -> Unit) {
 private fun SettingRow(icon: ImageVector, title: String, value: String) {
     WarmCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Sage)
+            Icon(icon, null, tint = MaterialTheme.colorScheme.secondary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, fontWeight = FontWeight.Bold)
-                Text(value, color = Muted, fontSize = 13.sp)
+                Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
         }
     }
@@ -1468,7 +1506,7 @@ private fun SettingRow(icon: ImageVector, title: String, value: String) {
 @Composable
 private fun EmptyCard(text: String) {
     WarmCard {
-        Text(text, color = Muted)
+        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1483,16 +1521,16 @@ private fun QuickAction(
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        color = CardColor,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 4.dp
     ) {
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, null, tint = WarmOrange)
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(8.dp))
-            Text(label, color = DarkBrown)
+            Text(label, color = MaterialTheme.colorScheme.onBackground)
         }
     }
 }
@@ -1504,7 +1542,7 @@ private fun SimpleTopScreen(
     content: @Composable ColumnScope.() -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Cream),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(20.dp)
     ) {
         item {
@@ -1533,7 +1571,7 @@ private fun SummaryBlock(
 @Composable
 private fun WarmCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardColor),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(22.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -1557,10 +1595,10 @@ private fun SectionCard(
                 Modifier
                     .size(34.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(PaleGreen),
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = Sage)
+                Icon(icon, null, tint = MaterialTheme.colorScheme.secondary)
             }
             Spacer(Modifier.width(10.dp))
             Text(
@@ -1570,7 +1608,7 @@ private fun SectionCard(
                 modifier = Modifier.weight(1f)
             )
             if (trailing.isNotBlank()) {
-                Text(trailing, color = Muted, fontSize = 13.sp)
+                Text(trailing, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -1581,12 +1619,12 @@ private fun SectionCard(
 @Composable
 private fun TagPill(text: String) {
     Surface(
-        color = PaleOrange,
+        color = MaterialTheme.colorScheme.primaryContainer,
         shape = RoundedCornerShape(50)
     ) {
         Text(
             text,
-            color = DarkBrown,
+            color = MaterialTheme.colorScheme.onBackground,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )

@@ -76,6 +76,10 @@ class PetOverlayService : Service() {
                 ensurePetView()
                 petView?.playWave()
             }
+            ACTION_TEST_TAIL -> {
+                ensurePetView()
+                petView?.playTailWag()
+            }
             ACTION_TEST_BLINK -> {
                 ensurePetView()
                 petView?.playBlink()
@@ -231,6 +235,7 @@ class PetOverlayService : Service() {
                     ) {
                         dragging = true
                         closePanel()
+                        petView?.startDragging()
                     }
 
                     if (dragging) {
@@ -246,10 +251,14 @@ class PetOverlayService : Service() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     if (dragging) {
                         snapToEdge(params)
+                        petView?.endDragging()
+                        playLandingBounce()
                     } else if (event.actionMasked == MotionEvent.ACTION_UP) {
                         toggleQuickPanel()
+                        petView?.resumeMotion()
+                    } else {
+                        petView?.resumeMotion()
                     }
-                    petView?.resumeMotion()
                     return true
                 }
             }
@@ -260,8 +269,8 @@ class PetOverlayService : Service() {
     private fun snapToEdge(params: WindowManager.LayoutParams) {
         val screenW = resources.displayMetrics.widthPixels
         val petWidth = params.width
-        val left = dp(8)
-        val right = screenW - petWidth - dp(8)
+        val left = -dp(10)
+        val right = screenW - petWidth + dp(10)
         val target = if (params.x + petWidth / 2 < screenW / 2) left else right
         val start = params.x
 
@@ -278,6 +287,19 @@ class PetOverlayService : Service() {
             .putInt("pet_x", target)
             .putInt("pet_y", params.y)
             .apply()
+    }
+
+    private fun playLandingBounce() {
+        val pet = petView ?: return
+        AnimatorSet().apply {
+            duration = 260
+            playTogether(
+                ObjectAnimator.ofFloat(pet, View.SCALE_X, 1f, 1.07f, 0.985f, 1f),
+                ObjectAnimator.ofFloat(pet, View.SCALE_Y, 1f, 0.94f, 1.025f, 1f),
+                ObjectAnimator.ofFloat(pet, View.TRANSLATION_Y, -dp(3).toFloat(), dp(5).toFloat(), 0f)
+            )
+            start()
+        }
     }
 
     private fun startIdleAnimation() {
@@ -721,6 +743,7 @@ class PetOverlayService : Service() {
         const val ACTION_STOP = "com.shiguangbox.app.pet.STOP"
         const val ACTION_REMINDER = "com.shiguangbox.app.pet.REMINDER"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
+        const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
         const val ACTION_TEST_BLINK = "com.shiguangbox.app.pet.TEST_BLINK"
         const val ACTION_TEST_TIRED = "com.shiguangbox.app.pet.TEST_TIRED"
         const val ACTION_TEST_SLEEP = "com.shiguangbox.app.pet.TEST_SLEEP"

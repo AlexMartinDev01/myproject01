@@ -12,7 +12,7 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 16
+        versionCode 17
         versionName '1.1.2'
     }
 
@@ -86,8 +86,65 @@ def decodePetSleepAsset = tasks.register("decodePetSleepAsset") {
     }
 }
 
+def petTiredAssetPartsDir = file("$projectDir/src/main/pet_assets/orange_tired")
+def petTiredAssetOutput = file("$projectDir/src/main/res/drawable-nodpi/pet_orange_tired.webp")
+
+def decodePetTiredAsset = tasks.register("decodePetTiredAsset") {
+    inputs.dir(petTiredAssetPartsDir)
+    outputs.file(petTiredAssetOutput)
+
+    doLast {
+        def parts = petTiredAssetPartsDir.listFiles()
+            ?.findAll { it.name.endsWith(".txt") }
+            ?.sort { a, b -> a.name <=> b.name }
+
+        if (parts == null || parts.isEmpty()) {
+            throw new GradleException("No orange tired pet asset chunks found")
+        }
+
+        def encoded = parts.collect {
+            it.getText("UTF-8").replaceAll("\\s", "")
+        }.join("")
+
+        petTiredAssetOutput.parentFile.mkdirs()
+        petTiredAssetOutput.bytes = java.util.Base64.decoder.decode(encoded)
+        println("Decoded tired pet asset: " + petTiredAssetOutput + " (" + petTiredAssetOutput.length() + " bytes)")
+    }
+}
+
+def petWakeAssetPartsDir = file("$projectDir/src/main/pet_assets/orange_wake")
+def petWakeAssetOutput = file("$projectDir/src/main/res/drawable-nodpi/pet_orange_wake.webp")
+
+def decodePetWakeAsset = tasks.register("decodePetWakeAsset") {
+    inputs.dir(petWakeAssetPartsDir)
+    outputs.file(petWakeAssetOutput)
+
+    doLast {
+        def parts = petWakeAssetPartsDir.listFiles()
+            ?.findAll { it.name.endsWith(".txt") }
+            ?.sort { a, b -> a.name <=> b.name }
+
+        if (parts == null || parts.isEmpty()) {
+            throw new GradleException("No orange wake pet asset chunks found")
+        }
+
+        def encoded = parts.collect {
+            it.getText("UTF-8").replaceAll("\\s", "")
+        }.join("")
+
+        petWakeAssetOutput.parentFile.mkdirs()
+        petWakeAssetOutput.bytes = java.util.Base64.decoder.decode(encoded)
+        println("Decoded wake pet asset: " + petWakeAssetOutput + " (" + petWakeAssetOutput.length() + " bytes)")
+    }
+}
+
 tasks.named("preBuild").configure {
-    dependsOn(decodePetAssets, decodePetSleepAsset)
+    dependsOn(
+        decodePetAssets,
+        decodePetSleepAsset,
+        decodePetTiredAsset,
+        decodePetWakeAsset
+    )
 }
 
 dependencies {

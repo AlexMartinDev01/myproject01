@@ -42,6 +42,16 @@ class PetRigView @JvmOverloads constructor(
         R.drawable.pet_orange_sleep
     )
 
+    private val tiredBitmap: Bitmap = BitmapFactory.decodeResource(
+        resources,
+        R.drawable.pet_orange_tired
+    )
+
+    private val wakeBitmap: Bitmap = BitmapFactory.decodeResource(
+        resources,
+        R.drawable.pet_orange_wake
+    )
+
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
     )
@@ -160,6 +170,8 @@ class PetRigView @JvmOverloads constructor(
         callbackPosted = false
         if (!idleBitmap.isRecycled) idleBitmap.recycle()
         if (!sleepBitmap.isRecycled) sleepBitmap.recycle()
+        if (!tiredBitmap.isRecycled) tiredBitmap.recycle()
+        if (!wakeBitmap.isRecycled) wakeBitmap.recycle()
     }
 
     private fun setState(newState: State, now: Long = System.nanoTime()) {
@@ -204,6 +216,8 @@ class PetRigView @JvmOverloads constructor(
             (now - idleEpochNanos).coerceAtLeast(0L) / 1_000_000_000.0
 
         when (state) {
+            State.TIRED -> drawTiredState(canvas, idleSeconds, stateSeconds)
+
             State.SLEEP -> drawSleepState(canvas, idleSeconds, stateSeconds)
 
             State.WAKE_UP -> drawWakeState(canvas, idleSeconds, stateSeconds)
@@ -216,24 +230,57 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun drawTiredState(
+        canvas: Canvas,
+        idleSeconds: Double,
+        stateSeconds: Double
+    ) {
+        // 犯困不再只是压眼皮，而是切到专门的打哈欠姿态。
+        val enter = smoothStep(
+            clamp(stateSeconds / TIRED_CROSSFADE_SECONDS, 0.0, 1.0)
+        ).toFloat()
+
+        if (enter < 0.999f) {
+            buildMesh(idleSeconds, stateSeconds, 0.45)
+            drawIdleMesh(canvas, 1f - enter)
+        }
+
+        val sway = sin(stateSeconds * PI * 1.15)
+        drawPoseBitmap(
+            canvas = canvas,
+            bitmap = tiredBitmap,
+            alpha = enter,
+            scaleX = 1.0f,
+            scaleY = 1.0f + (0.006 * abs(sway)).toFloat(),
+            yOffset = (2.2 * abs(sway)).toFloat()
+        )
+    }
+
     private fun drawSleepState(
         canvas: Canvas,
         idleSeconds: Double,
         stateSeconds: Double
     ) {
-        // 进入睡眠时让站立母版淡出、真正蜷睡姿态淡入。
+        // 从“打哈欠”姿态自然过渡到真正闭眼蜷睡。
         val enter = smoothStep(
             clamp(stateSeconds / SLEEP_CROSSFADE_SECONDS, 0.0, 1.0)
         ).toFloat()
 
         if (enter < 0.999f) {
-            buildMesh(idleSeconds, stateSeconds, 0.72)
-            drawIdleMesh(canvas, 1f - enter)
+            drawPoseBitmap(
+                canvas = canvas,
+                bitmap = tiredBitmap,
+                alpha = 1f - enter,
+                scaleX = 1.0f,
+                scaleY = 1.0f,
+                yOffset = 0f
+            )
         }
 
         val breath = sin(idleSeconds * 2.0 * PI / 3.8)
-        drawSleepBitmap(
+        drawPoseBitmap(
             canvas = canvas,
+            bitmap = sleepBitmap,
             alpha = enter,
             scaleX = 1.0f + (0.0025 * breath).toFloat(),
             scaleY = 1.0f + (0.0070 * breath).toFloat(),
@@ -246,26 +293,78 @@ class PetRigView @JvmOverloads constructor(
         idleSeconds: Double,
         stateSeconds: Double
     ) {
-        // 从真实睡姿自然淡回待机母版，避免瞬间“弹回站立”。
-        val progress = smoothStep(
-            clamp(stateSeconds / WAKE_DURATION_SECONDS, 0.0, 1.0)
-        ).toFloat()
+        // 睡姿 -> 伸懒腰 -> 待机，避免突然站起来。
+        val firstEnd = 0.38
+        val holdEnd = 0.88
 
-        val sleepBreath = sin(idleSeconds * 2.0 * PI / 3.8)
-        drawSleepBitmap(
-            canvas = canvas,
-            alpha = 1f - progress,
-            scaleX = 1.0f,
-            scaleY = 1.0f + (0.004 * sleepBreath).toFloat(),
-            yOffset = (1.0 * sleepBreath).toFloat()
-        )
+        when {
+            stateSeconds < firstEnd -> {
+                val p = smoothStep(
+                    clamp(stateSeconds / firstEnd, 0.0, 1.0)
+                ).toFloat()
 
-        buildMesh(idleSeconds, stateSeconds, 0.0)
-        drawIdleMesh(canvas, progress)
+                val sleepBreath = sin(idleSeconds * 2.0 * PI / 3.8)
+                drawPoseBitmap(
+                    canvas = canvas,
+                    bitmap = sleepBitmap,
+                    alpha = 1f - p,
+                    scaleX = 1.0f,
+                    scaleY = 1.0f + (0.004 * sleepBreath).toFloat(),
+                    yOffset = (1.0 * sleepBreath).toFloat()
+                )
+
+                drawPoseBitmap(
+                    canvas = canvas,
+                    bitmap = wakeBitmap,
+                    alpha = p,
+                    scaleX = 0.985f + 0.015f * p,
+                    scaleY = 0.985f + 0.015f * p,
+                    yOffset = (-4f * p)
+                )
+            }
+
+            stateSeconds < holdEnd -> {
+                val p = ((stateSeconds - firstEnd) / (holdEnd - firstEnd))
+                    .coerceIn(0.0, 1.0)
+                val bounce = sin(p * PI)
+                drawPoseBitmap(
+                    canvas = canvas,
+                    bitmap = wakeBitmap,
+                    alpha = 1f,
+                    scaleX = 1.0f + (0.018 * bounce).toFloat(),
+                    scaleY = 1.0f - (0.010 * bounce).toFloat(),
+                    yOffset = (-5.0 * bounce).toFloat()
+                )
+            }
+
+            else -> {
+                val p = smoothStep(
+                    clamp(
+                        (stateSeconds - holdEnd) /
+                            (WAKE_DURATION_SECONDS - holdEnd),
+                        0.0,
+                        1.0
+                    )
+                ).toFloat()
+
+                drawPoseBitmap(
+                    canvas = canvas,
+                    bitmap = wakeBitmap,
+                    alpha = 1f - p,
+                    scaleX = 1.0f,
+                    scaleY = 1.0f,
+                    yOffset = 0f
+                )
+
+                buildMesh(idleSeconds, stateSeconds, 0.0)
+                drawIdleMesh(canvas, p)
+            }
+        }
     }
 
-    private fun drawSleepBitmap(
+    private fun drawPoseBitmap(
         canvas: Canvas,
+        bitmap: Bitmap,
         alpha: Float,
         scaleX: Float,
         scaleY: Float,
@@ -282,7 +381,7 @@ class PetRigView @JvmOverloads constructor(
 
         paint.alpha = (255f * alpha.coerceIn(0f, 1f)).toInt()
         canvas.drawBitmap(
-            sleepBitmap,
+            bitmap,
             null,
             RectF(0f, 0f, width.toFloat(), height.toFloat()),
             paint
@@ -405,18 +504,18 @@ class PetRigView @JvmOverloads constructor(
 
         // 按用户反馈把尾巴幅度明显放大，但仍保持慢速、柔和。
         val tailAmplitude = when (state) {
-            State.HAPPY -> 9.5
-            State.REMINDER -> 7.0
-            State.WAVE -> 6.2
-            State.TIRED -> 2.0
-            else -> 5.8
+            State.HAPPY -> 11.0
+            State.REMINDER -> 8.5
+            State.WAVE -> 7.6
+            State.TIRED -> 1.2
+            else -> 7.2
         }
 
         val tailPeriod = when (state) {
             State.HAPPY -> 0.78
-            State.REMINDER -> 1.25
-            State.TIRED -> 3.3
-            else -> 2.25
+            State.REMINDER -> 1.18
+            State.TIRED -> 3.6
+            else -> 2.20
         }
 
         val tailAngle =
@@ -642,9 +741,10 @@ class PetRigView @JvmOverloads constructor(
         private const val WAVE_DURATION_SECONDS = 1.35
         private const val REMINDER_DURATION_SECONDS = 2.70
         private const val HAPPY_DURATION_SECONDS = 1.15
-        private const val TIRED_DURATION_SECONDS = 5.0
-        private const val WAKE_DURATION_SECONDS = 0.90
-        private const val SLEEP_CROSSFADE_SECONDS = 0.28
+        private const val TIRED_DURATION_SECONDS = 4.2
+        private const val TIRED_CROSSFADE_SECONDS = 0.32
+        private const val WAKE_DURATION_SECONDS = 1.45
+        private const val SLEEP_CROSSFADE_SECONDS = 0.42
 
         private const val AUTO_TIRED_AFTER_SECONDS = 300.0
 

@@ -72,6 +72,10 @@ class PetOverlayService : Service() {
                 val title = intent.getStringExtra(EXTRA_TASK_TITLE) ?: "待办"
                 showReminder(taskId, title)
             }
+            ACTION_TEST_WAVE -> {
+                ensurePetView()
+                petView?.playWave()
+            }
             ACTION_SHOW, null -> {
                 if (!prefs.getBoolean("pet_enabled", false)) {
                     stopSelf()
@@ -697,6 +701,7 @@ class PetOverlayService : Service() {
         const val ACTION_SHOW = "com.shiguangbox.app.pet.SHOW"
         const val ACTION_STOP = "com.shiguangbox.app.pet.STOP"
         const val ACTION_REMINDER = "com.shiguangbox.app.pet.REMINDER"
+        const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val EXTRA_TASK_ID = "pet_task_id"
         const val EXTRA_TASK_TITLE = "pet_task_title"
         private const val NOTIFICATION_ID = 9001

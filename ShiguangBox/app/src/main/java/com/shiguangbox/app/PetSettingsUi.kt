@@ -186,6 +186,23 @@ fun PetSettingsScreen(
                         }
                     }
 
+                    if (overlayGranted && enabled) {
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, PetOverlayService::class.java)
+                                        .setAction(PetOverlayService.ACTION_TEST_WAVE)
+                                )
+                                message = "已经让橘团挥爪啦"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试 1.35 秒挥爪")
+                        }
+                    }
+
                     if (message.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
                         Text(

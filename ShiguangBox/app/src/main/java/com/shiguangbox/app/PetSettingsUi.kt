@@ -111,7 +111,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.0.1 动态桌宠 · 呼吸 / 尾巴 / 随机眨眼 / 挥爪",
+                        "V1.1 行为状态机 · 待机 / 提醒 / 开心 / 犯困 / 睡觉 / 醒来",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -217,6 +217,54 @@ fun PetSettingsScreen(
                         ) {
                             Text("测试眨眼")
                         }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, PetOverlayService::class.java)
+                                        .setAction(PetOverlayService.ACTION_TEST_TIRED)
+                                )
+                                message = "橘团开始犯困，约 7 秒后会自动睡着"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试：犯困 → 睡觉")
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, PetOverlayService::class.java)
+                                        .setAction(PetOverlayService.ACTION_TEST_SLEEP)
+                                )
+                                message = "橘团已经睡着啦"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("直接测试睡觉")
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, PetOverlayService::class.java)
+                                        .setAction(PetOverlayService.ACTION_TEST_WAKE)
+                                )
+                                message = "橘团正在醒来"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试醒来")
+                        }
                     }
 
                     if (message.isNotBlank()) {
@@ -242,6 +290,9 @@ fun PetSettingsScreen(
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
                     Text("• 待机时会轻微呼吸、尾巴轻摆，并随机自然眨眼")
+                    Text("• 5 分钟没有互动会先犯困，约 7 秒后进入睡觉状态")
+                    Text("• 点击、拖动、提醒都会把橘团从困倦/睡眠中唤醒")
+                    Text("• 到点提醒会连续挥爪；完成待办会进入开心庆祝状态")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")
                     Text("• 待办到点后，橘团会挥爪并弹出提醒")
                     Text("• 提醒里可以直接完成，或者延后 10 分钟")

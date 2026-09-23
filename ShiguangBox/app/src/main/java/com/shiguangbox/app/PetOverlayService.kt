@@ -80,6 +80,18 @@ class PetOverlayService : Service() {
                 ensurePetView()
                 petView?.playBlink()
             }
+            ACTION_TEST_TIRED -> {
+                ensurePetView()
+                petView?.playTired()
+            }
+            ACTION_TEST_SLEEP -> {
+                ensurePetView()
+                petView?.playSleep()
+            }
+            ACTION_TEST_WAKE -> {
+                ensurePetView()
+                petView?.wakeUp()
+            }
             ACTION_SHOW, null -> {
                 if (!prefs.getBoolean("pet_enabled", false)) {
                     stopSelf()
@@ -205,6 +217,7 @@ class PetOverlayService : Service() {
                     startX = params.x
                     startY = params.y
                     dragging = false
+                    petView?.onUserInteraction()
                     petView?.pauseMotion()
                     return true
                 }
@@ -571,11 +584,12 @@ class PetOverlayService : Service() {
     }
 
     private fun animateReminder() {
-        petView?.playWave()
+        petView?.playReminder()
     }
 
     private fun animateSuccess() {
         val pet = petView ?: return
+        pet.playHappy()
         AnimatorSet().apply {
             playTogether(
                 ObjectAnimator.ofFloat(pet, View.TRANSLATION_Y, 0f, -dp(24).toFloat(), 0f),
@@ -708,6 +722,9 @@ class PetOverlayService : Service() {
         const val ACTION_REMINDER = "com.shiguangbox.app.pet.REMINDER"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_BLINK = "com.shiguangbox.app.pet.TEST_BLINK"
+        const val ACTION_TEST_TIRED = "com.shiguangbox.app.pet.TEST_TIRED"
+        const val ACTION_TEST_SLEEP = "com.shiguangbox.app.pet.TEST_SLEEP"
+        const val ACTION_TEST_WAKE = "com.shiguangbox.app.pet.TEST_WAKE"
         const val EXTRA_TASK_ID = "pet_task_id"
         const val EXTRA_TASK_TITLE = "pet_task_title"
         private const val NOTIFICATION_ID = 9001

@@ -21,6 +21,16 @@ class PetRigView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(context, attrs), Choreographer.FrameCallback {
 
+    enum class State {
+        IDLE,
+        WAVE,
+        REMINDER,
+        HAPPY,
+        TIRED,
+        SLEEP,
+        WAKE_UP
+    }
+
     private val bitmap: Bitmap = BitmapFactory.decodeResource(
         resources,
         R.drawable.pet_orange_idle
@@ -30,7 +40,6 @@ class PetRigView @JvmOverloads constructor(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
     )
 
-    // 比上一版更密的网格，眨眼/尾巴/挥爪的局部形变更顺。
     private val meshWidth = 28
     private val meshHeight = 28
     private val verts = FloatArray((meshWidth + 1) * (meshHeight + 1) * 2)
@@ -38,8 +47,11 @@ class PetRigView @JvmOverloads constructor(
     private var callbackPosted = false
     private var paused = false
 
+    private var state: State = State.IDLE
+    private var stateStartNanos = 0L
     private var idleEpochNanos = 0L
-    private var waveStartNanos = 0L
+    private var lastInteractionNanos = 0L
+
     private var blinkStartNanos = 0L
     private var nextBlinkNanos = 0L
 
@@ -52,6 +64,8 @@ class PetRigView @JvmOverloads constructor(
         super.onAttachedToWindow()
         val now = System.nanoTime()
         idleEpochNanos = now
+        stateStartNanos = now
+        lastInteractionNanos = now
         scheduleNextBlink(now)
         postFrame()
     }
@@ -64,9 +78,11 @@ class PetRigView @JvmOverloads constructor(
 
     fun startIdle() {
         val now = System.nanoTime()
-        waveStartNanos = 0L
-        blinkStartNanos = 0L
+        state = State.IDLE
+        stateStartNanos = now
         idleEpochNanos = now
+        lastInteractionNanos = now
+        blinkStartNanos = 0L
         scheduleNextBlink(now)
         paused = false
         postFrame()
@@ -81,16 +97,57 @@ class PetRigView @JvmOverloads constructor(
         postFrame()
     }
 
+    fun onUserInteraction() {
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+
+        if (state == State.SLEEP || state == State.TIRED) {
+            setState(State.WAKE_UP, now)
+        }
+    }
+
     fun playWave() {
-        waveStartNanos = System.nanoTime()
-        paused = false
-        postFrame()
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+        setState(State.WAVE, now)
+    }
+
+    fun playReminder() {
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+        setState(State.REMINDER, now)
+    }
+
+    fun playHappy() {
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+        setState(State.HAPPY, now)
+    }
+
+    fun playTired() {
+        val now = System.nanoTime()
+        setState(State.TIRED, now)
+    }
+
+    fun playSleep() {
+        val now = System.nanoTime()
+        setState(State.SLEEP, now)
+    }
+
+    fun wakeUp() {
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+        setState(State.WAKE_UP, now)
     }
 
     fun playBlink() {
         val now = System.nanoTime()
-        blinkStartNanos = now
-        nextBlinkNanos = now + BLINK_DURATION_NANOS + randomBlinkDelayNanos()
+        if (state == State.SLEEP) {
+            setState(State.WAKE_UP, now)
+        } else {
+            blinkStartNanos = now
+            nextBlinkNanos = now + BLINK_DURATION_NANOS + randomBlinkDelayNanos()
+        }
         paused = false
         postFrame()
     }
@@ -101,6 +158,20 @@ class PetRigView @JvmOverloads constructor(
         if (!bitmap.isRecycled) {
             bitmap.recycle()
         }
+    }
+
+    private fun setState(newState: State, now: Long = System.nanoTime()) {
+        state = newState
+        stateStartNanos = now
+        blinkStartNanos = 0L
+
+        if (newState == State.IDLE) {
+            idleEpochNanos = now
+            scheduleNextBlink(now)
+        }
+
+        paused = false
+        postFrame()
     }
 
     private fun postFrame() {
@@ -123,33 +194,19 @@ class PetRigView @JvmOverloads constructor(
         if (width <= 0 || height <= 0) return
 
         val now = System.nanoTime()
+        updateState(now)
 
-        if (nextBlinkNanos == 0L) {
-            scheduleNextBlink(now)
-        } else if (blinkStartNanos == 0L && now >= nextBlinkNanos) {
-            blinkStartNanos = now
-        }
+        val stateSeconds =
+            (now - stateStartNanos).coerceAtLeast(0L) / 1_000_000_000.0
 
-        val idleSeconds = if (idleEpochNanos == 0L) {
-            0.0
-        } else {
-            (now - idleEpochNanos) / 1_000_000_000.0
-        }
+        val idleSeconds =
+            (now - idleEpochNanos).coerceAtLeast(0L) / 1_000_000_000.0
 
-        var waveT = -1.0
-        if (waveStartNanos != 0L) {
-            waveT = (now - waveStartNanos) / 1_000_000_000.0
-            if (waveT >= WAVE_DURATION_SECONDS) {
-                waveStartNanos = 0L
-                waveT = -1.0
-            }
-        }
-
-        val blink = blinkAmount(now)
+        val blink = currentBlinkAmount(now)
 
         buildMesh(
             idleSeconds = idleSeconds,
-            waveT = waveT,
+            stateSeconds = stateSeconds,
             blinkAmount = blink
         )
 
@@ -165,13 +222,93 @@ class PetRigView @JvmOverloads constructor(
         )
     }
 
-    private fun blinkAmount(nowNanos: Long): Double {
+    private fun updateState(now: Long) {
+        val elapsedSeconds =
+            (now - stateStartNanos).coerceAtLeast(0L) / 1_000_000_000.0
+
+        when (state) {
+            State.IDLE -> {
+                maybeStartRandomBlink(now)
+
+                val inactiveSeconds =
+                    (now - lastInteractionNanos).coerceAtLeast(0L) /
+                        1_000_000_000.0
+
+                if (inactiveSeconds >= AUTO_TIRED_AFTER_SECONDS) {
+                    setState(State.TIRED, now)
+                }
+            }
+
+            State.WAVE -> {
+                if (elapsedSeconds >= WAVE_DURATION_SECONDS) {
+                    setState(State.IDLE, now)
+                }
+            }
+
+            State.REMINDER -> {
+                if (elapsedSeconds >= REMINDER_DURATION_SECONDS) {
+                    setState(State.IDLE, now)
+                }
+            }
+
+            State.HAPPY -> {
+                if (elapsedSeconds >= HAPPY_DURATION_SECONDS) {
+                    setState(State.IDLE, now)
+                }
+            }
+
+            State.TIRED -> {
+                if (elapsedSeconds >= TIRED_DURATION_SECONDS) {
+                    setState(State.SLEEP, now)
+                }
+            }
+
+            State.SLEEP -> Unit
+
+            State.WAKE_UP -> {
+                if (elapsedSeconds >= WAKE_DURATION_SECONDS) {
+                    setState(State.IDLE, now)
+                }
+            }
+        }
+    }
+
+    private fun maybeStartRandomBlink(now: Long) {
+        if (nextBlinkNanos == 0L) {
+            scheduleNextBlink(now)
+        } else if (blinkStartNanos == 0L && now >= nextBlinkNanos) {
+            blinkStartNanos = now
+        }
+    }
+
+    private fun currentBlinkAmount(now: Long): Double {
+        if (state == State.SLEEP) return 1.0
+
+        if (state == State.TIRED) {
+            val t =
+                (now - stateStartNanos).coerceAtLeast(0L) /
+                    1_000_000_000.0
+            val slowBlink = (sin(t * PI * 1.05) + 1.0) / 2.0
+            return 0.18 + 0.68 * slowBlink
+        }
+
+        if (state == State.WAKE_UP) {
+            val t =
+                (now - stateStartNanos).coerceAtLeast(0L) /
+                    1_000_000_000.0
+            return when {
+                t < 0.18 -> 1.0
+                t < 0.55 -> 1.0 - smoothStep((t - 0.18) / 0.37)
+                else -> 0.0
+            }
+        }
+
         if (blinkStartNanos == 0L) return 0.0
 
-        val elapsed = nowNanos - blinkStartNanos
+        val elapsed = now - blinkStartNanos
         if (elapsed >= BLINK_DURATION_NANOS) {
             blinkStartNanos = 0L
-            scheduleNextBlink(nowNanos)
+            scheduleNextBlink(now)
             return 0.0
         }
 
@@ -200,15 +337,60 @@ class PetRigView @JvmOverloads constructor(
 
     private fun buildMesh(
         idleSeconds: Double,
-        waveT: Double,
+        stateSeconds: Double,
         blinkAmount: Double
     ) {
         val viewW = width.toFloat()
         val viewH = height.toFloat()
 
-        val breath = sin(idleSeconds * 2.0 * PI / 2.65)
-        val tailAngle = 3.4 * sin(idleSeconds * 2.0 * PI / 2.35)
-        val wave = waveParams(waveT)
+        val sleepBreathMultiplier = if (state == State.SLEEP) 0.48 else 1.0
+        val breath =
+            sin(idleSeconds * 2.0 * PI / if (state == State.SLEEP) 3.6 else 2.65) *
+                sleepBreathMultiplier
+
+        val tailAmplitude = when (state) {
+            State.HAPPY -> 8.0
+            State.SLEEP -> 1.1
+            State.TIRED -> 1.8
+            else -> 3.4
+        }
+
+        val tailAngle =
+            tailAmplitude *
+                sin(idleSeconds * 2.0 * PI / if (state == State.HAPPY) 0.72 else 2.35)
+
+        val wave = when (state) {
+            State.WAVE -> waveParams(stateSeconds)
+            State.REMINDER -> reminderWaveParams(stateSeconds)
+            else -> WaveParams(false, 0.0, 0.0, 0.0)
+        }
+
+        val happyBounce =
+            if (state == State.HAPPY) {
+                val p = clamp(stateSeconds / HAPPY_DURATION_SECONDS, 0.0, 1.0)
+                -0.022 * abs(sin(p * PI * 3.0)) * (1.0 - p * 0.25)
+            } else {
+                0.0
+            }
+
+        val tiredDrop =
+            if (state == State.TIRED) {
+                0.010 * smoothStep(
+                    clamp(stateSeconds / TIRED_DURATION_SECONDS, 0.0, 1.0)
+                )
+            } else {
+                0.0
+            }
+
+        val sleepDrop = if (state == State.SLEEP) 0.013 else 0.0
+
+        val wakeBounce =
+            if (state == State.WAKE_UP) {
+                val p = clamp(stateSeconds / WAKE_DURATION_SECONDS, 0.0, 1.0)
+                -0.010 * sin(p * PI)
+            } else {
+                0.0
+            }
 
         var index = 0
 
@@ -221,14 +403,26 @@ class PetRigView @JvmOverloads constructor(
                 var x = u
                 var y = v
 
-                // 1) 呼吸：只轻微作用于胸腹，头身仍然是同一张完整母版。
+                // 整体只做极轻的状态位移，不拆头身。
+                y += happyBounce + tiredDrop + sleepDrop + wakeBounce
+
+                // 呼吸只作用于胸腹区域。
                 val chestWeight = exp(
                     -square((u - 0.50) / 0.30) -
                         square((v - 0.72) / 0.27)
                 )
                 y += 0.0035 * breath * chestWeight
 
-                // 2) 尾巴：只让左侧尾部轻摆，尾根固定，身体不会一起扭。
+                // 睡眠时身体稍微放松下沉，仍然是同一张母版。
+                if (state == State.SLEEP) {
+                    val bodyRelaxWeight = exp(
+                        -square((u - 0.50) / 0.38) -
+                            square((v - 0.73) / 0.30)
+                    )
+                    y += 0.0045 * bodyRelaxWeight
+                }
+
+                // 尾巴局部摆动。
                 val tailPivotU = 0.355
                 val tailPivotV = 0.735
                 val tailCenterU = 0.205
@@ -251,14 +445,20 @@ class PetRigView @JvmOverloads constructor(
                     val angle = tailAngle * PI / 180.0
                     val dx = x - tailPivotU
                     val dy = y - tailPivotV
-                    val rx = tailPivotU + dx * cos(angle) - dy * sin(angle)
-                    val ry = tailPivotV + dx * sin(angle) + dy * cos(angle)
+                    val rx =
+                        tailPivotU + dx * cos(angle) - dy * sin(angle)
+                    val ry =
+                        tailPivotV + dx * sin(angle) + dy * cos(angle)
 
-                    x = x * (1.0 - tailWeight) + rx * tailWeight
-                    y = y * (1.0 - tailWeight) + ry * tailWeight
+                    x =
+                        x * (1.0 - tailWeight) +
+                            rx * tailWeight
+                    y =
+                        y * (1.0 - tailWeight) +
+                            ry * tailWeight
                 }
 
-                // 3) 随机眨眼：只压缩双眼附近的局部网格，不替换整张脸。
+                // 双眼局部压缩，实现眨眼 / 困倦 / 睡觉。
                 if (blinkAmount > 0.0) {
                     val eyeCenterV = 0.392
 
@@ -276,11 +476,16 @@ class PetRigView @JvmOverloads constructor(
                         1.0
                     )
 
-                    val compression = 0.69 * blinkAmount * eyeWeight
-                    y = eyeCenterV + (y - eyeCenterV) * (1.0 - compression)
+                    val compression =
+                        0.69 * blinkAmount * eyeWeight
+
+                    y =
+                        eyeCenterV +
+                            (y - eyeCenterV) *
+                                (1.0 - compression)
                 }
 
-                // 4) 挥爪：只改变右前肢附近的网格。
+                // 右前爪局部网格挥动。
                 if (wave.active) {
                     val pivotU = 0.570
                     val pivotV = 0.596
@@ -304,17 +509,25 @@ class PetRigView @JvmOverloads constructor(
                     )
                     localWeight *= shoulderAnchor
 
-                    val angle = wave.angleDegrees * PI / 180.0
+                    val angle =
+                        wave.angleDegrees * PI / 180.0
+
                     val dx = x - pivotU
                     val dy = y - pivotV
 
                     val rotatedX =
-                        pivotU + dx * cos(angle) - dy * sin(angle)
+                        pivotU +
+                            dx * cos(angle) -
+                            dy * sin(angle)
                     val rotatedY =
-                        pivotV + dx * sin(angle) + dy * cos(angle)
+                        pivotV +
+                            dx * sin(angle) +
+                            dy * cos(angle)
 
-                    val desiredX = rotatedX + wave.translateX
-                    val desiredY = rotatedY + wave.translateY
+                    val desiredX =
+                        rotatedX + wave.translateX
+                    val desiredY =
+                        rotatedY + wave.translateY
 
                     x =
                         x * (1.0 - localWeight) +
@@ -330,26 +543,29 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun reminderWaveParams(timeSeconds: Double): WaveParams {
+        if (
+            timeSeconds < 0.0 ||
+            timeSeconds >= REMINDER_DURATION_SECONDS
+        ) {
+            return WaveParams(false, 0.0, 0.0, 0.0)
+        }
+
+        // 提醒时连续挥两轮，中间只停很短时间。
+        val cycle = timeSeconds % WAVE_DURATION_SECONDS
+        return waveParams(cycle)
+    }
+
     private fun waveParams(timeSeconds: Double): WaveParams {
         if (
             timeSeconds < 0.0 ||
             timeSeconds >= WAVE_DURATION_SECONDS
         ) {
-            return WaveParams(
-                false,
-                0.0,
-                0.0,
-                0.0
-            )
+            return WaveParams(false, 0.0, 0.0, 0.0)
         }
 
         if (timeSeconds < 0.12) {
-            return WaveParams(
-                true,
-                0.0,
-                0.0,
-                0.0
-            )
+            return WaveParams(true, 0.0, 0.0, 0.0)
         }
 
         if (timeSeconds < 0.38) {
@@ -367,9 +583,8 @@ class PetRigView @JvmOverloads constructor(
         if (timeSeconds < 0.92) {
             val p =
                 (timeSeconds - 0.38) / 0.54
-            val swing = sin(
-                p * PI * 4.0
-            )
+            val swing =
+                sin(p * PI * 4.0)
 
             return WaveParams(
                 true,
@@ -394,28 +609,15 @@ class PetRigView @JvmOverloads constructor(
             )
         }
 
-        return WaveParams(
-            true,
-            0.0,
-            0.0,
-            0.0
-        )
+        return WaveParams(true, 0.0, 0.0, 0.0)
     }
 
-    private fun smoothStep(
-        value: Double
-    ): Double {
-        val x = clamp(
-            value,
-            0.0,
-            1.0
-        )
+    private fun smoothStep(value: Double): Double {
+        val x = clamp(value, 0.0, 1.0)
         return x * x * (3.0 - 2.0 * x)
     }
 
-    private fun square(
-        value: Double
-    ): Double = value * value
+    private fun square(value: Double): Double = value * value
 
     private fun clamp(
         value: Double,
@@ -438,6 +640,14 @@ class PetRigView @JvmOverloads constructor(
 
     companion object {
         private const val WAVE_DURATION_SECONDS = 1.35
+        private const val REMINDER_DURATION_SECONDS = 2.70
+        private const val HAPPY_DURATION_SECONDS = 1.15
+        private const val TIRED_DURATION_SECONDS = 7.0
+        private const val WAKE_DURATION_SECONDS = 0.85
+
+        // 正式逻辑：5 分钟没有互动，先进入犯困，再自动睡觉。
+        private const val AUTO_TIRED_AFTER_SECONDS = 300.0
+
         private const val BLINK_DURATION_NANOS = 340_000_000L
         private const val MIN_BLINK_DELAY_MS = 3_200L
         private const val MAX_BLINK_DELAY_MS = 7_800L

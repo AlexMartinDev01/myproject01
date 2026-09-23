@@ -247,7 +247,13 @@ class PetRigView @JvmOverloads constructor(
             State.WAKE_UP -> drawWakeState(canvas, idleSeconds, stateSeconds)
 
             else -> {
-                val blink = currentBlinkAmount(now)
+                val normalBlink = currentBlinkAmount(now)
+                val comboBlink = if (state == State.TAIL_WAG) {
+                    tailComboBlinkAmount(stateSeconds)
+                } else {
+                    0.0
+                }
+                val blink = maxOf(normalBlink, comboBlink)
                 buildMesh(idleSeconds, stateSeconds, blink)
                 drawIdleMesh(canvas, 1f)
             }
@@ -576,6 +582,7 @@ class PetRigView @JvmOverloads constructor(
         val wave = when (state) {
             State.WAVE -> waveParams(stateSeconds)
             State.REMINDER -> reminderWaveParams(stateSeconds)
+            State.TAIL_WAG -> tailComboWaveParams(stateSeconds)
             else -> WaveParams(false, 0.0, 0.0, 0.0)
         }
 
@@ -630,19 +637,33 @@ class PetRigView @JvmOverloads constructor(
                 val tailCenterV = 0.690
 
                 var tailWeight = exp(
-                    -square((u - tailCenterU) / 0.18) -
-                        square((v - tailCenterV) / 0.20)
+                    -square((u - tailCenterU) / 0.115) -
+                        square((v - tailCenterV) / 0.145)
                 )
+
+                // 尾巴保护蒙版：
+                // 只允许左下方尾巴区域参与旋转，头部、脸、胸口全部锁死。
+                val tailHorizontalMask =
+                    1.0 - smoothStep(clamp((u - 0.335) / 0.060, 0.0, 1.0))
+                val tailVerticalMask =
+                    smoothStep(clamp((v - 0.535) / 0.085, 0.0, 1.0))
+                val faceProtection =
+                    if (v < 0.545 || u > 0.405) 0.0 else 1.0
 
                 val tailDistance = hypot(u - tailPivotU, v - tailPivotV)
                 val tailAnchor = clamp(
-                    (tailDistance - 0.018) / 0.165,
+                    (tailDistance - 0.018) / 0.145,
                     0.0,
                     1.0
                 )
-                tailWeight *= tailAnchor
 
-                if (tailWeight > 0.002) {
+                tailWeight *=
+                    tailAnchor *
+                    tailHorizontalMask *
+                    tailVerticalMask *
+                    faceProtection
+
+                if (tailWeight > 0.003) {
                     val angle = tailAngle * PI / 180.0
                     val dx = x - tailPivotU
                     val dy = y - tailPivotV
@@ -690,8 +711,17 @@ class PetRigView @JvmOverloads constructor(
                             square((v - centerV) / 0.101)
                     )
 
-                    if (u < 0.50 || v < 0.53) {
-                        localWeight *= 0.15
+                    // 挥爪同样采用硬保护区：脸、头、左半身绝不参与手臂变形。
+                    if (u < 0.505 || u > 0.700 || v < 0.545 || v > 0.805) {
+                        localWeight = 0.0
+                    } else {
+                        val armHorizontalMask =
+                            smoothStep(clamp((u - 0.505) / 0.055, 0.0, 1.0)) *
+                            (1.0 - smoothStep(clamp((u - 0.655) / 0.045, 0.0, 1.0)))
+                        val armVerticalMask =
+                            smoothStep(clamp((v - 0.545) / 0.055, 0.0, 1.0)) *
+                            (1.0 - smoothStep(clamp((v - 0.755) / 0.050, 0.0, 1.0)))
+                        localWeight *= armHorizontalMask * armVerticalMask
                     }
 
                     val distance = hypot(u - pivotU, v - pivotV)
@@ -722,6 +752,26 @@ class PetRigView @JvmOverloads constructor(
                 verts[index++] = (y * viewH).toFloat()
             }
         }
+    }
+
+    private fun tailComboBlinkAmount(timeSeconds: Double): Double {
+        // 摇尾巴期间自然眨一次眼：脸不做任何整体网格拉伸，只压缩眼睛局部。
+        if (timeSeconds < 0.46 || timeSeconds > 0.78) return 0.0
+        val t = timeSeconds - 0.46
+        return when {
+            t < 0.09 -> smoothStep(t / 0.09)
+            t < 0.15 -> 1.0
+            else -> 1.0 - smoothStep((t - 0.15) / 0.17)
+        }
+    }
+
+    private fun tailComboWaveParams(timeSeconds: Double): WaveParams {
+        // 先明显摇尾巴，再配合一次挥爪；整个过程中尾巴继续动。
+        val local = timeSeconds - 0.82
+        if (local < 0.0 || local >= WAVE_DURATION_SECONDS) {
+            return WaveParams(false, 0.0, 0.0, 0.0)
+        }
+        return waveParams(local)
     }
 
     private fun reminderWaveParams(timeSeconds: Double): WaveParams {
@@ -801,7 +851,7 @@ class PetRigView @JvmOverloads constructor(
         private const val WAVE_DURATION_SECONDS = 1.35
         private const val REMINDER_DURATION_SECONDS = 2.70
         private const val HAPPY_DURATION_SECONDS = 1.15
-        private const val TAIL_WAG_DURATION_SECONDS = 1.90
+        private const val TAIL_WAG_DURATION_SECONDS = 2.35
         private const val TIRED_DURATION_SECONDS = 4.2
         private const val TIRED_CROSSFADE_SECONDS = 0.32
         private const val WAKE_DURATION_SECONDS = 1.45

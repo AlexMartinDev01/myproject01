@@ -6,22 +6,23 @@ import android.graphics.BitmapFactory;
 import android.util.Base64;
 
 public final class PetAssets {
+    // 6-frame real-art sprite sheet built from the user's generated 橘团 resources.
     public static final int IDLE = 0;
     public static final int WAVE_1 = 1;
-    public static final int WAVE_2 = 2;
-    public static final int WAVE_3 = 3;
+    public static final int WAVE_2 = 1;
+    public static final int WAVE_3 = 1;
+    public static final int TIRED = 2;
+    public static final int SLEEP = 3;
     public static final int REMINDER = 4;
     public static final int SUCCESS = 5;
-    public static final int HAPPY = 6;
-    public static final int TIRED = 7;
-    public static final int SLEEP = 8;
-    public static final int WAKE = 9;
-    public static final int NOTE = 10;
+    public static final int HAPPY = 5;
+    public static final int WAKE = 1;
+    public static final int NOTE = 0;
 
     private static Bitmap spriteSheet;
-    private static final Bitmap[] frames = new Bitmap[11];
-    private static final int FRAME = 144;
-    private static final int COLS = 4;
+    private static final Bitmap[] frames = new Bitmap[6];
+    private static final int FRAME = 96;
+    private static final int COLS = 3;
 
     private PetAssets() {}
 

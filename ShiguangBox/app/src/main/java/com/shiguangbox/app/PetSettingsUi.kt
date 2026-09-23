@@ -111,7 +111,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.1.2 睡醒过渡修正版 · 打哈欠 / 蜷睡 / 伸懒腰 / 更明显尾巴",
+                        "V1.2.0 动态桌宠增强版 · 大幅摇尾巴 / 大幅挥爪 / 拖拽悬空 / 落地回弹",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -209,6 +209,22 @@ fun PetSettingsScreen(
                                 ContextCompat.startForegroundService(
                                     context,
                                     Intent(context, PetOverlayService::class.java)
+                                        .setAction(PetOverlayService.ACTION_TEST_TAIL)
+                                )
+                                message = "已经让橘团大幅摇尾巴啦"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试大幅摇尾巴")
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_BLINK)
                                 )
                                 message = "已经让橘团眨眼啦"
@@ -289,9 +305,9 @@ fun PetSettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
-                    Text("• 待机时会轻微呼吸、随机眨眼；尾巴摆动幅度再次加大但保持慢速柔和")
+                    Text("• 待机时轻微呼吸、随机眨眼，并随机触发明显摇尾巴或挥爪")
                     Text("• 5 分钟没有互动会先进入打哈欠犯困姿态，约 4 秒后切换成真正闭眼蜷睡")
-                    Text("• 点击、拖动、提醒都会把橘团从困倦/睡眠中唤醒，并经过伸懒腰过渡")
+                    Text("• 点击、拖动、提醒都会唤醒橘团；拖动时进入悬空姿态，松手自动吸边并轻回弹")
                     Text("• 到点提醒会连续挥爪；完成待办会进入开心庆祝状态")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")
                     Text("• 待办到点后，橘团会挥爪并弹出提醒")

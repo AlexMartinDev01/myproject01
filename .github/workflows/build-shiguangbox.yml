@@ -34,8 +34,11 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug
 
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/拾光盒_v1.2.0_橘团动态桌宠增强版.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShiguangBox-apk
-          path: ShiguangBox/app/build/outputs/apk/debug/app-debug.apk
+          name: 拾光盒-v1.2.0-APK
+          path: ShiguangBox/app/build/outputs/apk/debug/拾光盒_v1.2.0_橘团动态桌宠增强版.apk

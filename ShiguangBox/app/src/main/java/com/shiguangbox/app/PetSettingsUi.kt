@@ -274,7 +274,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.5.0 双宠物版 · 橘团 / 芽芽 · 独立绑定与行为系统",
+                        "V1.5.1 双宠切换稳定版 · 橘团 / 芽芽 · 安全资源解码",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )

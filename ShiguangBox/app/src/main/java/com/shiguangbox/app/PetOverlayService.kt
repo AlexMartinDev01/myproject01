@@ -709,6 +709,11 @@ class PetOverlayService : Service() {
             immediate = true
         )
 
+        edgePeekRunnable?.let {
+            handler.removeCallbacks(it)
+        }
+        edgePeekRunnable = null
+
         petParams?.let { params ->
             prefs.edit()
                 .putInt("pet_x", params.x)
@@ -718,18 +723,19 @@ class PetOverlayService : Service() {
 
         val oldPet = petView
 
-        oldPet?.release()
-
+        // Detach first, then stop animation. This avoids a pending
+        // Canvas frame touching a bitmap while the pet is replaced.
         oldPet?.let {
             runCatching {
-                windowManager.removeView(it)
+                windowManager.removeViewImmediate(it)
             }
         }
+
+        oldPet?.release()
 
         petView = null
         petParams = null
 
-        startPetForeground()
         ensurePetView()
     }
 

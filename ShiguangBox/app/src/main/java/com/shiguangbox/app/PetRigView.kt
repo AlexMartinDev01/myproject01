@@ -47,28 +47,60 @@ class PetRigView @JvmOverloads constructor(
     private val visualResources =
         PetProfiles.resources(petKind)
 
+    private fun decodePetBitmap(
+        resourceId: Int,
+        fallbackResourceId: Int
+    ): Bitmap {
+        val decoded =
+            runCatching {
+                BitmapFactory.decodeResource(
+                    resources,
+                    resourceId
+                )
+            }.getOrNull()
+
+        if (decoded != null) {
+            return decoded
+        }
+
+        val fallback =
+            runCatching {
+                BitmapFactory.decodeResource(
+                    resources,
+                    fallbackResourceId
+                )
+            }.getOrNull()
+
+        return fallback
+            ?: Bitmap.createBitmap(
+                2,
+                2,
+                Bitmap.Config.ARGB_8888
+            )
+    }
+
     private val idleBitmap: Bitmap =
-        BitmapFactory.decodeResource(
-            resources,
-            visualResources.idle
+        decodePetBitmap(
+            visualResources.idle,
+            R.drawable.pet_orange_idle
         )
 
     private val sleepBitmap: Bitmap =
-        BitmapFactory.decodeResource(
-            resources,
-            visualResources.sleep
+        decodePetBitmap(
+            visualResources.sleep,
+            R.drawable.pet_orange_sleep
         )
 
     private val tiredBitmap: Bitmap =
-        BitmapFactory.decodeResource(
-            resources,
-            visualResources.tired
+        decodePetBitmap(
+            visualResources.tired,
+            R.drawable.pet_orange_tired
         )
 
     private val wakeBitmap: Bitmap =
-        BitmapFactory.decodeResource(
-            resources,
-            visualResources.wake
+        decodePetBitmap(
+            visualResources.wake,
+            R.drawable.pet_orange_wake
         )
 
     private val paint = Paint(
@@ -280,12 +312,15 @@ class PetRigView @JvmOverloads constructor(
     }
 
     fun release() {
-        Choreographer.getInstance().removeFrameCallback(this)
+        paused = true
+        Choreographer.getInstance()
+            .removeFrameCallback(this)
         callbackPosted = false
-        if (!idleBitmap.isRecycled) idleBitmap.recycle()
-        if (!sleepBitmap.isRecycled) sleepBitmap.recycle()
-        if (!tiredBitmap.isRecycled) tiredBitmap.recycle()
-        if (!wakeBitmap.isRecycled) wakeBitmap.recycle()
+
+        // Resource bitmaps are intentionally NOT recycled manually.
+        // Android may still have a pending draw while the overlay is
+        // being replaced. Recycling here can crash Canvas with
+        // "trying to use a recycled bitmap".
     }
 
     private fun setState(newState: State, now: Long = System.nanoTime()) {

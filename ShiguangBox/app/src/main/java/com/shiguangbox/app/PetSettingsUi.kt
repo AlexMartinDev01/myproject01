@@ -50,6 +50,48 @@ fun PetSettingsScreen(
     }
     var message by rememberSaveable { mutableStateOf("") }
 
+    var actionLevel by rememberSaveable {
+        mutableStateOf(
+            prefs.getInt("pet_action_level", 1)
+        )
+    }
+
+    var autoSleep by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean("pet_auto_sleep", true)
+        )
+    }
+
+    var sleepMinutes by rememberSaveable {
+        mutableStateOf(
+            prefs.getInt("pet_sleep_minutes", 4)
+        )
+    }
+
+    var edgePeek by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean("pet_edge_peek", true)
+        )
+    }
+
+    var autoSnap by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean("pet_auto_snap", true)
+        )
+    }
+
+    var petSizeDp by rememberSaveable {
+        mutableStateOf(
+            prefs.getInt("pet_size_dp", 112)
+        )
+    }
+
+    var petAlpha by rememberSaveable {
+        mutableStateOf(
+            prefs.getInt("pet_alpha_percent", 100)
+        )
+    }
+
     val overlayLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
@@ -96,6 +138,54 @@ fun PetSettingsScreen(
         message = "桌宠已关闭，随时可以再叫它出来"
     }
 
+    fun applyPetSettings() {
+        prefs.edit()
+            .putInt(
+                "pet_action_level",
+                actionLevel.coerceIn(0, 2)
+            )
+            .putBoolean(
+                "pet_auto_sleep",
+                autoSleep
+            )
+            .putInt(
+                "pet_sleep_minutes",
+                sleepMinutes.coerceIn(3, 5)
+            )
+            .putBoolean(
+                "pet_edge_peek",
+                edgePeek
+            )
+            .putBoolean(
+                "pet_auto_snap",
+                autoSnap
+            )
+            .putInt(
+                "pet_size_dp",
+                petSizeDp.coerceIn(88, 150)
+            )
+            .putInt(
+                "pet_alpha_percent",
+                petAlpha.coerceIn(55, 100)
+            )
+            .apply()
+
+        if (enabled && overlayGranted) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(
+                    context,
+                    PetOverlayService::class.java
+                ).setAction(
+                    PetOverlayService
+                        .ACTION_REFRESH_SETTINGS
+                )
+            )
+        }
+
+        message = "行为与外观设置已应用"
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -111,7 +201,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.2.1 脸部锁定修正版 · 尾巴独立 / 眨眼 / 挥爪组合动作 / 脸不变形",
+                        "V1.3.0 行为系统版 · 动作调度 / 连点 / 长按摸摸 / 探头 / 可调设置",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -224,6 +314,28 @@ fun PetSettingsScreen(
                             onClick = {
                                 ContextCompat.startForegroundService(
                                     context,
+                                    Intent(
+                                        context,
+                                        PetOverlayService::class.java
+                                    ).setAction(
+                                        PetOverlayService
+                                            .ACTION_TEST_PETTING
+                                    )
+                                )
+                                message =
+                                    "橘团进入被摸摸状态啦"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试长按摸摸效果")
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_BLINK)
                                 )
@@ -297,6 +409,195 @@ fun PetSettingsScreen(
 
         item {
             Card(
+                colors = CardDefaults.cardColors(
+                    containerColor =
+                        MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp)
+                ) {
+                    Text(
+                        "行为与外观",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Text(
+                        "活跃程度：" +
+                            when (actionLevel) {
+                                0 -> "安静"
+                                2 -> "活泼"
+                                else -> "自然"
+                            }
+                    )
+
+                    Slider(
+                        value = actionLevel.toFloat(),
+                        onValueChange = {
+                            actionLevel =
+                                it.toInt().coerceIn(0, 2)
+                        },
+                        valueRange = 0f..2f,
+                        steps = 1
+                    )
+
+                    Text(
+                        "控制随机眨眼、摇尾巴和挥爪出现的频率",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "自动犯困睡觉",
+                                fontWeight =
+                                    FontWeight.Medium
+                            )
+                            Text(
+                                "长时间不互动后先犯困，再蜷睡",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Switch(
+                            checked = autoSleep,
+                            onCheckedChange = {
+                                autoSleep = it
+                            }
+                        )
+                    }
+
+                    if (autoSleep) {
+                        Text(
+                            "无互动 " +
+                                sleepMinutes +
+                                " 分钟后开始犯困"
+                        )
+
+                        Slider(
+                            value =
+                                sleepMinutes.toFloat(),
+                            onValueChange = {
+                                sleepMinutes =
+                                    it.toInt()
+                                        .coerceIn(3, 5)
+                            },
+                            valueRange = 3f..5f,
+                            steps = 1
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "松手自动吸边",
+                            Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = autoSnap,
+                            onCheckedChange = {
+                                autoSnap = it
+                            }
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("吸边后偶尔探头")
+                            Text(
+                                "缩进去一点，再探出来眨眼 / 挥爪",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Switch(
+                            checked = edgePeek,
+                            onCheckedChange = {
+                                edgePeek = it
+                            }
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Text(
+                        "宠物大小：" +
+                            petSizeDp +
+                            " dp"
+                    )
+
+                    Slider(
+                        value = petSizeDp.toFloat(),
+                        onValueChange = {
+                            petSizeDp =
+                                it.toInt()
+                                    .coerceIn(88, 150)
+                        },
+                        valueRange = 88f..150f
+                    )
+
+                    Text(
+                        "透明度：" +
+                            petAlpha +
+                            "%"
+                    )
+
+                    Slider(
+                        value = petAlpha.toFloat(),
+                        onValueChange = {
+                            petAlpha =
+                                it.toInt()
+                                    .coerceIn(55, 100)
+                        },
+                        valueRange = 55f..100f
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            applyPetSettings()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("应用设置")
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(22.dp)
             ) {
@@ -306,9 +607,9 @@ fun PetSettingsScreen(
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
                     Text("• 摇尾巴只影响尾巴局部，头脸锁定；摇尾巴期间会自然配合眨眼和挥爪")
-                    Text("• 5 分钟没有互动会先进入打哈欠犯困姿态，约 4 秒后切换成真正闭眼蜷睡")
-                    Text("• 点击、拖动、提醒都会唤醒橘团；拖动时进入悬空姿态，松手自动吸边并轻回弹")
-                    Text("• 到点提醒会连续挥爪；完成待办会进入开心庆祝状态")
+                    Text("• 3–5 分钟无互动可自动犯困 → 打哈欠 → 闭眼蜷睡，时间可调")
+                    Text("• 单击随机反应；双击更开心；连续点击更兴奋；长按会进入“被摸摸”状态")
+                    Text("• 拖动进入悬空姿态，松手轻回弹；吸边后偶尔缩进去再探头")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")
                     Text("• 待办到点后，橘团会挥爪并弹出提醒")
                     Text("• 提醒里可以直接完成，或者延后 10 分钟")

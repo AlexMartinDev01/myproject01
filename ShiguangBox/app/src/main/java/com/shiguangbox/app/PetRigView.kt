@@ -31,7 +31,8 @@ class PetRigView @JvmOverloads constructor(
         TIRED,
         SLEEP,
         WAKE_UP,
-        DRAGGING
+        DRAGGING,
+        PETTED
     }
 
     private val idleBitmap: Bitmap = BitmapFactory.decodeResource(
@@ -73,6 +74,12 @@ class PetRigView @JvmOverloads constructor(
     private var blinkStartNanos = 0L
     private var nextBlinkNanos = 0L
     private var nextIdleActionNanos = 0L
+
+    private var lastIdleAction = -1
+    private var lastTouchReaction = -1
+    private var actionFrequencyLevel = 1
+    private var autoSleepEnabled = true
+    private var autoSleepAfterSeconds = 240.0
 
     init {
         isClickable = true
@@ -137,6 +144,61 @@ class PetRigView @JvmOverloads constructor(
         lastInteractionNanos = now
         setState(State.TAIL_WAG, now)
     }
+
+    fun playPetted() {
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+        setState(State.PETTED, now)
+    }
+
+    fun playTouchReaction() {
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+
+        if (state == State.SLEEP || state == State.TIRED) {
+            setState(State.WAKE_UP, now)
+            return
+        }
+
+        var candidate = Random.nextInt(3)
+        if (candidate == lastTouchReaction) {
+            candidate = (candidate + 1 + Random.nextInt(2)) % 3
+        }
+        lastTouchReaction = candidate
+
+        when (candidate) {
+            0 -> {
+                blinkStartNanos = now
+                nextBlinkNanos =
+                    now + BLINK_DURATION_NANOS + randomBlinkDelayNanos()
+                postFrame()
+            }
+            1 -> setState(State.TAIL_WAG, now)
+            else -> setState(State.WAVE, now)
+        }
+    }
+
+    fun configureBehavior(
+        actionLevel: Int,
+        autoSleep: Boolean,
+        sleepMinutes: Int
+    ) {
+        actionFrequencyLevel = actionLevel.coerceIn(0, 2)
+        autoSleepEnabled = autoSleep
+        autoSleepAfterSeconds = sleepMinutes.coerceIn(3, 5) * 60.0
+        val now = System.nanoTime()
+        lastInteractionNanos = now
+        if (state == State.IDLE) {
+            scheduleNextIdleAction(now)
+        }
+    }
+
+    fun canDoAmbientAction(): Boolean = state == State.IDLE
+
+    fun isSleepingOrTired(): Boolean =
+        state == State.SLEEP ||
+            state == State.TIRED ||
+            state == State.WAKE_UP
 
     fun startDragging() {
         val now = System.nanoTime()
@@ -248,10 +310,10 @@ class PetRigView @JvmOverloads constructor(
 
             else -> {
                 val normalBlink = currentBlinkAmount(now)
-                val comboBlink = if (state == State.TAIL_WAG) {
-                    tailComboBlinkAmount(stateSeconds)
-                } else {
-                    0.0
+                val comboBlink = when (state) {
+                    State.TAIL_WAG -> tailComboBlinkAmount(stateSeconds)
+                    State.PETTED -> pettingBlinkAmount(stateSeconds)
+                    else -> 0.0
                 }
                 val blink = maxOf(normalBlink, comboBlink)
                 buildMesh(idleSeconds, stateSeconds, blink)
@@ -449,7 +511,9 @@ class PetRigView @JvmOverloads constructor(
                     (now - lastInteractionNanos).coerceAtLeast(0L) /
                         1_000_000_000.0
 
-                if (inactiveSeconds >= AUTO_TIRED_AFTER_SECONDS) {
+                if (autoSleepEnabled &&
+                    inactiveSeconds >= autoSleepAfterSeconds
+                ) {
                     setState(State.TIRED, now)
                 }
             }
@@ -471,6 +535,12 @@ class PetRigView @JvmOverloads constructor(
             }
 
             State.DRAGGING -> Unit
+
+            State.PETTED -> if (
+                elapsedSeconds >= PETTED_DURATION_SECONDS
+            ) {
+                setState(State.IDLE, now)
+            }
 
             State.TIRED -> if (elapsedSeconds >= TIRED_DURATION_SECONDS) {
                 setState(State.SLEEP, now)
@@ -495,17 +565,51 @@ class PetRigView @JvmOverloads constructor(
     private fun maybeStartRandomIdleAction(now: Long) {
         if (blinkStartNanos != 0L || now < nextIdleActionNanos) return
 
-        if (Random.nextInt(100) < 68) {
-            setState(State.TAIL_WAG, now)
-        } else {
-            setState(State.WAVE, now)
+        // 0=只眨眼，1=摇尾巴组合，2=挥爪；避免连续相同。
+        var candidate = when (Random.nextInt(100)) {
+            in 0..24 -> 0
+            in 25..69 -> 1
+            else -> 2
+        }
+
+        if (candidate == lastIdleAction) {
+            candidate = (candidate + 1 + Random.nextInt(2)) % 3
+        }
+        lastIdleAction = candidate
+
+        when (candidate) {
+            0 -> {
+                blinkStartNanos = now
+                nextBlinkNanos =
+                    now + BLINK_DURATION_NANOS + randomBlinkDelayNanos()
+                scheduleNextIdleAction(now)
+            }
+            1 -> setState(State.TAIL_WAG, now)
+            else -> setState(State.WAVE, now)
         }
     }
 
     private fun scheduleNextIdleAction(nowNanos: Long) {
+        val minDelay: Long
+        val maxDelay: Long
+
+        when (actionFrequencyLevel) {
+            0 -> {
+                minDelay = 9_000L
+                maxDelay = 16_000L
+            }
+            2 -> {
+                minDelay = 3_200L
+                maxDelay = 7_000L
+            }
+            else -> {
+                minDelay = 5_500L
+                maxDelay = 11_000L
+            }
+        }
+
         nextIdleActionNanos = nowNanos +
-            Random.nextLong(MIN_IDLE_ACTION_DELAY_MS, MAX_IDLE_ACTION_DELAY_MS + 1L) *
-                1_000_000L
+            Random.nextLong(minDelay, maxDelay + 1L) * 1_000_000L
     }
 
     private fun currentBlinkAmount(now: Long): Double {
@@ -559,6 +663,7 @@ class PetRigView @JvmOverloads constructor(
         val tailAmplitude = when (state) {
             State.TAIL_WAG -> 30.0
             State.HAPPY -> 26.0
+            State.PETTED -> 24.0
             State.REMINDER -> 22.0
             State.WAVE -> 18.0
             State.DRAGGING -> 8.0
@@ -569,6 +674,7 @@ class PetRigView @JvmOverloads constructor(
         val tailPeriod = when (state) {
             State.TAIL_WAG -> 0.72
             State.HAPPY -> 0.68
+            State.PETTED -> 0.82
             State.REMINDER -> 0.86
             State.WAVE -> 1.02
             State.DRAGGING -> 1.35
@@ -587,11 +693,23 @@ class PetRigView @JvmOverloads constructor(
         }
 
         val happyBounce =
-            if (state == State.HAPPY) {
-                val p = clamp(stateSeconds / HAPPY_DURATION_SECONDS, 0.0, 1.0)
-                -0.022 * abs(sin(p * PI * 3.0)) * (1.0 - p * 0.25)
-            } else {
-                0.0
+            when (state) {
+                State.HAPPY -> {
+                    val p =
+                        clamp(
+                            stateSeconds / HAPPY_DURATION_SECONDS,
+                            0.0,
+                            1.0
+                        )
+                    -0.022 *
+                        abs(sin(p * PI * 3.0)) *
+                        (1.0 - p * 0.25)
+                }
+
+                State.PETTED ->
+                    -0.006 * abs(sin(stateSeconds * PI * 2.2))
+
+                else -> 0.0
             }
 
         val tiredDrop =
@@ -754,6 +872,19 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun pettingBlinkAmount(timeSeconds: Double): Double {
+        val local = timeSeconds % 0.78
+        return when {
+            local < 0.12 -> smoothStep(local / 0.12)
+            local < 0.35 -> 0.82
+            local < 0.48 ->
+                0.82 *
+                    (1.0 -
+                        smoothStep((local - 0.35) / 0.13))
+            else -> 0.0
+        }
+    }
+
     private fun tailComboBlinkAmount(timeSeconds: Double): Double {
         // 摇尾巴期间自然眨一次眼：脸不做任何整体网格拉伸，只压缩眼睛局部。
         if (timeSeconds < 0.46 || timeSeconds > 0.78) return 0.0
@@ -852,12 +983,12 @@ class PetRigView @JvmOverloads constructor(
         private const val REMINDER_DURATION_SECONDS = 2.70
         private const val HAPPY_DURATION_SECONDS = 1.15
         private const val TAIL_WAG_DURATION_SECONDS = 2.35
+        private const val PETTED_DURATION_SECONDS = 1.85
         private const val TIRED_DURATION_SECONDS = 4.2
         private const val TIRED_CROSSFADE_SECONDS = 0.32
         private const val WAKE_DURATION_SECONDS = 1.45
         private const val SLEEP_CROSSFADE_SECONDS = 0.42
 
-        private const val AUTO_TIRED_AFTER_SECONDS = 300.0
 
         private const val BLINK_DURATION_NANOS = 340_000_000L
         private const val MIN_BLINK_DELAY_MS = 3_200L

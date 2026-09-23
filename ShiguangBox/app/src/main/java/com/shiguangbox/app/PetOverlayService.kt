@@ -51,6 +51,12 @@ class PetOverlayService : Service() {
     private var panelParams: WindowManager.LayoutParams? = null
     private var reminderTaskId: Long = 0L
 
+    private var dockedSide = 0
+    private var tapCount = 0
+    private var lastTapAt = 0L
+    private var tapDispatchRunnable: Runnable? = null
+    private var edgePeekRunnable: Runnable? = null
+
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WindowManager::class.java)
@@ -79,6 +85,14 @@ class PetOverlayService : Service() {
             ACTION_TEST_TAIL -> {
                 ensurePetView()
                 petView?.playTailWag()
+            }
+            ACTION_TEST_PETTING -> {
+                ensurePetView()
+                petView?.playPetted()
+            }
+            ACTION_REFRESH_SETTINGS -> {
+                ensurePetView()
+                applyPetSettings()
             }
             ACTION_TEST_BLINK -> {
                 ensurePetView()
@@ -169,7 +183,10 @@ class PetOverlayService : Service() {
         if (petView != null) return
         if (!Settings.canDrawOverlays(this)) return
 
-        val size = dp(112)
+        val size = dp(
+            prefs.getInt("pet_size_dp", 112)
+                .coerceIn(88, 150)
+        )
         val savedX = prefs.getInt("pet_x", resources.displayMetrics.widthPixels - size - dp(8))
         val savedY = prefs.getInt("pet_y", resources.displayMetrics.heightPixels / 2)
 
@@ -189,6 +206,16 @@ class PetOverlayService : Service() {
         val image = PetRigView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             contentDescription = "橘团桌宠"
+            alpha =
+                prefs.getInt("pet_alpha_percent", 100)
+                    .coerceIn(55, 100) / 100f
+            configureBehavior(
+                actionLevel = prefs.getInt("pet_action_level", 1),
+                autoSleep =
+                    prefs.getBoolean("pet_auto_sleep", true),
+                sleepMinutes =
+                    prefs.getInt("pet_sleep_minutes", 4)
+            )
         }
 
         image.setOnTouchListener(PetTouchListener(image, params))
@@ -197,7 +224,14 @@ class PetOverlayService : Service() {
             windowManager.addView(image, params)
             petView = image
             petParams = params
+            dockedSide = when {
+                savedX < 0 -> -1
+                savedX >
+                    resources.displayMetrics.widthPixels - size -> 1
+                else -> 0
+            }
             startIdleAnimation()
+            scheduleEdgePeek()
         }
     }
 
@@ -206,14 +240,35 @@ class PetOverlayService : Service() {
         private val params: WindowManager.LayoutParams
     ) : View.OnTouchListener {
 
-        private val touchSlop = ViewConfiguration.get(this@PetOverlayService).scaledTouchSlop
+        private val touchSlop =
+            ViewConfiguration.get(
+                this@PetOverlayService
+            ).scaledTouchSlop
+
+        private val longPressTimeout =
+            ViewConfiguration.getLongPressTimeout().toLong()
+
         private var downRawX = 0f
         private var downRawY = 0f
         private var startX = 0
         private var startY = 0
         private var dragging = false
+        private var longPressed = false
+        private var wasSleeping = false
 
-        override fun onTouch(v: View?, event: MotionEvent): Boolean {
+        private val longPressRunnable = Runnable {
+            if (!dragging) {
+                longPressed = true
+                closePanel()
+                petView?.playPetted()
+                showTransientBubble("摸摸～ 橘团很开心")
+            }
+        }
+
+        override fun onTouch(
+            v: View?,
+            event: MotionEvent
+        ): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = event.rawX
@@ -221,8 +276,15 @@ class PetOverlayService : Service() {
                     startX = params.x
                     startY = params.y
                     dragging = false
-                    petView?.onUserInteraction()
-                    petView?.pauseMotion()
+                    longPressed = false
+                    wasSleeping =
+                        petView?.isSleepingOrTired() == true
+
+                    handler.removeCallbacks(longPressRunnable)
+                    handler.postDelayed(
+                        longPressRunnable,
+                        longPressTimeout
+                    )
                     return true
                 }
 
@@ -231,33 +293,86 @@ class PetOverlayService : Service() {
                     val dy = event.rawY - downRawY
 
                     if (!dragging &&
-                        (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop)
+                        (
+                            kotlin.math.abs(dx) > touchSlop ||
+                                kotlin.math.abs(dy) > touchSlop
+                            )
                     ) {
+                        handler.removeCallbacks(
+                            longPressRunnable
+                        )
                         dragging = true
+                        longPressed = false
                         closePanel()
+                        dockedSide = 0
+                        edgePeekRunnable?.let {
+                            handler.removeCallbacks(it)
+                        }
+                        petView?.onUserInteraction()
                         petView?.startDragging()
                     }
 
                     if (dragging) {
-                        val screenW = resources.displayMetrics.widthPixels
-                        val screenH = resources.displayMetrics.heightPixels
-                        params.x = (startX + dx.toInt()).coerceIn(-dp(24), screenW - dp(88))
-                        params.y = (startY + dy.toInt()).coerceIn(dp(24), screenH - dp(140))
-                        runCatching { windowManager.updateViewLayout(view, params) }
+                        val screenW =
+                            resources.displayMetrics.widthPixels
+                        val screenH =
+                            resources.displayMetrics.heightPixels
+                        val petW = params.width
+                        val petH = params.height
+
+                        params.x =
+                            (startX + dx.toInt())
+                                .coerceIn(
+                                    -dp(28),
+                                    screenW - petW + dp(28)
+                                )
+
+                        params.y =
+                            (startY + dy.toInt())
+                                .coerceIn(
+                                    dp(24),
+                                    screenH - petH - dp(28)
+                                )
+
+                        runCatching {
+                            windowManager.updateViewLayout(
+                                view,
+                                params
+                            )
+                        }
                     }
                     return true
                 }
 
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (dragging) {
-                        snapToEdge(params)
-                        petView?.endDragging()
-                        playLandingBounce()
-                    } else if (event.actionMasked == MotionEvent.ACTION_UP) {
-                        toggleQuickPanel()
-                        petView?.resumeMotion()
-                    } else {
-                        petView?.resumeMotion()
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> {
+                    handler.removeCallbacks(longPressRunnable)
+
+                    when {
+                        dragging -> {
+                            snapToEdge(params)
+                            petView?.endDragging()
+                            playLandingBounce()
+                        }
+
+                        longPressed -> {
+                            petView?.startIdle()
+                            scheduleEdgePeek()
+                        }
+
+                        event.actionMasked ==
+                            MotionEvent.ACTION_UP &&
+                            wasSleeping -> {
+                            closePanel()
+                            petView?.wakeUp()
+                        }
+
+                        event.actionMasked ==
+                            MotionEvent.ACTION_UP -> {
+                            queueTapReaction()
+                        }
+
+                        else -> petView?.resumeMotion()
                     }
                     return true
                 }
@@ -266,19 +381,47 @@ class PetOverlayService : Service() {
         }
     }
 
-    private fun snapToEdge(params: WindowManager.LayoutParams) {
+    private fun snapToEdge(
+        params: WindowManager.LayoutParams
+    ) {
+        if (!prefs.getBoolean("pet_auto_snap", true)) {
+            dockedSide = 0
+            prefs.edit()
+                .putInt("pet_x", params.x)
+                .putInt("pet_y", params.y)
+                .apply()
+            return
+        }
+
         val screenW = resources.displayMetrics.widthPixels
         val petWidth = params.width
         val left = -dp(10)
         val right = screenW - petWidth + dp(10)
-        val target = if (params.x + petWidth / 2 < screenW / 2) left else right
+
+        dockedSide =
+            if (params.x + petWidth / 2 < screenW / 2) {
+                -1
+            } else {
+                1
+            }
+
+        val target =
+            if (dockedSide < 0) left else right
         val start = params.x
 
         ValueAnimator.ofInt(start, target).apply {
-            duration = 180
+            duration = 220
             addUpdateListener { animator ->
-                params.x = animator.animatedValue as Int
-                petView?.let { runCatching { windowManager.updateViewLayout(it, params) } }
+                params.x =
+                    animator.animatedValue as Int
+                petView?.let {
+                    runCatching {
+                        windowManager.updateViewLayout(
+                            it,
+                            params
+                        )
+                    }
+                }
             }
             start()
         }
@@ -287,6 +430,238 @@ class PetOverlayService : Service() {
             .putInt("pet_x", target)
             .putInt("pet_y", params.y)
             .apply()
+
+        scheduleEdgePeek()
+    }
+
+    private fun queueTapReaction() {
+        val now = System.currentTimeMillis()
+
+        tapCount =
+            if (now - lastTapAt <= 340L) {
+                tapCount + 1
+            } else {
+                1
+            }
+
+        lastTapAt = now
+        tapDispatchRunnable?.let {
+            handler.removeCallbacks(it)
+        }
+
+        val runnable = Runnable {
+            val count = tapCount
+            tapCount = 0
+
+            when {
+                count <= 1 -> {
+                    petView?.playTouchReaction()
+                    toggleQuickPanel()
+                }
+
+                count == 2 -> {
+                    closePanel()
+                    petView?.playHappy()
+                    showTransientBubble(
+                        "又来找我啦～"
+                    )
+                }
+
+                else -> {
+                    closePanel()
+                    petView?.playTailWag()
+                    playExcitedBounce()
+                    showTransientBubble(
+                        "好开心！再摸摸我～"
+                    )
+                }
+            }
+
+            scheduleEdgePeek()
+        }
+
+        tapDispatchRunnable = runnable
+        handler.postDelayed(runnable, 300L)
+    }
+
+    private fun playExcitedBounce() {
+        val pet = petView ?: return
+
+        AnimatorSet().apply {
+            duration = 520
+            playTogether(
+                ObjectAnimator.ofFloat(
+                    pet,
+                    View.SCALE_X,
+                    1f,
+                    1.10f,
+                    0.97f,
+                    1.06f,
+                    1f
+                ),
+                ObjectAnimator.ofFloat(
+                    pet,
+                    View.SCALE_Y,
+                    1f,
+                    0.94f,
+                    1.08f,
+                    0.98f,
+                    1f
+                ),
+                ObjectAnimator.ofFloat(
+                    pet,
+                    View.TRANSLATION_Y,
+                    0f,
+                    -dp(10).toFloat(),
+                    0f
+                )
+            )
+            start()
+        }
+    }
+
+    private fun applyPetSettings() {
+        val pet = petView ?: return
+        val params = petParams ?: return
+
+        pet.configureBehavior(
+            actionLevel =
+                prefs.getInt("pet_action_level", 1),
+            autoSleep =
+                prefs.getBoolean(
+                    "pet_auto_sleep",
+                    true
+                ),
+            sleepMinutes =
+                prefs.getInt("pet_sleep_minutes", 4)
+        )
+
+        pet.alpha =
+            prefs.getInt("pet_alpha_percent", 100)
+                .coerceIn(55, 100) / 100f
+
+        val newSize =
+            dp(
+                prefs.getInt("pet_size_dp", 112)
+                    .coerceIn(88, 150)
+            )
+
+        params.width = newSize
+        params.height = newSize
+
+        val screenW =
+            resources.displayMetrics.widthPixels
+        val screenH =
+            resources.displayMetrics.heightPixels
+
+        params.x =
+            params.x.coerceIn(
+                -dp(28),
+                screenW - newSize + dp(28)
+            )
+
+        params.y =
+            params.y.coerceIn(
+                dp(24),
+                screenH - newSize - dp(28)
+            )
+
+        runCatching {
+            windowManager.updateViewLayout(
+                pet,
+                params
+            )
+        }
+
+        if (prefs.getBoolean("pet_auto_snap", true)) {
+            snapToEdge(params)
+        } else {
+            dockedSide = 0
+        }
+
+        scheduleEdgePeek()
+    }
+
+    private fun scheduleEdgePeek() {
+        edgePeekRunnable?.let {
+            handler.removeCallbacks(it)
+        }
+
+        if (!prefs.getBoolean("pet_edge_peek", true) ||
+            !prefs.getBoolean("pet_auto_snap", true) ||
+            dockedSide == 0
+        ) {
+            return
+        }
+
+        val delay =
+            kotlin.random.Random.nextLong(
+                14_000L,
+                26_001L
+            )
+
+        val runnable = Runnable {
+            if (panelView == null &&
+                petView?.canDoAmbientAction() == true
+            ) {
+                playEdgePeek()
+            } else {
+                scheduleEdgePeek()
+            }
+        }
+
+        edgePeekRunnable = runnable
+        handler.postDelayed(runnable, delay)
+    }
+
+    private fun playEdgePeek() {
+        val pet = petView ?: return
+        val params = petParams ?: return
+        if (dockedSide == 0) return
+
+        val screenW =
+            resources.displayMetrics.widthPixels
+        val petWidth = params.width
+
+        val baseX =
+            if (dockedSide < 0) {
+                -dp(10)
+            } else {
+                screenW - petWidth + dp(10)
+            }
+
+        val hiddenX =
+            if (dockedSide < 0) {
+                -dp(34)
+            } else {
+                screenW - petWidth + dp(34)
+            }
+
+        pet.playBlink()
+
+        ValueAnimator
+            .ofInt(baseX, hiddenX, baseX)
+            .apply {
+                duration = 1_250L
+                addUpdateListener { animator ->
+                    params.x =
+                        animator.animatedValue as Int
+                    runCatching {
+                        windowManager.updateViewLayout(
+                            pet,
+                            params
+                        )
+                    }
+                }
+                start()
+            }
+
+        handler.postDelayed({
+            if (pet.canDoAmbientAction()) {
+                pet.playWave()
+            }
+            scheduleEdgePeek()
+        }, 1_350L)
     }
 
     private fun playLandingBounce() {
@@ -316,7 +691,6 @@ class PetOverlayService : Service() {
 
     private fun showQuickPanel() {
         closePanel()
-        petView?.playWave()
 
         val root = basePanel()
         val title = label("橘团 ☀️", 18f, true, Color.rgb(78, 58, 46))
@@ -744,6 +1118,10 @@ class PetOverlayService : Service() {
         const val ACTION_REMINDER = "com.shiguangbox.app.pet.REMINDER"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
+        const val ACTION_TEST_PETTING =
+            "com.shiguangbox.app.pet.TEST_PETTING"
+        const val ACTION_REFRESH_SETTINGS =
+            "com.shiguangbox.app.pet.REFRESH_SETTINGS"
         const val ACTION_TEST_BLINK = "com.shiguangbox.app.pet.TEST_BLINK"
         const val ACTION_TEST_TIRED = "com.shiguangbox.app.pet.TEST_TIRED"
         const val ACTION_TEST_SLEEP = "com.shiguangbox.app.pet.TEST_SLEEP"

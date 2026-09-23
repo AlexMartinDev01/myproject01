@@ -111,7 +111,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V0.9 第一阶段 · 先把橘团真正跑起来",
+                        "V1.0 动态桌宠 · 同母版局部网格引擎",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -207,8 +207,9 @@ fun PetSettingsScreen(
                     Text("橘团现在能做什么", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(10.dp))
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
+                    Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")
-                    Text("• 待办到点后，橘团会弹出提醒")
+                    Text("• 待办到点后，橘团会挥爪并弹出提醒")
                     Text("• 提醒里可以直接完成，或者延后 10 分钟")
                     Text("• 完成任务后会有庆祝反馈")
                     Spacer(Modifier.height(10.dp))

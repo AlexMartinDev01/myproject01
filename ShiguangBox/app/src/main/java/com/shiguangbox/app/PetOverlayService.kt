@@ -25,7 +25,6 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -46,11 +45,10 @@ class PetOverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var prefs: android.content.SharedPreferences
 
-    private var petView: ImageView? = null
+    private var petView: PetRigView? = null
     private var petParams: WindowManager.LayoutParams? = null
     private var panelView: View? = null
     private var panelParams: WindowManager.LayoutParams? = null
-    private var idleAnimator: AnimatorSet? = null
     private var reminderTaskId: Long = 0L
 
     override fun onCreate() {
@@ -86,9 +84,9 @@ class PetOverlayService : Service() {
     }
 
     override fun onDestroy() {
-        idleAnimator?.cancel()
         handler.removeCallbacksAndMessages(null)
         closePanel()
+        petView?.release()
         petView?.let {
             runCatching { windowManager.removeView(it) }
         }
@@ -164,9 +162,7 @@ class PetOverlayService : Service() {
             y = savedY
         }
 
-        val image = ImageView(this).apply {
-            setImageResource(R.drawable.pet_orange_idle)
-            scaleType = ImageView.ScaleType.FIT_CENTER
+        val image = PetRigView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             contentDescription = "橘团桌宠"
         }
@@ -201,7 +197,7 @@ class PetOverlayService : Service() {
                     startX = params.x
                     startY = params.y
                     dragging = false
-                    idleAnimator?.pause()
+                    petView?.pauseMotion()
                     return true
                 }
 
@@ -232,7 +228,7 @@ class PetOverlayService : Service() {
                     } else if (event.actionMasked == MotionEvent.ACTION_UP) {
                         toggleQuickPanel()
                     }
-                    idleAnimator?.resume()
+                    petView?.resumeMotion()
                     return true
                 }
             }
@@ -264,27 +260,7 @@ class PetOverlayService : Service() {
     }
 
     private fun startIdleAnimation() {
-        val pet = petView ?: return
-        idleAnimator?.cancel()
-
-        val bob = ObjectAnimator.ofFloat(pet, View.TRANSLATION_Y, 0f, -dp(4).toFloat(), 0f).apply {
-            duration = 2300
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.RESTART
-        }
-        val scaleX = ObjectAnimator.ofFloat(pet, View.SCALE_X, 1f, 1.025f, 1f).apply {
-            duration = 2300
-            repeatCount = ValueAnimator.INFINITE
-        }
-        val scaleY = ObjectAnimator.ofFloat(pet, View.SCALE_Y, 1f, 1.025f, 1f).apply {
-            duration = 2300
-            repeatCount = ValueAnimator.INFINITE
-        }
-
-        idleAnimator = AnimatorSet().apply {
-            playTogether(bob, scaleX, scaleY)
-            start()
-        }
+        petView?.startIdle()
     }
 
     private fun toggleQuickPanel() {
@@ -586,24 +562,11 @@ class PetOverlayService : Service() {
     }
 
     private fun animateReminder() {
-        val pet = petView ?: return
-        idleAnimator?.cancel()
-
-        AnimatorSet().apply {
-            playTogether(
-                ObjectAnimator.ofFloat(pet, View.SCALE_X, 1f, 1.12f, 0.96f, 1f),
-                ObjectAnimator.ofFloat(pet, View.SCALE_Y, 1f, 1.12f, 0.96f, 1f),
-                ObjectAnimator.ofFloat(pet, View.ROTATION, 0f, -7f, 7f, -4f, 0f)
-            )
-            duration = 650
-            start()
-        }
+        petView?.playWave()
     }
 
     private fun animateSuccess() {
         val pet = petView ?: return
-        idleAnimator?.cancel()
-
         AnimatorSet().apply {
             playTogether(
                 ObjectAnimator.ofFloat(pet, View.TRANSLATION_Y, 0f, -dp(24).toFloat(), 0f),

@@ -81,6 +81,13 @@ class PetRigView @JvmOverloads constructor(
         callbackPosted = false
     }
 
+    private fun postFrame() {
+        if (!callbackPosted && !paused && isAttachedToWindow) {
+            callbackPosted = true
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
     override fun doFrame(frameTimeNanos: Long) {
         callbackPosted = false
         if (!paused && isAttachedToWindow) {

@@ -12,8 +12,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 14
-        versionName '1.1.0'
+        versionCode 15
+        versionName '1.1.1'
     }
 
     buildFeatures {
@@ -60,8 +60,34 @@ def decodePetAssets = tasks.register("decodePetAssets") {
     }
 }
 
+def petSleepAssetPartsDir = file("$projectDir/src/main/pet_assets/orange_sleep")
+def petSleepAssetOutput = file("$projectDir/src/main/res/drawable-nodpi/pet_orange_sleep.webp")
+
+def decodePetSleepAsset = tasks.register("decodePetSleepAsset") {
+    inputs.dir(petSleepAssetPartsDir)
+    outputs.file(petSleepAssetOutput)
+
+    doLast {
+        def parts = petSleepAssetPartsDir.listFiles()
+            ?.findAll { it.name.endsWith(".txt") }
+            ?.sort { a, b -> a.name <=> b.name }
+
+        if (parts == null || parts.isEmpty()) {
+            throw new GradleException("No orange sleep pet asset chunks found")
+        }
+
+        def encoded = parts.collect {
+            it.getText("UTF-8").replaceAll("\\s", "")
+        }.join("")
+
+        petSleepAssetOutput.parentFile.mkdirs()
+        petSleepAssetOutput.bytes = java.util.Base64.decoder.decode(encoded)
+        println("Decoded sleep pet asset: " + petSleepAssetOutput + " (" + petSleepAssetOutput.length() + " bytes)")
+    }
+}
+
 tasks.named("preBuild").configure {
-    dependsOn(decodePetAssets)
+    dependsOn(decodePetAssets, decodePetSleepAsset)
 }
 
 dependencies {

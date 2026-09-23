@@ -111,7 +111,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.1 行为状态机 · 待机 / 提醒 / 开心 / 犯困 / 睡觉 / 醒来",
+                        "V1.1.1 睡姿修正版 · 真正闭眼蜷睡 / 更明显尾巴摆动",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -227,7 +227,7 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_TIRED)
                                 )
-                                message = "橘团开始犯困，约 7 秒后会自动睡着"
+                                message = "橘团开始犯困，约 5 秒后会切换成真正的蜷睡姿态"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -243,7 +243,7 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_SLEEP)
                                 )
-                                message = "橘团已经睡着啦"
+                                message = "橘团会切换为闭眼蜷睡姿态，并保持慢呼吸"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -289,8 +289,8 @@ fun PetSettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
-                    Text("• 待机时会轻微呼吸、尾巴轻摆，并随机自然眨眼")
-                    Text("• 5 分钟没有互动会先犯困，约 7 秒后进入睡觉状态")
+                    Text("• 待机时会轻微呼吸、尾巴摆动幅度比上一版更明显，并随机自然眨眼")
+                    Text("• 5 分钟没有互动会先犯困，约 5 秒后切换成真正闭眼蜷睡姿态")
                     Text("• 点击、拖动、提醒都会把橘团从困倦/睡眠中唤醒")
                     Text("• 到点提醒会连续挥爪；完成待办会进入开心庆祝状态")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")

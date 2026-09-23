@@ -111,7 +111,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.2.0 动态桌宠增强版 · 大幅摇尾巴 / 大幅挥爪 / 拖拽悬空 / 落地回弹",
+                        "V1.2.1 脸部锁定修正版 · 尾巴独立 / 眨眼 / 挥爪组合动作 / 脸不变形",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -305,7 +305,7 @@ fun PetSettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
-                    Text("• 待机时轻微呼吸、随机眨眼，并随机触发明显摇尾巴或挥爪")
+                    Text("• 摇尾巴只影响尾巴局部，头脸锁定；摇尾巴期间会自然配合眨眼和挥爪")
                     Text("• 5 分钟没有互动会先进入打哈欠犯困姿态，约 4 秒后切换成真正闭眼蜷睡")
                     Text("• 点击、拖动、提醒都会唤醒橘团；拖动时进入悬空姿态，松手自动吸边并轻回弹")
                     Text("• 到点提醒会连续挥爪；完成待办会进入开心庆祝状态")

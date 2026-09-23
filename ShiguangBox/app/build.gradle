@@ -12,7 +12,7 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 10
+        versionCode 11
         versionName '0.9.1'
     }
 
@@ -32,6 +32,36 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+def petAssetPartsDir = file("$projectDir/src/main/pet_assets/orange_idle")
+def petAssetOutput = file("$projectDir/src/main/res/drawable-nodpi/pet_orange_idle.webp")
+
+def decodePetAssets = tasks.register("decodePetAssets") {
+    inputs.dir(petAssetPartsDir)
+    outputs.file(petAssetOutput)
+
+    doLast {
+        def parts = petAssetPartsDir.listFiles()
+            ?.findAll { it.name.endsWith(".txt") }
+            ?.sort { a, b -> a.name <=> b.name }
+
+        if (parts == null || parts.isEmpty()) {
+            throw new GradleException("No orange pet asset chunks found")
+        }
+
+        def encoded = parts.collect {
+            it.getText("UTF-8").replaceAll("\\s", "")
+        }.join("")
+
+        petAssetOutput.parentFile.mkdirs()
+        petAssetOutput.bytes = java.util.Base64.decoder.decode(encoded)
+        println("Decoded HD pet asset: " + petAssetOutput + " (" + petAssetOutput.length() + " bytes)")
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(decodePetAssets)
 }
 
 dependencies {

@@ -107,7 +107,7 @@ fun SettingsScreen(
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V1.1.2 橘团睡醒过渡修正版", color = SettingsMuted)
+            Text("拾光盒 · V1.1.3 橘团睡眠资源修正版", color = SettingsMuted)
         }
 
         item {

@@ -76,6 +76,10 @@ class PetOverlayService : Service() {
                 ensurePetView()
                 petView?.playWave()
             }
+            ACTION_TEST_BLINK -> {
+                ensurePetView()
+                petView?.playBlink()
+            }
             ACTION_SHOW, null -> {
                 if (!prefs.getBoolean("pet_enabled", false)) {
                     stopSelf()
@@ -277,6 +281,7 @@ class PetOverlayService : Service() {
 
     private fun showQuickPanel() {
         closePanel()
+        petView?.playWave()
 
         val root = basePanel()
         val title = label("橘团 ☀️", 18f, true, Color.rgb(78, 58, 46))
@@ -702,6 +707,7 @@ class PetOverlayService : Service() {
         const val ACTION_STOP = "com.shiguangbox.app.pet.STOP"
         const val ACTION_REMINDER = "com.shiguangbox.app.pet.REMINDER"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
+        const val ACTION_TEST_BLINK = "com.shiguangbox.app.pet.TEST_BLINK"
         const val EXTRA_TASK_ID = "pet_task_id"
         const val EXTRA_TASK_TITLE = "pet_task_title"
         private const val NOTIFICATION_ID = 9001

@@ -111,7 +111,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.0 动态桌宠 · 同母版局部网格引擎",
+                        "V1.0.1 动态桌宠 · 呼吸 / 尾巴 / 随机眨眼 / 挥爪",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -201,6 +201,22 @@ fun PetSettingsScreen(
                         ) {
                             Text("测试 1.35 秒挥爪")
                         }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, PetOverlayService::class.java)
+                                        .setAction(PetOverlayService.ACTION_TEST_BLINK)
+                                )
+                                message = "已经让橘团眨眼啦"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试眨眼")
+                        }
                     }
 
                     if (message.isNotBlank()) {
@@ -225,6 +241,7 @@ fun PetSettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
+                    Text("• 待机时会轻微呼吸、尾巴轻摆，并随机自然眨眼")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")
                     Text("• 待办到点后，橘团会挥爪并弹出提醒")
                     Text("• 提醒里可以直接完成，或者延后 10 分钟")

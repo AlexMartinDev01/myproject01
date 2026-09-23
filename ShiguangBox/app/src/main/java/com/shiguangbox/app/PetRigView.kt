@@ -133,13 +133,13 @@ class PetRigView @JvmOverloads constructor(
         var index = 0
 
         for (row in 0..meshHeight) {
-            val v = row.toFloat() / meshHeight.toFloat()
+            val v = row.toDouble() / meshHeight.toDouble()
 
             for (col in 0..meshWidth) {
-                val u = col.toFloat() / meshWidth.toFloat()
+                val u = col.toDouble() / meshWidth.toDouble()
 
-                var x = u.toDouble()
-                var y = v.toDouble()
+                var x = u
+                var y = v
 
                 // 呼吸只作用于胸腹区域，头和身体仍然是一张连续母版。
                 val chestWeight = exp(

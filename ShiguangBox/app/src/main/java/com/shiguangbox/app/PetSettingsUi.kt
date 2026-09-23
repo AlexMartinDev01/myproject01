@@ -201,7 +201,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.3.0 行为系统版 · 动作调度 / 连点 / 长按摸摸 / 探头 / 可调设置",
+                        "V1.4.0 场景联动版 · 真气泡 / 待办 / 时间 / 心情 / 每日问候",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -328,6 +328,28 @@ fun PetSettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("测试长按摸摸效果")
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(
+                                        context,
+                                        PetOverlayService::class.java
+                                    ).setAction(
+                                        PetOverlayService
+                                            .ACTION_TEST_BUBBLE
+                                    )
+                                )
+                                message =
+                                    "已经弹出新版气泡预览"
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("预览新版气泡")
                         }
 
                         Spacer(Modifier.height(8.dp))
@@ -608,9 +630,12 @@ fun PetSettingsScreen(
                     Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
                     Text("• 摇尾巴只影响尾巴局部，头脸锁定；摇尾巴期间会自然配合眨眼和挥爪")
                     Text("• 3–5 分钟无互动可自动犯困 → 打哈欠 → 闭眼蜷睡，时间可调")
-                    Text("• 单击随机反应；双击更开心；连续点击更兴奋；长按会进入“被摸摸”状态")
-                    Text("• 拖动进入悬空姿态，松手轻回弹；吸边后偶尔缩进去再探头")
+                    Text("• 真正带尖角尾巴的奶油系气泡，会自动贴近橘团并避开屏幕边缘")
+                    Text("• 待办提前 10 分钟轻提醒；到点正式提醒；完成后根据今天剩余任务庆祝")
                     Text("• 点击橘团：记一下 / 加待办 / 查看今天")
+                    Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
+                    Text("• 深夜动作自动放慢；日常陪伴气泡有冷却，不会一直弹")
+                    Text("• 心情切换后橘团会用不同语气回应")
                     Text("• 待办到点后，橘团会挥爪并弹出提醒")
                     Text("• 提醒里可以直接完成，或者延后 10 分钟")
                     Text("• 完成任务后会有庆祝反馈")

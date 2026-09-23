@@ -14,10 +14,72 @@ import androidx.core.content.ContextCompat
 class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val taskId = intent.getLongExtra("task_id", 0L)
-        val title = intent.getStringExtra("task_title") ?: "你有一个待办"
+        val taskId =
+            intent.getLongExtra(
+                "task_id",
+                0L
+            )
+        val title =
+            intent.getStringExtra(
+                "task_title"
+            ) ?: "你有一个待办"
 
-        val manager = context.getSystemService(NotificationManager::class.java)
+        val kind =
+            intent.getStringExtra(
+                ReminderScheduler.EXTRA_KIND
+            ) ?: ReminderScheduler.KIND_DUE
+
+        val prefs =
+            context.getSharedPreferences(
+                "shiguangbox_settings",
+                Context.MODE_PRIVATE
+            )
+
+        if (kind ==
+            ReminderScheduler.KIND_PRE
+        ) {
+            if (
+                prefs.getBoolean(
+                    "pet_enabled",
+                    false
+                ) &&
+                Settings.canDrawOverlays(
+                    context
+                )
+            ) {
+                runCatching {
+                    ContextCompat
+                        .startForegroundService(
+                            context,
+                            Intent(
+                                context,
+                                PetOverlayService
+                                    ::class.java
+                            ).apply {
+                                action =
+                                    PetOverlayService
+                                        .ACTION_PRE_REMINDER
+                                putExtra(
+                                    PetOverlayService
+                                        .EXTRA_TASK_ID,
+                                    taskId
+                                )
+                                putExtra(
+                                    PetOverlayService
+                                        .EXTRA_TASK_TITLE,
+                                    title
+                                )
+                            }
+                        )
+                }
+            }
+            return
+        }
+
+        val manager =
+            context.getSystemService(
+                NotificationManager::class.java
+            )
         val channelId = "shiguangbox_reminders"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -51,11 +113,6 @@ class ReminderReceiver : BroadcastReceiver() {
             .build()
 
         manager.notify(taskId.toInt(), notification)
-
-        val prefs = context.getSharedPreferences(
-            "shiguangbox_settings",
-            Context.MODE_PRIVATE
-        )
 
         if (prefs.getBoolean("pet_enabled", false) &&
             Settings.canDrawOverlays(context)

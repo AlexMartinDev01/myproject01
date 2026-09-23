@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -45,6 +47,80 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+
+private fun sendPetEvent(
+    context: Context,
+    action: String,
+    configure:
+        Intent.() -> Unit = {}
+) {
+    val prefs =
+        context.getSharedPreferences(
+            "shiguangbox_settings",
+            Context.MODE_PRIVATE
+        )
+
+    if (
+        !prefs.getBoolean(
+            "pet_enabled",
+            false
+        ) ||
+        !Settings.canDrawOverlays(
+            context
+        )
+    ) {
+        return
+    }
+
+    runCatching {
+        ContextCompat
+            .startForegroundService(
+                context,
+                Intent(
+                    context,
+                    PetOverlayService
+                        ::class.java
+                ).apply {
+                    this.action = action
+                    configure()
+                }
+            )
+    }
+}
+
+private fun notifyPetTaskCompleted(
+    context: Context,
+    title: String
+) {
+    sendPetEvent(
+        context,
+        PetOverlayService
+            .ACTION_TASK_COMPLETED
+    ) {
+        putExtra(
+            PetOverlayService
+                .EXTRA_TASK_TITLE,
+            title
+        )
+    }
+}
+
+private fun notifyPetMoodChanged(
+    context: Context,
+    moodId: String
+) {
+    sendPetEvent(
+        context,
+        PetOverlayService
+            .ACTION_MOOD_CHANGED
+    ) {
+        putExtra(
+            PetOverlayService
+                .EXTRA_MOOD_ID,
+            moodId
+        )
+    }
+}
 
 data class NavItem(val route: String, val label: String, val icon: ImageVector)
 
@@ -108,10 +184,25 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
         journalMood = moodId
         journalThemeOffset = 0
         prefs.edit()
-            .putString("journal_mood", moodId)
-            .putInt("journal_theme_offset", 0)
-            .putString("journal_mood_date", LocalDate.now().toString())
+            .putString(
+                "journal_mood",
+                moodId
+            )
+            .putInt(
+                "journal_theme_offset",
+                0
+            )
+            .putString(
+                "journal_mood_date",
+                LocalDate.now()
+                    .toString()
+            )
             .apply()
+
+        notifyPetMoodChanged(
+            context,
+            moodId
+        )
     }
 
     val shuffleJournalTheme: () -> Unit = {
@@ -126,8 +217,33 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
         if (onboardingDone) {
             DailySummaryScheduler.schedule(
                 context,
-                prefs.getString("summary_time", "22:30") ?: "22:30"
+                prefs.getString(
+                    "summary_time",
+                    "22:30"
+                ) ?: "22:30"
             )
+
+            val pending =
+                withContext(
+                    Dispatchers.IO
+                ) {
+                    AppDatabase.get(
+                        context
+                    )
+                        .taskDao()
+                        .pendingReminders(
+                            System
+                                .currentTimeMillis()
+                        )
+                }
+
+            pending.forEach {
+                ReminderScheduler
+                    .schedule(
+                        context,
+                        it
+                    )
+            }
         }
     }
 
@@ -1063,6 +1179,11 @@ private fun TasksScreen(
                                                 next.copy(id = id)
                                             )
                                         }
+
+                                        notifyPetTaskCompleted(
+                                            context,
+                                            task.title
+                                        )
                                     } else {
                                         val restored = task.copy(
                                             completed = false,

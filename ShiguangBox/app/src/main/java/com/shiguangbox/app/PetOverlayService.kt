@@ -35,6 +35,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 class PetOverlayService : Service() {
@@ -57,6 +59,22 @@ class PetOverlayService : Service() {
     private var tapDispatchRunnable: Runnable? = null
     private var edgePeekRunnable: Runnable? = null
 
+    private var speechBubble:
+        PetSpeechBubbleView? = null
+
+    private var speechBubbleParams:
+        WindowManager.LayoutParams? = null
+
+    private var speechBubblePriority = 0
+
+    private var speechBubbleHideRunnable:
+        Runnable? = null
+
+    private var contextBubbleRunnable:
+        Runnable? = null
+
+    private var lastAmbientBubbleAt = 0L
+
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WindowManager::class.java)
@@ -72,11 +90,66 @@ class PetOverlayService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_PRE_REMINDER -> {
+                ensurePetView()
+                val title =
+                    intent.getStringExtra(
+                        EXTRA_TASK_TITLE
+                    ) ?: "待办"
+                showPreReminder(title)
+            }
+
             ACTION_REMINDER -> {
                 ensurePetView()
-                val taskId = intent.getLongExtra(EXTRA_TASK_ID, 0L)
-                val title = intent.getStringExtra(EXTRA_TASK_TITLE) ?: "待办"
-                showReminder(taskId, title)
+                val taskId =
+                    intent.getLongExtra(
+                        EXTRA_TASK_ID,
+                        0L
+                    )
+                val title =
+                    intent.getStringExtra(
+                        EXTRA_TASK_TITLE
+                    ) ?: "待办"
+                showReminder(
+                    taskId,
+                    title
+                )
+            }
+
+            ACTION_TASK_COMPLETED -> {
+                ensurePetView()
+                val title =
+                    intent.getStringExtra(
+                        EXTRA_TASK_TITLE
+                    ) ?: "这件事"
+                showTaskCompletionCelebration(
+                    title
+                )
+            }
+
+            ACTION_MOOD_CHANGED -> {
+                ensurePetView()
+                showMoodReaction(
+                    intent.getStringExtra(
+                        EXTRA_MOOD_ID
+                    ) ?: "calm"
+                )
+            }
+
+            ACTION_TEST_BUBBLE -> {
+                ensurePetView()
+                showPetBubble(
+                    title =
+                        "橘团 · 气泡预览",
+                    message =
+                        "以后提醒、心情和陪伴话都会用这种真正的气泡样式～",
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.NORMAL,
+                    priority =
+                        PRIORITY_INTERACTION,
+                    durationMs = 4_800L
+                )
             }
             ACTION_TEST_WAVE -> {
                 ensurePetView()
@@ -124,6 +197,9 @@ class PetOverlayService : Service() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         closePanel()
+        hideSpeechBubble(
+            immediate = true
+        )
         petView?.release()
         petView?.let {
             runCatching { windowManager.removeView(it) }
@@ -232,6 +308,8 @@ class PetOverlayService : Service() {
             }
             startIdleAnimation()
             scheduleEdgePeek()
+            maybeShowDailyGreeting()
+            scheduleContextBubble()
         }
     }
 
@@ -261,7 +339,18 @@ class PetOverlayService : Service() {
                 longPressed = true
                 closePanel()
                 petView?.playPetted()
-                showTransientBubble("摸摸～ 橘团很开心")
+                showPetBubble(
+                    title =
+                        "橘团 · 被摸摸",
+                    message =
+                        "嘿嘿，好舒服～再摸一下也可以。",
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.MOOD,
+                    priority =
+                        PRIORITY_INTERACTION,
+                    durationMs = 3_200L
+                )
             }
         }
 
@@ -304,6 +393,9 @@ class PetOverlayService : Service() {
                         dragging = true
                         longPressed = false
                         closePanel()
+                        hideSpeechBubble(
+                            immediate = true
+                        )
                         dockedSide = 0
                         edgePeekRunnable?.let {
                             handler.removeCallbacks(it)
@@ -690,6 +782,9 @@ class PetOverlayService : Service() {
     }
 
     private fun showQuickPanel() {
+        hideSpeechBubble(
+            immediate = true
+        )
         closePanel()
 
         val root = basePanel()
@@ -744,6 +839,9 @@ class PetOverlayService : Service() {
     }
 
     private fun showInputPanel(mode: InputMode) {
+        hideSpeechBubble(
+            immediate = true
+        )
         closePanel()
 
         val root = basePanel()
@@ -852,41 +950,82 @@ class PetOverlayService : Service() {
         }
     }
 
-    private fun showReminder(taskId: Long, title: String) {
+    private fun showPreReminder(
+        title: String
+    ) {
+        petView?.playWave()
+
+        showPetBubble(
+            title =
+                "橘团 · 提前提醒",
+            message =
+                "还有 10 分钟就是「" +
+                    title +
+                    "」啦，可以慢慢收尾咯～",
+            tone =
+                PetSpeechBubbleView
+                    .Tone.NORMAL,
+            priority = PRIORITY_TASK,
+            durationMs = 5_200L
+        )
+    }
+
+    private fun showReminder(
+        taskId: Long,
+        title: String
+    ) {
         reminderTaskId = taskId
         closePanel()
         animateReminder()
 
-        val root = basePanel()
-        root.addView(label("橘团提醒你 🔔", 17f, true, Color.rgb(78, 58, 46)))
-        root.addView(spacer(6))
-        root.addView(
-            label(
-                "「" + title + "」到时间啦～",
-                14f,
-                false,
-                Color.rgb(73, 57, 44)
-            )
+        val bubble =
+            PetSpeechBubbleView(
+                this
+            ).apply {
+                bind(
+                    title =
+                        "橘团提醒你 · 到时间啦 🔔",
+                    message =
+                        "「" +
+                            title +
+                            "」现在该开始啦～",
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.REMINDER
+                )
+
+                addAction(
+                    label = "✓ 完成",
+                    primary = true
+                ) {
+                    completeReminder(
+                        taskId
+                    )
+                }
+
+                addAction(
+                    label =
+                        "10 分钟后"
+                ) {
+                    snoozeReminder(
+                        taskId
+                    )
+                }
+            }
+
+        showSpeechBubbleView(
+            view = bubble,
+            priority =
+                PRIORITY_REMINDER,
+            durationMs = 0L
         )
-
-        val done = actionButton("✓ 完成")
-        val snooze = actionButton("延后 10 分钟")
-        root.addView(done)
-        root.addView(snooze)
-
-        done.setOnClickListener {
-            completeReminder(taskId)
-        }
-
-        snooze.setOnClickListener {
-            snoozeReminder(taskId)
-        }
-
-        addPanel(root, focusable = false)
     }
 
     private fun completeReminder(taskId: Long) {
         closePanel()
+        hideSpeechBubble(
+            immediate = true
+        )
         scope.launch {
             val db = AppDatabase.get(this@PetOverlayService)
             val task = withContext(Dispatchers.IO) {
@@ -914,12 +1053,18 @@ class PetOverlayService : Service() {
 
             getSystemService(NotificationManager::class.java).cancel(taskId.toInt())
             reminderTaskId = 0L
-            showSuccess("太棒啦，又完成一件事！ ✨")
+
+            showTaskCompletionCelebration(
+                task?.title ?: "这件事"
+            )
         }
     }
 
     private fun snoozeReminder(taskId: Long) {
         closePanel()
+        hideSpeechBubble(
+            immediate = true
+        )
         scope.launch {
             val db = AppDatabase.get(this@PetOverlayService)
             val task = withContext(Dispatchers.IO) {
@@ -938,7 +1083,18 @@ class PetOverlayService : Service() {
 
             getSystemService(NotificationManager::class.java).cancel(taskId.toInt())
             reminderTaskId = 0L
-            showTransientBubble("好，10 分钟后我再来找你～")
+            showPetBubble(
+                title =
+                    "橘团 · 收到",
+                message =
+                    "好～10 分钟后我再来找你。",
+                tone =
+                    PetSpeechBubbleView
+                        .Tone.NORMAL,
+                priority =
+                    PRIORITY_TASK,
+                durationMs = 3_600L
+            )
         }
     }
 
@@ -974,9 +1130,20 @@ class PetOverlayService : Service() {
         )
     }
 
-    private fun showSuccess(message: String) {
+    private fun showSuccess(
+        message: String
+    ) {
         animateSuccess()
-        showTransientBubble(message)
+        showPetBubble(
+            title =
+                "橘团 · 完成啦 ✨",
+            message = message,
+            tone =
+                PetSpeechBubbleView
+                    .Tone.SUCCESS,
+            priority = PRIORITY_TASK,
+            durationMs = 4_000L
+        )
     }
 
     private fun animateReminder() {
@@ -999,12 +1166,689 @@ class PetOverlayService : Service() {
         handler.postDelayed({ startIdleAnimation() }, 700)
     }
 
-    private fun showTransientBubble(message: String) {
-        closePanel()
-        val root = basePanel()
-        root.addView(label(message, 14f, true, Color.rgb(73, 57, 44)))
-        addPanel(root, focusable = false)
-        handler.postDelayed({ closePanel() }, 2300)
+    private fun showTransientBubble(
+        message: String
+    ) {
+        showPetBubble(
+            title = "橘团",
+            message = message,
+            tone =
+                PetSpeechBubbleView
+                    .Tone.NORMAL,
+            priority =
+                PRIORITY_INTERACTION,
+            durationMs = 3_200L
+        )
+    }
+
+    private fun showPetBubble(
+        title: String,
+        message: String,
+        tone:
+            PetSpeechBubbleView.Tone,
+        priority: Int,
+        durationMs: Long
+    ) {
+        val bubble =
+            PetSpeechBubbleView(
+                this
+            ).apply {
+                bind(
+                    title = title,
+                    message = message,
+                    tone = tone
+                )
+            }
+
+        showSpeechBubbleView(
+            view = bubble,
+            priority = priority,
+            durationMs = durationMs
+        )
+    }
+
+    private fun showSpeechBubbleView(
+        view: PetSpeechBubbleView,
+        priority: Int,
+        durationMs: Long
+    ) {
+        val pet =
+            petParams ?: return
+
+        if (speechBubble != null &&
+            priority <
+                speechBubblePriority
+        ) {
+            return
+        }
+
+        hideSpeechBubble(
+            immediate = true
+        )
+
+        val screenW =
+            resources
+                .displayMetrics
+                .widthPixels
+
+        val screenH =
+            resources
+                .displayMetrics
+                .heightPixels
+
+        val bubbleWidth =
+            dp(248)
+
+        val placeAbove =
+            pet.y > dp(138)
+
+        view.setTail(
+            atTop = !placeAbove,
+            centerPx =
+                bubbleWidth / 2f
+        )
+
+        view.measure(
+            View.MeasureSpec
+                .makeMeasureSpec(
+                    bubbleWidth,
+                    View.MeasureSpec.EXACTLY
+                ),
+            View.MeasureSpec
+                .makeMeasureSpec(
+                    0,
+                    View.MeasureSpec
+                        .UNSPECIFIED
+                )
+        )
+
+        val measuredH =
+            view.measuredHeight
+                .coerceAtLeast(dp(72))
+
+        val petCenterX =
+            pet.x +
+                pet.width / 2
+
+        val x =
+            (
+                petCenterX -
+                    bubbleWidth / 2
+                )
+                .coerceIn(
+                    dp(8),
+                    screenW -
+                        bubbleWidth -
+                        dp(8)
+                )
+
+        val y =
+            if (placeAbove) {
+                (
+                    pet.y -
+                        measuredH +
+                        dp(7)
+                    )
+                    .coerceAtLeast(
+                        dp(24)
+                    )
+            } else {
+                (
+                    pet.y +
+                        pet.height -
+                        dp(7)
+                    )
+                    .coerceAtMost(
+                        screenH -
+                            measuredH -
+                            dp(28)
+                    )
+            }
+
+        val tailCenter =
+            (petCenterX - x)
+                .toFloat()
+                .coerceIn(
+                    dp(34).toFloat(),
+                    (
+                        bubbleWidth -
+                            dp(34)
+                        ).toFloat()
+                )
+
+        view.setTail(
+            atTop = !placeAbove,
+            centerPx = tailCenter
+        )
+
+        val params =
+            WindowManager
+                .LayoutParams(
+                    bubbleWidth,
+                    WindowManager
+                        .LayoutParams
+                        .WRAP_CONTENT,
+                    WindowManager
+                        .LayoutParams
+                        .TYPE_APPLICATION_OVERLAY,
+                    WindowManager
+                        .LayoutParams
+                        .FLAG_NOT_FOCUSABLE or
+                        WindowManager
+                            .LayoutParams
+                            .FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                )
+                .apply {
+                    gravity =
+                        Gravity.TOP or
+                            Gravity.START
+                    this.x = x
+                    this.y = y
+                }
+
+        runCatching {
+            windowManager.addView(
+                view,
+                params
+            )
+
+            speechBubble = view
+            speechBubbleParams =
+                params
+            speechBubblePriority =
+                priority
+
+            view.alpha = 0f
+            view.scaleX = 0.94f
+            view.scaleY = 0.94f
+            view.translationY =
+                if (placeAbove) {
+                    dp(6).toFloat()
+                } else {
+                    -dp(6).toFloat()
+                }
+
+            view.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationY(0f)
+                .setDuration(190L)
+                .start()
+
+            if (durationMs > 0L) {
+                val hide =
+                    Runnable {
+                        hideSpeechBubble(
+                            immediate =
+                                false
+                        )
+                    }
+
+                speechBubbleHideRunnable =
+                    hide
+
+                handler.postDelayed(
+                    hide,
+                    durationMs
+                )
+            }
+        }
+    }
+
+    private fun hideSpeechBubble(
+        immediate: Boolean
+    ) {
+        speechBubbleHideRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        speechBubbleHideRunnable =
+            null
+
+        val bubble =
+            speechBubble ?: return
+
+        speechBubble = null
+        speechBubbleParams = null
+        speechBubblePriority = 0
+
+        if (immediate) {
+            runCatching {
+                windowManager
+                    .removeView(
+                        bubble
+                    )
+            }
+            return
+        }
+
+        bubble.animate()
+            .alpha(0f)
+            .scaleX(0.96f)
+            .scaleY(0.96f)
+            .setDuration(140L)
+            .withEndAction {
+                runCatching {
+                    windowManager
+                        .removeView(
+                            bubble
+                        )
+                }
+            }
+            .start()
+    }
+
+    private fun maybeShowDailyGreeting() {
+        val today =
+            LocalDate.now()
+                .toString()
+
+        if (
+            prefs.getString(
+                "pet_last_greeting_date",
+                ""
+            ) == today
+        ) {
+            return
+        }
+
+        prefs.edit()
+            .putString(
+                "pet_last_greeting_date",
+                today
+            )
+            .apply()
+
+        handler.postDelayed({
+            scope.launch {
+                val stats =
+                    todayTaskStats()
+
+                val pendingToday =
+                    stats.first
+
+                val hour =
+                    LocalTime.now().hour
+
+                val mood =
+                    currentMoodForToday()
+
+                val greeting =
+                    when {
+                        hour < 6 ->
+                            "这么晚还醒着呀～我陪你把最后一点事情收好。"
+
+                        hour < 11 ->
+                            if (
+                                pendingToday > 0
+                            ) {
+                                "早呀～今天有 " +
+                                    pendingToday +
+                                    " 件事，我们慢慢来。"
+                            } else {
+                                "早呀～今天先从一件小事开始吧。"
+                            }
+
+                        hour < 18 ->
+                            if (
+                                pendingToday > 0
+                            ) {
+                                "下午好～今天还有 " +
+                                    pendingToday +
+                                    " 件事在盒子里。"
+                            } else {
+                                "下午好～今天的节奏看起来很轻松。"
+                            }
+
+                        hour < 23 ->
+                            if (
+                                pendingToday > 0
+                            ) {
+                                "晚上好～今天还剩 " +
+                                    pendingToday +
+                                    " 件事，别着急。"
+                            } else {
+                                "晚上好～今天的事情已经很轻啦。"
+                            }
+
+                        else ->
+                            "已经很晚啦，我会安静一点陪着你。"
+                    }
+
+                val moodSuffix =
+                    moodSentence(mood)
+
+                showPetBubble(
+                    title =
+                        "橘团 · 今日见面",
+                    message =
+                        greeting +
+                            if (
+                                moodSuffix
+                                    .isBlank()
+                            ) {
+                                ""
+                            } else {
+                                "\n" +
+                                    moodSuffix
+                            },
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.MOOD,
+                    priority =
+                        PRIORITY_AMBIENT,
+                    durationMs = 5_200L
+                )
+            }
+        }, 850L)
+    }
+
+    private fun scheduleContextBubble() {
+        contextBubbleRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        val delay =
+            kotlin.random.Random
+                .nextLong(
+                    15L * 60L * 1000L,
+                    28L * 60L * 1000L
+                )
+
+        val runnable =
+            Runnable {
+                maybeShowDailyGreeting()
+
+                if (
+                    panelView == null &&
+                    speechBubble == null &&
+                    petView
+                        ?.canDoAmbientAction() ==
+                        true
+                ) {
+                    showContextBubble()
+                } else {
+                    scheduleContextBubble()
+                }
+            }
+
+        contextBubbleRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            delay
+        )
+    }
+
+    private fun showContextBubble() {
+        val now =
+            System.currentTimeMillis()
+
+        if (
+            now -
+                lastAmbientBubbleAt <
+            12L * 60L * 1000L
+        ) {
+            scheduleContextBubble()
+            return
+        }
+
+        lastAmbientBubbleAt = now
+
+        scope.launch {
+            val stats =
+                todayTaskStats()
+
+            val pending =
+                stats.first
+            val completed =
+                stats.second
+
+            val hour =
+                LocalTime.now().hour
+
+            val mood =
+                currentMoodForToday()
+
+            val message =
+                when {
+                    hour >= 23 ||
+                        hour < 6 ->
+                        "夜深啦，我把动作放轻一点。忙完这件就休息会儿吧～"
+
+                    pending > 0 ->
+                        "今天还有 " +
+                            pending +
+                            " 件事。先挑最小的一件做，也算往前走。"
+
+                    completed > 0 ->
+                        "今天已经完成 " +
+                            completed +
+                            " 件事啦，剩下的时间可以松一点。"
+
+                    mood == "tired" ->
+                        "今天有点累的话，就给自己留一点余量。"
+
+                    mood == "sad" ->
+                        "今天不用急着变好，我就在旁边待着。"
+
+                    mood == "quiet" ->
+                        "收到～今天我安静一点，不总来打扰你。"
+
+                    else ->
+                        "我就在这里待着，需要的时候点点我就好～"
+                }
+
+            petView?.playBlink()
+
+            showPetBubble(
+                title =
+                    "橘团 · 陪伴",
+                message = message,
+                tone =
+                    PetSpeechBubbleView
+                        .Tone.MOOD,
+                priority =
+                    PRIORITY_AMBIENT,
+                durationMs = 4_800L
+            )
+
+            scheduleContextBubble()
+        }
+    }
+
+    private fun showTaskCompletionCelebration(
+        title: String
+    ) {
+        scope.launch {
+            val stats =
+                todayTaskStats()
+
+            val pending =
+                stats.first
+
+            animateSuccess()
+
+            val message =
+                if (pending == 0) {
+                    "「" +
+                        title +
+                        "」完成！今天的事情都收好啦 ✨"
+                } else {
+                    "「" +
+                        title +
+                        "」完成啦！今天还剩 " +
+                        pending +
+                        " 件～"
+                }
+
+            showPetBubble(
+                title =
+                    if (pending == 0) {
+                        "橘团 · 今日清单完成 ✨"
+                    } else {
+                        "橘团 · 又完成一件"
+                    },
+                message = message,
+                tone =
+                    PetSpeechBubbleView
+                        .Tone.SUCCESS,
+                priority =
+                    PRIORITY_TASK,
+                durationMs =
+                    if (pending == 0) {
+                        5_400L
+                    } else {
+                        4_200L
+                    }
+            )
+        }
+    }
+
+    private fun showMoodReaction(
+        mood: String
+    ) {
+        val message =
+            moodSentence(mood)
+                .ifBlank {
+                    "今天就按你的节奏来，我陪着你。"
+                }
+
+        when (mood) {
+            "happy" ->
+                petView
+                    ?.playTailWag()
+
+            "calm",
+            "random" ->
+                petView
+                    ?.playWave()
+
+            else ->
+                petView
+                    ?.playBlink()
+        }
+
+        showPetBubble(
+            title =
+                "橘团 · 收到今天的心情",
+            message = message,
+            tone =
+                PetSpeechBubbleView
+                    .Tone.MOOD,
+            priority =
+                PRIORITY_INTERACTION,
+            durationMs = 4_500L
+        )
+    }
+
+    private fun currentMoodForToday():
+        String {
+        val moodDate =
+            prefs.getString(
+                "journal_mood_date",
+                ""
+            )
+
+        return if (
+            moodDate ==
+                LocalDate.now()
+                    .toString()
+        ) {
+            prefs.getString(
+                "journal_mood",
+                "calm"
+            ) ?: "calm"
+        } else {
+            "calm"
+        }
+    }
+
+    private fun moodSentence(
+        mood: String
+    ): String {
+        return when (mood) {
+            "happy" ->
+                "今天心情不错呀～那就把这点轻快留住。"
+
+            "tired" ->
+                "今天有点累，别把电量一次用完，慢一点也可以。"
+
+            "sad" ->
+                "今天难过也没关系，我安静陪你一会儿。"
+
+            "quiet" ->
+                "收到，今天我少一点打扰，多一点陪伴。"
+
+            "random" ->
+                "今天交给一点随机的小惊喜，也挺好。"
+
+            else ->
+                "慢慢来就很好，不需要一下子做完所有事。"
+        }
+    }
+
+    private suspend fun todayTaskStats():
+        Pair<Int, Int> {
+        return withContext(
+            Dispatchers.IO
+        ) {
+            val zone =
+                ZoneId.systemDefault()
+
+            val date =
+                LocalDate.now()
+
+            val start =
+                date.atStartOfDay(zone)
+                    .toInstant()
+                    .toEpochMilli()
+
+            val end =
+                date.plusDays(1)
+                    .atStartOfDay(zone)
+                    .toInstant()
+                    .toEpochMilli() -
+                    1L
+
+            val tasks =
+                AppDatabase.get(
+                    this@PetOverlayService
+                )
+                    .taskDao()
+                    .getAllOnce()
+
+            val pending =
+                tasks.count {
+                    !it.completed &&
+                        it.dueAt !=
+                        null &&
+                        it.dueAt in
+                        start..end
+                }
+
+            val completed =
+                tasks.count {
+                    it.completedAt !=
+                        null &&
+                        it.completedAt in
+                        start..end
+                }
+
+            Pair(
+                pending,
+                completed
+            )
+        }
     }
 
     private fun addPanel(view: View, focusable: Boolean) {
@@ -1115,7 +1959,16 @@ class PetOverlayService : Service() {
     companion object {
         const val ACTION_SHOW = "com.shiguangbox.app.pet.SHOW"
         const val ACTION_STOP = "com.shiguangbox.app.pet.STOP"
-        const val ACTION_REMINDER = "com.shiguangbox.app.pet.REMINDER"
+        const val ACTION_REMINDER =
+            "com.shiguangbox.app.pet.REMINDER"
+        const val ACTION_PRE_REMINDER =
+            "com.shiguangbox.app.pet.PRE_REMINDER"
+        const val ACTION_TASK_COMPLETED =
+            "com.shiguangbox.app.pet.TASK_COMPLETED"
+        const val ACTION_MOOD_CHANGED =
+            "com.shiguangbox.app.pet.MOOD_CHANGED"
+        const val ACTION_TEST_BUBBLE =
+            "com.shiguangbox.app.pet.TEST_BUBBLE"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
         const val ACTION_TEST_PETTING =
@@ -1127,7 +1980,15 @@ class PetOverlayService : Service() {
         const val ACTION_TEST_SLEEP = "com.shiguangbox.app.pet.TEST_SLEEP"
         const val ACTION_TEST_WAKE = "com.shiguangbox.app.pet.TEST_WAKE"
         const val EXTRA_TASK_ID = "pet_task_id"
-        const val EXTRA_TASK_TITLE = "pet_task_title"
+        const val EXTRA_TASK_TITLE =
+            "pet_task_title"
+        const val EXTRA_MOOD_ID =
+            "pet_mood_id"
+
+        private const val PRIORITY_AMBIENT = 10
+        private const val PRIORITY_INTERACTION = 30
+        private const val PRIORITY_TASK = 60
+        private const val PRIORITY_REMINDER = 100
         private const val NOTIFICATION_ID = 9001
     }
 }

@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.View
+import java.time.LocalTime
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -608,8 +609,25 @@ class PetRigView @JvmOverloads constructor(
             }
         }
 
-        nextIdleActionNanos = nowNanos +
-            Random.nextLong(minDelay, maxDelay + 1L) * 1_000_000L
+        val hour = LocalTime.now().hour
+        val nightMultiplier =
+            if (hour >= 23 || hour < 7) {
+                1.65
+            } else {
+                1.0
+            }
+
+        val delayMs =
+            (
+                Random.nextLong(
+                    minDelay,
+                    maxDelay + 1L
+                ) * nightMultiplier
+            ).toLong()
+
+        nextIdleActionNanos =
+            nowNanos +
+                delayMs * 1_000_000L
     }
 
     private fun currentBlinkAmount(now: Long): Double {
@@ -660,6 +678,10 @@ class PetRigView @JvmOverloads constructor(
         val breath = sin(idleSeconds * 2.0 * PI / 2.65)
 
         // 按用户反馈把尾巴幅度明显放大，但仍保持慢速、柔和。
+        val hour = LocalTime.now().hour
+        val isQuietNight =
+            hour >= 23 || hour < 7
+
         val tailAmplitude = when (state) {
             State.TAIL_WAG -> 30.0
             State.HAPPY -> 26.0
@@ -668,7 +690,12 @@ class PetRigView @JvmOverloads constructor(
             State.WAVE -> 18.0
             State.DRAGGING -> 8.0
             State.TIRED -> 2.0
-            else -> 11.5
+            else ->
+                if (isQuietNight) {
+                    7.5
+                } else {
+                    11.5
+                }
         }
 
         val tailPeriod = when (state) {

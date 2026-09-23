@@ -92,11 +92,40 @@ fun PetSettingsScreen(
         )
     }
 
+    var selectedPetId by rememberSaveable {
+        mutableStateOf(
+            prefs.getString(
+                "pet_selected_id",
+                PetKind.ORANGE.id
+            ) ?: PetKind.ORANGE.id
+        )
+    }
+
+    val selectedPet =
+        PetProfiles.fromId(
+            selectedPetId
+        )
+
+    val selectedPetDrawable =
+        if (selectedPet ==
+            PetKind.YAYA
+        ) {
+            R.drawable.pet_yaya_idle
+        } else {
+            R.drawable.pet_orange_idle
+        }
+
+
     val overlayLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         overlayGranted = Settings.canDrawOverlays(context)
-        message = if (overlayGranted) "悬浮窗权限已开启，可以启动橘团啦" else "还没有获得悬浮窗权限"
+        message =
+            if (overlayGranted) {
+                "悬浮窗权限已开启，可以启动桌宠啦"
+            } else {
+                "还没有获得悬浮窗权限"
+            }
     }
 
     val transition = rememberInfiniteTransition(label = "pet_preview")
@@ -128,7 +157,47 @@ fun PetSettingsScreen(
             Intent(context, PetOverlayService::class.java)
                 .setAction(PetOverlayService.ACTION_SHOW)
         )
-        message = "橘团已经出来陪你啦"
+        message =
+            selectedPet.displayName +
+                "已经出来陪你啦"
+    }
+
+    fun switchPet(id: String) {
+        selectedPetId = id
+
+        prefs.edit()
+            .putString(
+                "pet_selected_id",
+                id
+            )
+            .apply()
+
+        if (
+            enabled &&
+            overlayGranted
+        ) {
+            ContextCompat
+                .startForegroundService(
+                    context,
+                    Intent(
+                        context,
+                        PetOverlayService::class.java
+                    ).setAction(
+                        PetOverlayService
+                            .ACTION_REFRESH_SETTINGS
+                    )
+                )
+        }
+
+        val name =
+            PetProfiles
+                .fromId(id)
+                .displayName
+
+        message =
+            "已经切换为" +
+                name +
+                "啦"
     }
 
     fun stopPet() {
@@ -168,6 +237,10 @@ fun PetSettingsScreen(
                 "pet_alpha_percent",
                 petAlpha.coerceIn(55, 100)
             )
+            .putString(
+                "pet_selected_id",
+                selectedPetId
+            )
             .apply()
 
         if (enabled && overlayGranted) {
@@ -201,7 +274,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.4.0 场景联动版 · 真气泡 / 待办 / 时间 / 心情 / 每日问候",
+                        "V1.5.0 双宠物版 · 橘团 / 芽芽 · 独立绑定与行为系统",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -219,15 +292,145 @@ fun PetSettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.pet_orange_idle),
-                        contentDescription = "橘团",
+                        painter =
+                            painterResource(
+                                selectedPetDrawable
+                            ),
+                        contentDescription =
+                            selectedPet.displayName,
                         modifier = Modifier.size(180.dp).scale(scale)
                     )
-                    Text("橘团 ☀️", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "开心系小橘猫 · 会提醒、会记事、会帮你快速加待办",
+                        selectedPet.displayName +
+                            " " +
+                            selectedPet.emoji,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        selectedPet.subtitle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor =
+                        MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp)
+                ) {
+                    Text(
+                        "选择陪伴伙伴",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(
+                        Modifier.height(10.dp)
+                    )
+                    Text(
+                        "每只宠物拥有独立母版、绑定参数和动作节奏，不是简单换皮。",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                    Spacer(
+                        Modifier.height(12.dp)
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(
+                                10.dp
+                            )
+                    ) {
+                        if (
+                            selectedPetId ==
+                            PetKind.ORANGE.id
+                        ) {
+                            Button(
+                                onClick = {
+                                    switchPet(
+                                        PetKind.ORANGE.id
+                                    )
+                                },
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+                                Text("橘团 ☀️")
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = {
+                                    switchPet(
+                                        PetKind.ORANGE.id
+                                    )
+                                },
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+                                Text("橘团 ☀️")
+                            }
+                        }
+
+                        if (
+                            selectedPetId ==
+                            PetKind.YAYA.id
+                        ) {
+                            Button(
+                                onClick = {
+                                    switchPet(
+                                        PetKind.YAYA.id
+                                    )
+                                },
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+                                Text("芽芽 🌿")
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = {
+                                    switchPet(
+                                        PetKind.YAYA.id
+                                    )
+                                },
+                                modifier =
+                                    Modifier.weight(1f)
+                            ) {
+                                Text("芽芽 🌿")
+                            }
+                        }
+                    }
+
+                    Spacer(
+                        Modifier.height(10.dp)
+                    )
+                    Text(
+                        if (
+                            selectedPetId ==
+                            PetKind.YAYA.id
+                        ) {
+                            "芽芽：平静系垂耳兔 · 耳根稳定、耳尖柔和延迟、动作更慢更轻。"
+                        } else {
+                            "橘团：开心系小橘猫 · 摇尾巴、挥爪和庆祝动作更明显。"
+                        },
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -285,7 +488,10 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_WAVE)
                                 )
-                                message = "已经让橘团挥爪啦"
+                                message =
+                                    "已经让" +
+                                        selectedPet.displayName +
+                                        "挥爪啦"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -301,11 +507,28 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_TAIL)
                                 )
-                                message = "已经让橘团大幅摇尾巴啦"
+                                message =
+                                    if (
+                                        selectedPet ==
+                                        PetKind.YAYA
+                                    ) {
+                                        "已经让芽芽自然晃耳朵啦"
+                                    } else {
+                                        "已经让橘团大幅摇尾巴啦"
+                                    }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("测试大幅摇尾巴")
+                            Text(
+                                if (
+                                    selectedPet ==
+                                    PetKind.YAYA
+                                ) {
+                                    "测试自然耳朵轻晃"
+                                } else {
+                                    "测试大幅摇尾巴"
+                                }
+                            )
                         }
 
                         Spacer(Modifier.height(8.dp))
@@ -323,7 +546,8 @@ fun PetSettingsScreen(
                                     )
                                 )
                                 message =
-                                    "橘团进入被摸摸状态啦"
+                                    selectedPet.displayName +
+                                    "进入被摸摸状态啦"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -361,7 +585,10 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_BLINK)
                                 )
-                                message = "已经让橘团眨眼啦"
+                                message =
+                                    "已经让" +
+                                        selectedPet.displayName +
+                                        "眨眼啦"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -377,7 +604,8 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_TIRED)
                                 )
-                                message = "橘团会先打哈欠犯困，约 4 秒后进入真正的蜷睡姿态"
+                                message = selectedPet.displayName +
+                                    "会先犯困，约 4 秒后进入真正睡姿"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -393,7 +621,8 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_SLEEP)
                                 )
-                                message = "橘团会切换为真正闭眼蜷睡姿态，并保持慢呼吸"
+                                message = selectedPet.displayName +
+                                    "会切换为真正闭眼睡姿，并保持慢呼吸"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -409,7 +638,8 @@ fun PetSettingsScreen(
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_WAKE)
                                 )
-                                message = "橘团会从蜷睡切到伸懒腰，再回到待机"
+                                message = selectedPet.displayName +
+                                    "会从睡姿切到伸懒腰，再回到待机"
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -470,7 +700,14 @@ fun PetSettingsScreen(
                     )
 
                     Text(
-                        "控制随机眨眼、摇尾巴和挥爪出现的频率",
+                        if (
+                            selectedPet ==
+                            PetKind.YAYA
+                        ) {
+                            "控制随机眨眼、耳朵轻晃和挥爪出现的频率"
+                        } else {
+                            "控制随机眨眼、摇尾巴和挥爪出现的频率"
+                        },
                         color =
                             MaterialTheme
                                 .colorScheme
@@ -624,24 +861,50 @@ fun PetSettingsScreen(
                 shape = RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.fillMaxWidth().padding(18.dp)) {
-                    Text("橘团现在能做什么", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(
+                        selectedPet.displayName +
+                            "现在能做什么",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
                     Spacer(Modifier.height(10.dp))
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
-                    Text("• 同一张高清母版实时网格变形，不切换整只猫图片")
-                    Text("• 摇尾巴只影响尾巴局部，头脸锁定；摇尾巴期间会自然配合眨眼和挥爪")
+                    Text("• 待机动作使用高清母版实时局部网格绑定，不是整张图片硬摇")
+                    Text(
+                        if (
+                            selectedPet ==
+                            PetKind.YAYA
+                        ) {
+                            "• 耳根稳定 → 耳身传递 → 耳尖柔和延迟；腿从根部传递，脸部锁定"
+                        } else {
+                            "• 摇尾巴只影响尾巴局部，头脸锁定；可配合眨眼和挥爪"
+                        }
+                    )
                     Text("• 3–5 分钟无互动可自动犯困 → 打哈欠 → 闭眼蜷睡，时间可调")
                     Text("• 真正带尖角尾巴的奶油系气泡，会自动贴近橘团并避开屏幕边缘")
                     Text("• 待办提前 10 分钟轻提醒；到点正式提醒；完成后根据今天剩余任务庆祝")
-                    Text("• 点击橘团：记一下 / 加待办 / 查看今天")
+                    Text(
+                        "• 点击" +
+                            selectedPet.displayName +
+                            "：记一下 / 加待办 / 查看今天"
+                    )
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
                     Text("• 深夜动作自动放慢；日常陪伴气泡有冷却，不会一直弹")
-                    Text("• 心情切换后橘团会用不同语气回应")
-                    Text("• 待办到点后，橘团会挥爪并弹出提醒")
+                    Text(
+                        "• 心情切换后" +
+                            selectedPet.displayName +
+                            "会用不同语气回应"
+                    )
+                    Text(
+                        "• 待办到点后，" +
+                            selectedPet.displayName +
+                            "会挥爪并弹出提醒"
+                    )
                     Text("• 提醒里可以直接完成，或者延后 10 分钟")
                     Text("• 完成任务后会有庆祝反馈")
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "这一阶段只接入橘团；芽芽、困困、雨团、墨墨、盒仔会在同一套桌宠引擎稳定后接入。",
+                        "目前已经正式接入橘团与芽芽。后续困困、雨团、墨墨、盒仔继续沿用这套多宠物 Profile 架构接入。",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         lineHeight = 18.sp

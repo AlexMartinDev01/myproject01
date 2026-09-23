@@ -140,7 +140,7 @@ class PetOverlayService : Service() {
                 ensurePetView()
                 showPetBubble(
                     title =
-                        "橘团 · 气泡预览",
+                        petName() + " · 气泡预览",
                     message =
                         "以后提醒、心情和陪伴话都会用这种真正的气泡样式～",
                     tone =
@@ -211,6 +211,22 @@ class PetOverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private fun selectedPetKind(): PetKind =
+        PetProfiles.fromId(
+            prefs.getString(
+                "pet_selected_id",
+                PetKind.ORANGE.id
+            )
+        )
+
+    private fun petName(): String =
+        petView?.displayName()
+            ?: selectedPetKind().displayName
+
+    private fun petEmoji(): String =
+        petView?.displayEmoji()
+            ?: selectedPetKind().emoji
+
     private fun startPetForeground() {
         val channelId = "shiguangbox_pet_service"
         val manager = getSystemService(NotificationManager::class.java)
@@ -222,7 +238,7 @@ class PetOverlayService : Service() {
                     "拾光盒桌宠",
                     NotificationManager.IMPORTANCE_LOW
                 ).apply {
-                    description = "保持橘团悬浮桌宠运行"
+                    description = "保持拾光盒悬浮桌宠运行"
                     setShowBadge(false)
                 }
             )
@@ -244,7 +260,7 @@ class PetOverlayService : Service() {
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_stat_reminder)
-            .setContentTitle("橘团正在陪着你")
+            .setContentTitle(petName() + "正在陪着你")
             .setContentText("点击桌宠可以快速记事和添加待办")
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -281,7 +297,8 @@ class PetOverlayService : Service() {
 
         val image = PetRigView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
-            contentDescription = "橘团桌宠"
+            contentDescription =
+                displayName() + "桌宠"
             alpha =
                 prefs.getInt("pet_alpha_percent", 100)
                     .coerceIn(55, 100) / 100f
@@ -341,7 +358,7 @@ class PetOverlayService : Service() {
                 petView?.playPetted()
                 showPetBubble(
                     title =
-                        "橘团 · 被摸摸",
+                        petName() + " · 被摸摸",
                     message =
                         "嘿嘿，好舒服～再摸一下也可以。",
                     tone =
@@ -614,6 +631,18 @@ class PetOverlayService : Service() {
 
     private fun applyPetSettings() {
         val pet = petView ?: return
+
+        val selectedId =
+            prefs.getString(
+                "pet_selected_id",
+                PetKind.ORANGE.id
+            ) ?: PetKind.ORANGE.id
+
+        if (pet.currentPetId() != selectedId) {
+            recreatePetViewForSelection()
+            return
+        }
+
         val params = petParams ?: return
 
         pet.configureBehavior(
@@ -672,6 +701,36 @@ class PetOverlayService : Service() {
         }
 
         scheduleEdgePeek()
+    }
+
+    private fun recreatePetViewForSelection() {
+        closePanel()
+        hideSpeechBubble(
+            immediate = true
+        )
+
+        petParams?.let { params ->
+            prefs.edit()
+                .putInt("pet_x", params.x)
+                .putInt("pet_y", params.y)
+                .apply()
+        }
+
+        val oldPet = petView
+
+        oldPet?.release()
+
+        oldPet?.let {
+            runCatching {
+                windowManager.removeView(it)
+            }
+        }
+
+        petView = null
+        petParams = null
+
+        startPetForeground()
+        ensurePetView()
     }
 
     private fun scheduleEdgePeek() {
@@ -788,7 +847,12 @@ class PetOverlayService : Service() {
         closePanel()
 
         val root = basePanel()
-        val title = label("橘团 ☀️", 18f, true, Color.rgb(78, 58, 46))
+        val title = label(
+            petName() + " " + petEmoji(),
+            18f,
+            true,
+            Color.rgb(78, 58, 46)
+        )
         val subtitle = label("想记点什么吗？", 12f, false, Color.rgb(138, 121, 105))
 
         root.addView(title)
@@ -847,7 +911,11 @@ class PetOverlayService : Service() {
         val root = basePanel()
         root.addView(
             label(
-                if (mode == InputMode.NOTE) "橘团帮你记一下" else "快速加待办",
+                if (mode == InputMode.NOTE) {
+                    petName() + "帮你记一下"
+                } else {
+                    "快速加待办"
+                },
                 17f,
                 true,
                 Color.rgb(78, 58, 46)
@@ -957,7 +1025,7 @@ class PetOverlayService : Service() {
 
         showPetBubble(
             title =
-                "橘团 · 提前提醒",
+                petName() + " · 提前提醒",
             message =
                 "还有 10 分钟就是「" +
                     title +
@@ -984,7 +1052,7 @@ class PetOverlayService : Service() {
             ).apply {
                 bind(
                     title =
-                        "橘团提醒你 · 到时间啦 🔔",
+                        petName() + "提醒你 · 到时间啦 🔔",
                     message =
                         "「" +
                             title +
@@ -1085,7 +1153,7 @@ class PetOverlayService : Service() {
             reminderTaskId = 0L
             showPetBubble(
                 title =
-                    "橘团 · 收到",
+                    petName() + " · 收到",
                 message =
                     "好～10 分钟后我再来找你。",
                 tone =
@@ -1136,7 +1204,7 @@ class PetOverlayService : Service() {
         animateSuccess()
         showPetBubble(
             title =
-                "橘团 · 完成啦 ✨",
+                petName() + " · 完成啦 ✨",
             message = message,
             tone =
                 PetSpeechBubbleView
@@ -1525,7 +1593,7 @@ class PetOverlayService : Service() {
 
                 showPetBubble(
                     title =
-                        "橘团 · 今日见面",
+                        petName() + " · 今日见面",
                     message =
                         greeting +
                             if (
@@ -1652,7 +1720,7 @@ class PetOverlayService : Service() {
 
             showPetBubble(
                 title =
-                    "橘团 · 陪伴",
+                    petName() + " · 陪伴",
                 message = message,
                 tone =
                     PetSpeechBubbleView
@@ -1694,9 +1762,9 @@ class PetOverlayService : Service() {
             showPetBubble(
                 title =
                     if (pending == 0) {
-                        "橘团 · 今日清单完成 ✨"
+                        petName() + " · 今日清单完成 ✨"
                     } else {
-                        "橘团 · 又完成一件"
+                        petName() + " · 又完成一件"
                     },
                 message = message,
                 tone =
@@ -1740,7 +1808,7 @@ class PetOverlayService : Service() {
 
         showPetBubble(
             title =
-                "橘团 · 收到今天的心情",
+                petName() + " · 收到今天的心情",
             message = message,
             tone =
                 PetSpeechBubbleView

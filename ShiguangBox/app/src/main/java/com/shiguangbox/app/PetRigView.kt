@@ -36,25 +36,40 @@ class PetRigView @JvmOverloads constructor(
         PETTED
     }
 
-    private val idleBitmap: Bitmap = BitmapFactory.decodeResource(
-        resources,
-        R.drawable.pet_orange_idle
-    )
+    private val petKind: PetKind =
+        PetProfiles.fromId(
+            context.getSharedPreferences(
+                "shiguangbox_settings",
+                Context.MODE_PRIVATE
+            ).getString("pet_selected_id", PetKind.ORANGE.id)
+        )
 
-    private val sleepBitmap: Bitmap = BitmapFactory.decodeResource(
-        resources,
-        R.drawable.pet_orange_sleep
-    )
+    private val visualResources =
+        PetProfiles.resources(petKind)
 
-    private val tiredBitmap: Bitmap = BitmapFactory.decodeResource(
-        resources,
-        R.drawable.pet_orange_tired
-    )
+    private val idleBitmap: Bitmap =
+        BitmapFactory.decodeResource(
+            resources,
+            visualResources.idle
+        )
 
-    private val wakeBitmap: Bitmap = BitmapFactory.decodeResource(
-        resources,
-        R.drawable.pet_orange_wake
-    )
+    private val sleepBitmap: Bitmap =
+        BitmapFactory.decodeResource(
+            resources,
+            visualResources.sleep
+        )
+
+    private val tiredBitmap: Bitmap =
+        BitmapFactory.decodeResource(
+            resources,
+            visualResources.tired
+        )
+
+    private val wakeBitmap: Bitmap =
+        BitmapFactory.decodeResource(
+            resources,
+            visualResources.wake
+        )
 
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
@@ -193,6 +208,19 @@ class PetRigView @JvmOverloads constructor(
             scheduleNextIdleAction(now)
         }
     }
+
+    fun currentPetId(): String = petKind.id
+
+    fun displayName(): String = petKind.displayName
+
+    fun displayEmoji(): String = petKind.emoji
+
+    fun signatureActionLabel(): String =
+        if (petKind == PetKind.YAYA) {
+            "耳朵轻晃"
+        } else {
+            "摇尾巴"
+        }
 
     fun canDoAmbientAction(): Boolean = state == State.IDLE
 
@@ -617,12 +645,21 @@ class PetRigView @JvmOverloads constructor(
                 1.0
             }
 
+        val personalityMultiplier =
+            if (petKind == PetKind.YAYA) {
+                1.22
+            } else {
+                1.0
+            }
+
         val delayMs =
             (
                 Random.nextLong(
                     minDelay,
                     maxDelay + 1L
-                ) * nightMultiplier
+                ) *
+                    nightMultiplier *
+                    personalityMultiplier
             ).toLong()
 
         nextIdleActionNanos =
@@ -668,6 +705,26 @@ class PetRigView @JvmOverloads constructor(
     }
 
     private fun buildMesh(
+        idleSeconds: Double,
+        stateSeconds: Double,
+        blinkAmount: Double
+    ) {
+        if (petKind == PetKind.YAYA) {
+            buildYayaMesh(
+                idleSeconds,
+                stateSeconds,
+                blinkAmount
+            )
+        } else {
+            buildOrangeMesh(
+                idleSeconds,
+                stateSeconds,
+                blinkAmount
+            )
+        }
+    }
+
+    private fun buildOrangeMesh(
         idleSeconds: Double,
         stateSeconds: Double,
         blinkAmount: Double
@@ -899,6 +956,845 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun buildYayaMesh(
+        idleSeconds: Double,
+        stateSeconds: Double,
+        blinkAmount: Double
+    ) {
+        val viewW = width.toFloat()
+        val viewH = height.toFloat()
+
+        val hour = LocalTime.now().hour
+        val quietNight = hour >= 23 || hour < 7
+
+        val breath =
+            sin(idleSeconds * 2.0 * PI / 3.35)
+
+        val signatureStrength =
+            when (state) {
+                State.TAIL_WAG -> 1.0
+                State.HAPPY -> 0.76
+                State.PETTED -> 0.58
+                State.REMINDER -> 0.68
+                State.WAVE -> 0.24
+                State.DRAGGING -> 0.10
+                else ->
+                    if (quietNight) {
+                        0.10
+                    } else {
+                        0.18
+                    }
+            }
+
+        val legStrength =
+            when (state) {
+                State.HAPPY -> 0.70
+                State.PETTED -> 0.28
+                State.DRAGGING -> 0.45
+                else -> 0.0
+            }
+
+        val wave =
+            when (state) {
+                State.WAVE ->
+                    yayaWaveParams(stateSeconds)
+
+                State.REMINDER ->
+                    yayaReminderWaveParams(
+                        stateSeconds
+                    )
+
+                State.TAIL_WAG ->
+                    yayaComboWaveParams(
+                        stateSeconds
+                    )
+
+                else ->
+                    WaveParams(
+                        false,
+                        0.0,
+                        0.0,
+                        0.0
+                    )
+            }
+
+        val happyBounce =
+            when (state) {
+                State.HAPPY -> {
+                    val p =
+                        clamp(
+                            stateSeconds /
+                                HAPPY_DURATION_SECONDS,
+                            0.0,
+                            1.0
+                        )
+                    -0.013 *
+                        abs(
+                            sin(
+                                p *
+                                    PI *
+                                    2.4
+                            )
+                        ) *
+                        (1.0 - p * 0.20)
+                }
+
+                State.PETTED ->
+                    -0.0035 *
+                        abs(
+                            sin(
+                                stateSeconds *
+                                    PI *
+                                    1.9
+                            )
+                        )
+
+                else -> 0.0
+            }
+
+        var index = 0
+
+        for (row in 0..meshHeight) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (col in 0..meshWidth) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                var x = u
+                var y = v
+
+                y += happyBounce
+
+                if (state == State.DRAGGING) {
+                    val hangingWeight =
+                        smoothStep(
+                            clamp(
+                                (v - 0.52) /
+                                    0.42,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                    y +=
+                        0.012 *
+                            hangingWeight
+
+                    x +=
+                        0.0025 *
+                            sin(
+                                idleSeconds *
+                                    PI *
+                                    1.7
+                            ) *
+                            hangingWeight
+                }
+
+                // 芽芽呼吸：胸口轻微起伏，围巾和脚掌基本锁定。
+                var chestWeight =
+                    exp(
+                        -square(
+                            (u - 0.515) /
+                                0.250
+                        ) -
+                            square(
+                                (v - 0.745) /
+                                    0.205
+                            )
+                    )
+
+                val scarfProtected =
+                    u in 0.285..0.805 &&
+                        v in 0.565..0.815
+
+                if (scarfProtected) {
+                    chestWeight *= 0.18
+                }
+
+                if (v >= 0.79) {
+                    chestWeight *= 0.08
+                }
+
+                y +=
+                    0.0021 *
+                        breath *
+                        chestWeight
+
+                val faceProtected =
+                    u in 0.245..0.790 &&
+                        v in 0.225..0.620
+
+                val headAccessoryProtected =
+                    u in 0.585..0.875 &&
+                        v in 0.075..0.405
+
+                // 两只垂耳分别绑定：
+                // 根部最稳，中段传递，耳尖幅度最大且稍微延迟。
+                for (earIndex in 0..1) {
+                    val left =
+                        earIndex == 0
+
+                    val pivotU =
+                        if (left) {
+                            0.292
+                        } else {
+                            0.755
+                        }
+
+                    val pivotV =
+                        if (left) {
+                            0.382
+                        } else {
+                            0.395
+                        }
+
+                    val centerU =
+                        if (left) {
+                            0.205
+                        } else {
+                            0.865
+                        }
+
+                    val centerV =
+                        if (left) {
+                            0.565
+                        } else {
+                            0.575
+                        }
+
+                    val radiusU =
+                        if (left) {
+                            0.148
+                        } else {
+                            0.132
+                        }
+
+                    val radiusV =
+                        if (left) {
+                            0.235
+                        } else {
+                            0.225
+                        }
+
+                    val period =
+                        if (left) {
+                            3.05
+                        } else {
+                            3.25
+                        }
+
+                    val phase =
+                        if (left) {
+                            0.0
+                        } else {
+                            0.43
+                        }
+
+                    val tipDelay =
+                        if (left) {
+                            0.36
+                        } else {
+                            0.34
+                        }
+
+                    val rootAngle =
+                        if (left) {
+                            1.4
+                        } else {
+                            1.2
+                        }
+
+                    val midAngle =
+                        if (left) {
+                            4.6
+                        } else {
+                            4.1
+                        }
+
+                    val tipAngle =
+                        if (left) {
+                            8.6
+                        } else {
+                            7.8
+                        }
+
+                    var localWeight =
+                        exp(
+                            -square(
+                                (u - centerU) /
+                                    radiusU
+                            ) -
+                                square(
+                                    (v - centerV) /
+                                        radiusV
+                                )
+                        )
+
+                    if (faceProtected) {
+                        localWeight = 0.0
+                    }
+
+                    if (
+                        headAccessoryProtected &&
+                        !left
+                    ) {
+                        localWeight *= 0.08
+                    }
+
+                    val axisX =
+                        if (left) {
+                            -0.40
+                        } else {
+                            0.40
+                        }
+
+                    val axisY = 0.92
+
+                    val sourceDx =
+                        u - pivotU
+                    val sourceDy =
+                        v - pivotV
+
+                    val projection =
+                        sourceDx *
+                            axisX +
+                            sourceDy *
+                            axisY
+
+                    val progress =
+                        clamp(
+                            (
+                                projection -
+                                    0.01
+                                ) /
+                                0.34,
+                            0.0,
+                            1.0
+                        )
+
+                    val rootWeight =
+                        smoothStep(
+                            clamp(
+                                1.0 -
+                                    progress *
+                                    2.9,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                    val middleWeight =
+                        clamp(
+                            1.0 -
+                                abs(
+                                    progress -
+                                        0.52
+                                ) /
+                                0.34,
+                            0.0,
+                            1.0
+                        )
+
+                    val tipWeight =
+                        smoothStep(
+                            clamp(
+                                (
+                                    progress -
+                                        0.45
+                                    ) /
+                                    0.55,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                    val rootOsc =
+                        sin(
+                            idleSeconds *
+                                2.0 *
+                                PI /
+                                period +
+                                phase
+                        )
+
+                    val middleOsc =
+                        sin(
+                            idleSeconds *
+                                2.0 *
+                                PI /
+                                period +
+                                phase +
+                                0.15
+                        )
+
+                    val tipOsc =
+                        sin(
+                            idleSeconds *
+                                2.0 *
+                                PI /
+                                period +
+                                phase +
+                                tipDelay
+                        )
+
+                    val angleDegrees =
+                        signatureStrength *
+                            (
+                                rootAngle *
+                                    rootWeight *
+                                    rootOsc +
+                                    midAngle *
+                                    middleWeight *
+                                    middleOsc +
+                                    tipAngle *
+                                    tipWeight *
+                                    tipOsc
+                                )
+
+                    localWeight *=
+                        clamp(
+                            (
+                                progress -
+                                    0.01
+                                ) /
+                                0.95,
+                            0.0,
+                            1.0
+                        )
+
+                    if (localWeight > 0.002) {
+                        val angle =
+                            angleDegrees *
+                                PI /
+                                180.0
+
+                        val dx =
+                            x - pivotU
+                        val dy =
+                            y - pivotV
+
+                        val rx =
+                            pivotU +
+                                dx *
+                                cos(angle) -
+                                dy *
+                                sin(angle)
+
+                        var ry =
+                            pivotV +
+                                dx *
+                                sin(angle) +
+                                dy *
+                                cos(angle)
+
+                        val gravityDrop =
+                            (
+                                if (left) {
+                                    0.0075
+                                } else {
+                                    0.0070
+                                }
+                                ) *
+                                tipWeight *
+                                localWeight *
+                                signatureStrength
+
+                        ry += gravityDrop
+
+                        x =
+                            x *
+                                (1.0 -
+                                    localWeight) +
+                                rx *
+                                localWeight
+
+                        y =
+                            y *
+                                (1.0 -
+                                    localWeight) +
+                                ry *
+                                localWeight
+                    }
+                }
+
+                if (blinkAmount > 0.0) {
+                    val eyeCenterV =
+                        0.443
+
+                    val leftEyeWeight =
+                        exp(
+                            -square(
+                                (u - 0.415) /
+                                    0.058
+                            ) -
+                                square(
+                                    (v - 0.447) /
+                                        0.048
+                                )
+                        )
+
+                    val rightEyeWeight =
+                        exp(
+                            -square(
+                                (u - 0.642) /
+                                    0.058
+                            ) -
+                                square(
+                                    (v - 0.438) /
+                                        0.048
+                                )
+                        )
+
+                    val eyeWeight =
+                        clamp(
+                            leftEyeWeight +
+                                rightEyeWeight,
+                            0.0,
+                            1.0
+                        )
+
+                    val compression =
+                        0.60 *
+                            blinkAmount *
+                            eyeWeight
+
+                    y =
+                        eyeCenterV +
+                            (y - eyeCenterV) *
+                            (1.0 -
+                                compression)
+                }
+
+                // 腿部只在开心/摸摸/拖拽时轻动：
+                // 从腿根传递到脚掌，不再从中间挤压。
+                if (legStrength > 0.0) {
+                    for (legIndex in 0..1) {
+                        val left =
+                            legIndex == 0
+
+                        val pivotU =
+                            if (left) {
+                                0.405
+                            } else {
+                                0.645
+                            }
+
+                        val pivotV =
+                            if (left) {
+                                0.785
+                            } else {
+                                0.790
+                            }
+
+                        val centerU =
+                            if (left) {
+                                0.375
+                            } else {
+                                0.680
+                            }
+
+                        val centerV = 0.865
+                        val radiusU = 0.145
+                        val radiusV = 0.135
+
+                        var legWeight =
+                            exp(
+                                -square(
+                                    (u - centerU) /
+                                        radiusU
+                                ) -
+                                    square(
+                                        (v - centerV) /
+                                            radiusV
+                                    )
+                            )
+
+                        val progress =
+                            clamp(
+                                (
+                                    v -
+                                        pivotV -
+                                        0.005
+                                    ) /
+                                    0.20,
+                                0.0,
+                                1.0
+                            )
+
+                        val rootWeight =
+                            smoothStep(
+                                clamp(
+                                    1.0 -
+                                        progress *
+                                        3.0,
+                                    0.0,
+                                    1.0
+                                )
+                            )
+
+                        val middleWeight =
+                            clamp(
+                                1.0 -
+                                    abs(
+                                        progress -
+                                            0.52
+                                    ) /
+                                    0.35,
+                                0.0,
+                                1.0
+                            )
+
+                        val tipWeight =
+                            smoothStep(
+                                clamp(
+                                    (
+                                        progress -
+                                            0.44
+                                        ) /
+                                        0.56,
+                                    0.0,
+                                    1.0
+                                )
+                            )
+
+                        val period =
+                            if (left) {
+                                3.8
+                            } else {
+                                4.0
+                            }
+
+                        val phase =
+                            if (left) {
+                                0.0
+                            } else {
+                                0.35
+                            }
+
+                        val rootAngle =
+                            if (left) {
+                                0.6
+                            } else {
+                                0.5
+                            }
+
+                        val midAngle =
+                            if (left) {
+                                1.6
+                            } else {
+                                1.4
+                            }
+
+                        val tipAngle =
+                            if (left) {
+                                2.8
+                            } else {
+                                2.5
+                            }
+
+                        val angleDegrees =
+                            legStrength *
+                                (
+                                    rootAngle *
+                                        rootWeight *
+                                        sin(
+                                            idleSeconds *
+                                                2.0 *
+                                                PI /
+                                                period +
+                                                phase
+                                        ) +
+                                        midAngle *
+                                        middleWeight *
+                                        sin(
+                                            idleSeconds *
+                                                2.0 *
+                                                PI /
+                                                period +
+                                                phase +
+                                                0.12
+                                        ) +
+                                        tipAngle *
+                                        tipWeight *
+                                        sin(
+                                            idleSeconds *
+                                                2.0 *
+                                                PI /
+                                                period +
+                                                phase +
+                                                0.28
+                                        )
+                                    )
+
+                        legWeight *=
+                            clamp(
+                                (
+                                    progress -
+                                        0.01
+                                    ) /
+                                    0.95,
+                                0.0,
+                                1.0
+                            )
+
+                        if (legWeight > 0.002) {
+                            val angle =
+                                angleDegrees *
+                                    PI /
+                                    180.0
+
+                            val dx =
+                                x - pivotU
+                            val dy =
+                                y - pivotV
+
+                            val rx =
+                                pivotU +
+                                    dx *
+                                    cos(angle) -
+                                    dy *
+                                    sin(angle)
+
+                            val settle =
+                                (
+                                    if (left) {
+                                        0.0045
+                                    } else {
+                                        0.0040
+                                    }
+                                    ) *
+                                    tipWeight *
+                                    legWeight *
+                                    legStrength
+
+                            val ry =
+                                pivotV +
+                                    dx *
+                                    sin(angle) +
+                                    dy *
+                                    cos(angle) +
+                                    settle
+
+                            x =
+                                x *
+                                    (1.0 -
+                                        legWeight) +
+                                    rx *
+                                    legWeight
+
+                            y =
+                                y *
+                                    (1.0 -
+                                        legWeight) +
+                                    ry *
+                                    legWeight
+                        }
+                    }
+                }
+
+                if (wave.active) {
+                    val pivotU = 0.650
+                    val pivotV = 0.655
+                    val centerU = 0.635
+                    val centerV = 0.715
+
+                    var localWeight =
+                        exp(
+                            -square(
+                                (u - centerU) /
+                                    0.082
+                            ) -
+                                square(
+                                    (v - centerV) /
+                                        0.110
+                                )
+                        )
+
+                    if (faceProtected) {
+                        localWeight = 0.0
+                    }
+
+                    if (scarfProtected) {
+                        localWeight *= 0.08
+                    }
+
+                    val distance =
+                        hypot(
+                            u - pivotU,
+                            v - pivotV
+                        )
+
+                    localWeight *=
+                        clamp(
+                            (
+                                distance -
+                                    0.012
+                                ) /
+                                0.120,
+                            0.0,
+                            1.0
+                        )
+
+                    val angle =
+                        wave.angleDegrees *
+                            PI /
+                            180.0
+
+                    val dx =
+                        x - pivotU
+                    val dy =
+                        y - pivotV
+
+                    val rotatedX =
+                        pivotU +
+                            dx *
+                            cos(angle) -
+                            dy *
+                            sin(angle)
+
+                    val rotatedY =
+                        pivotV +
+                            dx *
+                            sin(angle) +
+                            dy *
+                            cos(angle)
+
+                    val desiredX =
+                        rotatedX +
+                            wave.translateX
+
+                    val desiredY =
+                        rotatedY +
+                            wave.translateY
+
+                    x =
+                        x *
+                            (1.0 -
+                                localWeight) +
+                            desiredX *
+                            localWeight
+
+                    y =
+                        y *
+                            (1.0 -
+                                localWeight) +
+                            desiredY *
+                            localWeight
+                }
+
+                verts[index++] =
+                    (x * viewW).toFloat()
+
+                verts[index++] =
+                    (y * viewH).toFloat()
+            }
+        }
+    }
+
     private fun pettingBlinkAmount(timeSeconds: Double): Double {
         val local = timeSeconds % 0.78
         return when {
@@ -930,6 +1826,147 @@ class PetRigView @JvmOverloads constructor(
             return WaveParams(false, 0.0, 0.0, 0.0)
         }
         return waveParams(local)
+    }
+
+    private fun yayaComboWaveParams(
+        timeSeconds: Double
+    ): WaveParams {
+        val local =
+            timeSeconds - 1.05
+
+        if (
+            local < 0.0 ||
+            local >= WAVE_DURATION_SECONDS
+        ) {
+            return WaveParams(
+                false,
+                0.0,
+                0.0,
+                0.0
+            )
+        }
+
+        return yayaWaveParams(local)
+    }
+
+    private fun yayaReminderWaveParams(
+        timeSeconds: Double
+    ): WaveParams {
+        if (
+            timeSeconds < 0.0 ||
+            timeSeconds >=
+                REMINDER_DURATION_SECONDS
+        ) {
+            return WaveParams(
+                false,
+                0.0,
+                0.0,
+                0.0
+            )
+        }
+
+        return yayaWaveParams(
+            timeSeconds %
+                WAVE_DURATION_SECONDS
+        )
+    }
+
+    private fun yayaWaveParams(
+        timeSeconds: Double
+    ): WaveParams {
+        if (
+            timeSeconds < 0.0 ||
+            timeSeconds >=
+                WAVE_DURATION_SECONDS
+        ) {
+            return WaveParams(
+                false,
+                0.0,
+                0.0,
+                0.0
+            )
+        }
+
+        if (timeSeconds < 0.14) {
+            return WaveParams(
+                true,
+                0.0,
+                0.0,
+                0.0
+            )
+        }
+
+        if (timeSeconds < 0.44) {
+            val p =
+                smoothStep(
+                    (timeSeconds -
+                        0.14) /
+                        0.30
+                )
+
+            return WaveParams(
+                true,
+                -30.0 * p,
+                0.012 * p,
+                -0.027 * p
+            )
+        }
+
+        if (timeSeconds < 0.94) {
+            val p =
+                (timeSeconds -
+                    0.44) /
+                    0.50
+
+            val swing =
+                sin(
+                    p *
+                        PI *
+                        3.0
+                )
+
+            return WaveParams(
+                true,
+                -30.0 -
+                    5.0 *
+                    swing,
+                0.012 +
+                    0.0025 *
+                    swing,
+                -0.027 -
+                    0.002 *
+                    abs(swing)
+            )
+        }
+
+        if (timeSeconds < 1.26) {
+            val p =
+                smoothStep(
+                    (timeSeconds -
+                        0.94) /
+                        0.32
+                )
+
+            val remain =
+                1.0 - p
+
+            return WaveParams(
+                true,
+                -30.0 *
+                    remain,
+                0.012 *
+                    remain,
+                -0.027 *
+                    remain
+            )
+        }
+
+        return WaveParams(
+            true,
+            0.0,
+            0.0,
+            0.0
+        )
     }
 
     private fun reminderWaveParams(timeSeconds: Double): WaveParams {

@@ -107,12 +107,13 @@ fun PetSettingsScreen(
         )
 
     val selectedPetDrawable =
-        if (selectedPet ==
-            PetKind.YAYA
-        ) {
-            R.drawable.pet_yaya_idle
-        } else {
-            R.drawable.pet_orange_idle
+        when (selectedPet) {
+            PetKind.YAYA ->
+                R.drawable.pet_yaya_idle
+            PetKind.YUTUAN ->
+                R.drawable.pet_yutuan_idle
+            else ->
+                R.drawable.pet_orange_idle
         }
 
 
@@ -274,7 +275,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.5.6 芽芽专属气泡版 · 橘团 / 芽芽",
+                        "V1.6.0 雨团接入版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -352,64 +353,49 @@ fun PetSettingsScreen(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement =
                             Arrangement.spacedBy(
-                                10.dp
+                                8.dp
                             )
                     ) {
-                        if (
-                            selectedPetId ==
-                            PetKind.ORANGE.id
-                        ) {
-                            Button(
-                                onClick = {
-                                    switchPet(
-                                        PetKind.ORANGE.id
-                                    )
-                                },
-                                modifier =
-                                    Modifier.weight(1f)
+                        listOf(
+                            PetKind.ORANGE,
+                            PetKind.YAYA,
+                            PetKind.YUTUAN
+                        ).forEach { kind ->
+                            if (
+                                selectedPetId ==
+                                kind.id
                             ) {
-                                Text("橘团 ☀️")
-                            }
-                        } else {
-                            OutlinedButton(
-                                onClick = {
-                                    switchPet(
-                                        PetKind.ORANGE.id
+                                Button(
+                                    onClick = {
+                                        switchPet(
+                                            kind.id
+                                        )
+                                    },
+                                    modifier =
+                                        Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        kind.displayName +
+                                            " " +
+                                            kind.emoji
                                     )
-                                },
-                                modifier =
-                                    Modifier.weight(1f)
-                            ) {
-                                Text("橘团 ☀️")
-                            }
-                        }
-
-                        if (
-                            selectedPetId ==
-                            PetKind.YAYA.id
-                        ) {
-                            Button(
-                                onClick = {
-                                    switchPet(
-                                        PetKind.YAYA.id
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        switchPet(
+                                            kind.id
+                                        )
+                                    },
+                                    modifier =
+                                        Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        kind.displayName +
+                                            " " +
+                                            kind.emoji
                                     )
-                                },
-                                modifier =
-                                    Modifier.weight(1f)
-                            ) {
-                                Text("芽芽 🌿")
-                            }
-                        } else {
-                            OutlinedButton(
-                                onClick = {
-                                    switchPet(
-                                        PetKind.YAYA.id
-                                    )
-                                },
-                                modifier =
-                                    Modifier.weight(1f)
-                            ) {
-                                Text("芽芽 🌿")
+                                }
                             }
                         }
                     }
@@ -418,13 +404,19 @@ fun PetSettingsScreen(
                         Modifier.height(10.dp)
                     )
                     Text(
-                        if (
-                            selectedPetId ==
-                            PetKind.YAYA.id
+                        when (
+                            PetProfiles.fromId(
+                                selectedPetId
+                            )
                         ) {
-                            "芽芽：平静系垂耳兔 · 耳朵、腿部、挥爪与呼吸更灵动，依然保持柔和自然。"
-                        } else {
-                            "橘团：开心系小橘猫 · 摇尾巴、挥爪和庆祝动作更明显。"
+                            PetKind.YAYA ->
+                                "芽芽：平静系垂耳兔 · 耳朵、腿部、挥爪与呼吸更灵动，依然保持柔和自然。"
+
+                            PetKind.YUTUAN ->
+                                "雨团：雨天系云朵小狗 · 慢呼吸、垂耳轻晃、前爪回应和云朵围巾尾端轻摆。"
+
+                            else ->
+                                "橘团：开心系小橘猫 · 摇尾巴、挥爪和庆祝动作更明显。"
                         },
                         color =
                             MaterialTheme
@@ -880,17 +872,19 @@ fun PetSettingsScreen(
                     Text("• 悬浮在其他 App 上方，可拖动并自动吸边")
                     Text("• 待机动作使用高清母版实时局部网格绑定，不是整张图片硬摇")
                     Text(
-                        if (
-                            selectedPet ==
-                            PetKind.YAYA
-                        ) {
-                            "• 耳根稳定 → 耳身传递 → 耳尖柔和延迟；腿从根部传递，脸部锁定"
-                        } else {
-                            "• 摇尾巴只影响尾巴局部，头脸锁定；可配合眨眼和挥爪"
+                        when (selectedPet) {
+                            PetKind.YAYA ->
+                                "• 耳根稳定 → 耳身传递 → 耳尖柔和延迟；腿从根部传递，脸部锁定"
+
+                            PetKind.YUTUAN ->
+                                "• 两只垂耳从耳根传递到耳尖；云朵围巾主体锁定、尾端轻摆，脸部锁定"
+
+                            else ->
+                                "• 摇尾巴只影响尾巴局部，头脸锁定；可配合眨眼和挥爪"
                         }
                     )
                     Text("• 3–5 分钟无互动可自动犯困 → 打哈欠 → 闭眼蜷睡，时间可调")
-                    Text("• 真正带尖角尾巴的奶油系气泡，会自动贴近橘团并避开屏幕边缘")
+                    Text("• 气泡会自动贴近当前桌宠并避开屏幕边缘；芽芽继续使用专属植物气泡")
                     Text("• 待办提前 10 分钟轻提醒；到点正式提醒；完成后根据今天剩余任务庆祝")
                     Text(
                         "• 点击" +
@@ -913,7 +907,7 @@ fun PetSettingsScreen(
                     Text("• 完成任务后会有庆祝反馈")
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "目前已经正式接入橘团与芽芽。后续困困、雨团、墨墨、盒仔继续沿用这套多宠物 Profile 架构接入。",
+                        "目前已经正式接入橘团、芽芽与雨团。后续困困、墨墨、盒仔继续沿用这套多宠物 Profile 架构接入。",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         lineHeight = 18.sp

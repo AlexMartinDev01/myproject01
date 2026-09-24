@@ -20,6 +20,13 @@ enum class PetKind(
         emoji = "🌿",
         subtitle = "平静系垂耳兔 · 温柔、安静、会轻轻晃耳朵",
         moodId = "calm"
+    ),
+    YUTUAN(
+        id = "yutuan",
+        displayName = "雨团",
+        emoji = "🌧️",
+        subtitle = "雨天系云朵小狗 · 安静、敏感、会轻轻垂耳陪伴",
+        moodId = "sad"
     )
 }
 
@@ -34,6 +41,7 @@ object PetProfiles {
     fun fromId(id: String?): PetKind {
         return when (id) {
             PetKind.YAYA.id -> PetKind.YAYA
+            PetKind.YUTUAN.id -> PetKind.YUTUAN
             else -> PetKind.ORANGE
         }
     }
@@ -54,6 +62,14 @@ object PetProfiles {
                     tired = R.drawable.pet_yaya_tired,
                     sleep = R.drawable.pet_yaya_sleep,
                     wake = R.drawable.pet_yaya_wake
+                )
+
+            PetKind.YUTUAN ->
+                PetVisualResources(
+                    idle = R.drawable.pet_yutuan_idle,
+                    tired = R.drawable.pet_yutuan_idle,
+                    sleep = R.drawable.pet_yutuan_idle,
+                    wake = R.drawable.pet_yutuan_idle
                 )
         }
     }

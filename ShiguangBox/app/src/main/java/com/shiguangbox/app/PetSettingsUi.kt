@@ -274,7 +274,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.5.5 芽芽灵动动作版 · 橘团 / 芽芽",
+                        "V1.5.6 芽芽专属气泡版 · 橘团 / 芽芽",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -573,7 +573,16 @@ fun PetSettingsScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("预览新版气泡")
+                            Text(
+                                if (
+                                    selectedPet ==
+                                    PetKind.YAYA
+                                ) {
+                                    "预览芽芽专属植物气泡"
+                                } else {
+                                    "预览新版气泡"
+                                }
+                            )
                         }
 
                         Spacer(Modifier.height(8.dp))

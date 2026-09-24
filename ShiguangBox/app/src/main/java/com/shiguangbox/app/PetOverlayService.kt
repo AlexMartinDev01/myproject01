@@ -1054,7 +1054,8 @@ class PetOverlayService : Service() {
 
         val bubble =
             PetSpeechBubbleView(
-                this
+                this,
+                selectedPetKind()
             ).apply {
                 bind(
                     title =
@@ -1244,7 +1245,7 @@ class PetOverlayService : Service() {
         message: String
     ) {
         showPetBubble(
-            title = "橘团",
+            title = petName(),
             message = message,
             tone =
                 PetSpeechBubbleView
@@ -1265,7 +1266,8 @@ class PetOverlayService : Service() {
     ) {
         val bubble =
             PetSpeechBubbleView(
-                this
+                this,
+                selectedPetKind()
             ).apply {
                 bind(
                     title = title,
@@ -1311,15 +1313,15 @@ class PetOverlayService : Service() {
                 .heightPixels
 
         val bubbleWidth =
-            dp(248)
-
-        val placeAbove =
-            pet.y > dp(138)
+            view.preferredWidthPx(
+                screenW
+            )
 
         view.setTail(
-            atTop = !placeAbove,
+            atTop = false,
             centerPx =
-                bubbleWidth / 2f
+                bubbleWidth *
+                    view.tailAnchorFraction()
         )
 
         view.measure(
@@ -1338,17 +1340,52 @@ class PetOverlayService : Service() {
 
         val measuredH =
             view.measuredHeight
-                .coerceAtLeast(dp(72))
+                .coerceAtLeast(
+                    if (
+                        view.isYayaTheme()
+                    ) {
+                        dp(166)
+                    } else {
+                        dp(72)
+                    }
+                )
+
+        val availableAbove =
+            pet.y - dp(24)
+
+        val availableBelow =
+            screenH -
+                (
+                    pet.y +
+                        pet.height
+                    ) -
+                dp(28)
+
+        val placeAbove =
+            if (
+                view.isYayaTheme()
+            ) {
+                availableAbove >=
+                    measuredH ||
+                    availableAbove >=
+                        availableBelow
+            } else {
+                pet.y > dp(138)
+            }
 
         val petCenterX =
             pet.x +
                 pet.width / 2
 
-        val x =
+        val preferredX =
             (
                 petCenterX -
-                    bubbleWidth / 2
-                )
+                    bubbleWidth *
+                    view.tailAnchorFraction()
+                ).toInt()
+
+        val x =
+            preferredX
                 .coerceIn(
                     dp(8),
                     screenW -

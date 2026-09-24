@@ -12,8 +12,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 35
-        versionName '1.7.2'
+        versionCode 36
+        versionName '1.7.3'
     }
 
     buildFeatures {
@@ -138,12 +138,75 @@ def decodePetWakeAsset = tasks.register("decodePetWakeAsset") {
     }
 }
 
+def yutuanBubbleAssetPartsDir =
+    file("$projectDir/src/main/pet_assets/yutuan_bubble")
+
+def yutuanBubbleAssetOutput =
+    file("$projectDir/src/main/res/drawable-nodpi/pet_yutuan_bubble.webp")
+
+def decodeYutuanBubbleAsset =
+    tasks.register("decodeYutuanBubbleAsset") {
+        inputs.dir(yutuanBubbleAssetPartsDir)
+        outputs.file(yutuanBubbleAssetOutput)
+
+        doLast {
+            def parts =
+                yutuanBubbleAssetPartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Yutuan bubble asset chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
+            yutuanBubbleAssetOutput
+                .parentFile
+                .mkdirs()
+
+            yutuanBubbleAssetOutput.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
+
+            println(
+                "Decoded exact Yutuan bubble asset: " +
+                    yutuanBubbleAssetOutput +
+                    " (" +
+                    yutuanBubbleAssetOutput
+                        .length() +
+                    " bytes)"
+            )
+        }
+    }
+
 tasks.named("preBuild").configure {
     dependsOn(
         decodePetAssets,
         decodePetSleepAsset,
         decodePetTiredAsset,
-        decodePetWakeAsset
+        decodePetWakeAsset,
+        decodeYutuanBubbleAsset
     )
 }
 

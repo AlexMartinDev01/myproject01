@@ -35,10 +35,10 @@ jobs:
         run: gradle assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/拾光盒_v1.7.2_雨团专属气泡精简版.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/拾光盒_v1.7.3_雨团原图气泡小型版.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: 拾光盒-v1.7.2-雨团专属气泡精简版-APK
-          path: ShiguangBox/app/build/outputs/apk/debug/拾光盒_v1.7.2_雨团专属气泡精简版.apk
+          name: 拾光盒-v1.7.3-雨团原图气泡小型版-APK
+          path: ShiguangBox/app/build/outputs/apk/debug/拾光盒_v1.7.3_雨团原图气泡小型版.apk

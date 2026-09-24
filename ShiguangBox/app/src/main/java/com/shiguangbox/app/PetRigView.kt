@@ -265,6 +265,18 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    fun setYutuanRainTarget(
+        intensity: Float
+    ) {
+        yutuanRainSystem
+            ?.setRainTargetScale(
+                intensity
+            )
+
+        paused = false
+        postFrame()
+    }
+
     fun currentPetId(): String = petKind.id
 
     fun displayName(): String = petKind.displayName

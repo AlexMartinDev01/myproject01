@@ -301,7 +301,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.6.2 雨团内嵌资源版 · 橘团 / 芽芽 / 雨团",
+                        "V1.7.0 雨团真实雨系统版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -437,7 +437,7 @@ fun PetSettingsScreen(
                                 "芽芽：平静系垂耳兔 · 耳朵、腿部、挥爪与呼吸更灵动，依然保持柔和自然。"
 
                             PetKind.YUTUAN ->
-                                "雨团：雨天系云朵小狗 · 慢呼吸、垂耳轻晃、前爪回应和云朵围巾尾端轻摆。"
+                                "雨团：雨天系云朵小狗 · 三层真实细雨、落地水花与涟漪、耳尖挂水珠、抖水甩耳。"
 
                             else ->
                                 "橘团：开心系小橘猫 · 摇尾巴、挥爪和庆祝动作更明显。"
@@ -725,13 +725,15 @@ fun PetSettingsScreen(
                     )
 
                     Text(
-                        if (
-                            selectedPet ==
-                            PetKind.YAYA
-                        ) {
-                            "控制随机眨眼、耳朵轻晃和挥爪出现的频率"
-                        } else {
-                            "控制随机眨眼、摇尾巴和挥爪出现的频率"
+                        when (selectedPet) {
+                            PetKind.YAYA ->
+                                "控制随机眨眼、耳朵轻晃和挥爪出现的频率"
+
+                            PetKind.YUTUAN ->
+                                "控制随机眨眼、抬爪回应和抖水甩耳出现的频率；真实细雨会持续自然变化"
+
+                            else ->
+                                "控制随机眨眼、摇尾巴和挥爪出现的频率"
                         },
                         color =
                             MaterialTheme
@@ -901,7 +903,7 @@ fun PetSettingsScreen(
                                 "• 耳根稳定 → 耳身传递 → 耳尖柔和延迟；腿从根部传递，脸部锁定"
 
                             PetKind.YUTUAN ->
-                                "• 两只垂耳从耳根传递到耳尖；云朵围巾主体锁定、尾端轻摆，脸部锁定"
+                                "• 两只垂耳从耳根传递到耳尖；雨滴会落地形成水花/涟漪，也会命中耳朵和围巾并挂水珠"
 
                             else ->
                                 "• 摇尾巴只影响尾巴局部，头脸锁定；可配合眨眼和挥爪"

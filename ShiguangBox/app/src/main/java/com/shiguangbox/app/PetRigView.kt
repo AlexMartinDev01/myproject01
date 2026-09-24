@@ -121,6 +121,16 @@ class PetRigView @JvmOverloads constructor(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
     )
 
+    private val yutuanRainSystem: YutuanRainSystem? =
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            YutuanRainSystem()
+        } else {
+            null
+        }
+
     private val meshWidth = 28
     private val meshHeight = 28
     private val verts = FloatArray((meshWidth + 1) * (meshHeight + 1) * 2)
@@ -264,7 +274,7 @@ class PetRigView @JvmOverloads constructor(
     fun signatureActionLabel(): String =
         when (petKind) {
             PetKind.YAYA -> "耳朵轻晃"
-            PetKind.YUTUAN -> "垂耳轻晃"
+            PetKind.YUTUAN -> "抖水甩耳"
             else -> "摇尾巴"
         }
 
@@ -330,6 +340,7 @@ class PetRigView @JvmOverloads constructor(
         Choreographer.getInstance()
             .removeFrameCallback(this)
         callbackPosted = false
+        yutuanRainSystem?.reset()
 
         // Resource bitmaps are intentionally NOT recycled manually.
         // Android may still have a pending draw while the overlay is
@@ -379,6 +390,25 @@ class PetRigView @JvmOverloads constructor(
         val idleSeconds =
             (now - idleEpochNanos).coerceAtLeast(0L) / 1_000_000_000.0
 
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            yutuanRainSystem?.update(
+                nowNanos = now,
+                width = width.toFloat(),
+                height = height.toFloat(),
+                state = state,
+                stateSeconds = stateSeconds
+            )
+
+            yutuanRainSystem?.drawBehind(
+                canvas = canvas,
+                width = width.toFloat(),
+                height = height.toFloat()
+            )
+        }
+
         when (state) {
             State.TIRED -> drawTiredState(canvas, idleSeconds, stateSeconds)
 
@@ -397,6 +427,19 @@ class PetRigView @JvmOverloads constructor(
                 buildMesh(idleSeconds, stateSeconds, blink)
                 drawIdleMesh(canvas, 1f)
             }
+        }
+
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            yutuanRainSystem?.drawFront(
+                canvas = canvas,
+                width = width.toFloat(),
+                height = height.toFloat(),
+                state = state,
+                stateSeconds = stateSeconds
+            )
         }
     }
 
@@ -1256,6 +1299,22 @@ class PetRigView @JvmOverloads constructor(
                 var x = u
                 var y = v
 
+                val shakeBodyX =
+                    if (
+                        state ==
+                        State.TAIL_WAG
+                    ) {
+                        0.018 *
+                            sin(
+                                stateSeconds *
+                                    PI *
+                                    7.2
+                            )
+                    } else {
+                        0.0
+                    }
+
+                x += shakeBodyX
                 y += happyBounce
 
                 val headWeight =
@@ -1420,11 +1479,29 @@ class PetRigView @JvmOverloads constructor(
                             -1.0
                         }
 
+                    val earAmplitude =
+                        when (state) {
+                            State.TAIL_WAG -> 18.0
+                            State.HAPPY -> 13.5
+                            State.REMINDER -> 11.5
+                            State.WAVE -> 10.0
+                            State.PETTED -> 8.5
+                            State.DRAGGING -> 5.0
+                            State.SLEEP -> 2.0
+                            State.TIRED -> 3.5
+                            else ->
+                                if (quietNight) {
+                                    5.0
+                                } else {
+                                    8.0
+                                }
+                        }
+
                     val angleDeg =
                         direction *
                             signatureStrength *
                             (
-                                6.8 *
+                                earAmplitude *
                                     sin(
                                         idleSeconds *
                                             2.0 *
@@ -1560,12 +1637,14 @@ class PetRigView @JvmOverloads constructor(
                 if (scarfWeight > 0.002) {
                     val scarfAmplitude =
                         when (state) {
-                            State.HAPPY -> 9.0
-                            State.REMINDER -> 8.0
-                            State.WAVE -> 7.0
-                            State.DRAGGING -> 4.0
+                            State.TAIL_WAG -> 14.0
+                            State.HAPPY -> 11.0
+                            State.REMINDER -> 10.0
+                            State.WAVE -> 9.0
+                            State.PETTED -> 7.0
+                            State.DRAGGING -> 5.0
                             State.SLEEP -> 1.0
-                            else -> 4.2
+                            else -> 5.5
                         }
 
                     val scarfAngle =

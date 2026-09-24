@@ -1341,13 +1341,7 @@ class PetOverlayService : Service() {
         val measuredH =
             view.measuredHeight
                 .coerceAtLeast(
-                    if (
-                        view.isYayaTheme()
-                    ) {
-                        dp(166)
-                    } else {
-                        dp(72)
-                    }
+                    view.minimumOverlayHeightPx()
                 )
 
         val availableAbove =
@@ -1363,7 +1357,7 @@ class PetOverlayService : Service() {
 
         val placeAbove =
             if (
-                view.isYayaTheme()
+                view.isDecorativeTheme()
             ) {
                 availableAbove >=
                     measuredH ||

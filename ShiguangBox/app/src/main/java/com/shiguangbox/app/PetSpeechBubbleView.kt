@@ -29,6 +29,9 @@ class PetSpeechBubbleView(
     private val yayaTheme =
         petKind == PetKind.YAYA
 
+    private val yutuanTheme =
+        petKind == PetKind.YUTUAN
+
     private val fillPaint =
         Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -77,36 +80,91 @@ class PetSpeechBubbleView(
     fun isYayaTheme(): Boolean =
         yayaTheme
 
+    fun isDecorativeTheme(): Boolean =
+        yayaTheme ||
+            yutuanTheme
+
+    fun minimumOverlayHeightPx(): Int =
+        dpInt(
+            when {
+                yayaTheme ->
+                    if (actionCount > 0) {
+                        176
+                    } else {
+                        142
+                    }
+
+                yutuanTheme ->
+                    if (actionCount > 0) {
+                        170
+                    } else {
+                        138
+                    }
+
+                else -> 72
+            }
+        )
+
     fun tailAnchorFraction(): Float =
-        if (yayaTheme) {
-            0.47f
-        } else {
-            0.50f
+        when {
+            yayaTheme -> 0.47f
+            yutuanTheme -> 0.54f
+            else -> 0.50f
         }
 
     fun preferredWidthPx(
         screenWidthPx: Int
     ): Int {
-        if (!yayaTheme) {
+        if (
+            !yayaTheme &&
+            !yutuanTheme
+        ) {
             return dpInt(248)
         }
 
-        val minWidth = dpInt(210)
+        val minWidth =
+            dpInt(
+                if (yutuanTheme) {
+                    180
+                } else {
+                    184
+                }
+            )
 
         val maxWidth =
             minOf(
-                dpInt(330),
+                dpInt(
+                    if (yutuanTheme) {
+                        278
+                    } else {
+                        286
+                    }
+                ),
                 (
                     screenWidthPx *
-                        0.78f
+                        if (yutuanTheme) {
+                            0.70f
+                        } else {
+                            0.72f
+                        }
                     ).toInt()
             ).coerceAtLeast(minWidth)
 
         sizingPaint.textSize =
-            sp(14.5f)
+            sp(
+                if (yutuanTheme) {
+                    12.8f
+                } else {
+                    13.0f
+                }
+            )
 
         sizingPaint.typeface =
-            Typeface.DEFAULT_BOLD
+            if (yayaTheme) {
+                Typeface.DEFAULT_BOLD
+            } else {
+                Typeface.DEFAULT
+            }
 
         val widestMessage =
             boundMessage
@@ -117,7 +175,16 @@ class PetSpeechBubbleView(
                 } ?: 0f
 
         sizingPaint.textSize =
-            sp(11f)
+            sp(
+                if (yutuanTheme) {
+                    9.8f
+                } else {
+                    10.0f
+                }
+            )
+
+        sizingPaint.typeface =
+            Typeface.DEFAULT_BOLD
 
         val titleWidth =
             sizingPaint
@@ -128,11 +195,23 @@ class PetSpeechBubbleView(
                 minWidth,
                 (
                     widestMessage +
-                        dp(64f)
+                        dp(
+                            if (yutuanTheme) {
+                                50f
+                            } else {
+                                52f
+                            }
+                        )
                     ).toInt(),
                 (
                     titleWidth +
-                        dp(58f)
+                        dp(
+                            if (yutuanTheme) {
+                                46f
+                            } else {
+                                48f
+                            }
+                        )
                     ).toInt()
             )
 
@@ -144,7 +223,13 @@ class PetSpeechBubbleView(
                 actionCount > 0 ->
                     maxOf(
                         desired,
-                        dpInt(300)
+                        dpInt(
+                            if (yutuanTheme) {
+                                250
+                            } else {
+                                258
+                            }
+                        )
                     )
 
                 length >= 34 ->
@@ -153,13 +238,25 @@ class PetSpeechBubbleView(
                 length >= 22 ->
                     maxOf(
                         desired,
-                        dpInt(292)
+                        dpInt(
+                            if (yutuanTheme) {
+                                244
+                            } else {
+                                252
+                            }
+                        )
                     )
 
                 length >= 12 ->
                     maxOf(
                         desired,
-                        dpInt(252)
+                        dpInt(
+                            if (yutuanTheme) {
+                                214
+                            } else {
+                                220
+                            }
+                        )
                     )
 
                 else -> desired
@@ -189,10 +286,10 @@ class PetSpeechBubbleView(
             TextView(context).apply {
                 text = title
                 textSize =
-                    if (yayaTheme) {
-                        10.8f
-                    } else {
-                        11.5f
+                    when {
+                        yayaTheme -> 10.0f
+                        yutuanTheme -> 9.8f
+                        else -> 11.5f
                     }
 
                 setTypeface(
@@ -206,21 +303,45 @@ class PetSpeechBubbleView(
 
                 setPadding(
                     dpInt(
-                        if (yayaTheme) {
-                            10
+                        if (
+                            yayaTheme ||
+                            yutuanTheme
+                        ) {
+                            8
                         } else {
                             9
                         }
                     ),
-                    dpInt(4),
                     dpInt(
-                        if (yayaTheme) {
-                            10
+                        if (
+                            yayaTheme ||
+                            yutuanTheme
+                        ) {
+                            3
+                        } else {
+                            4
+                        }
+                    ),
+                    dpInt(
+                        if (
+                            yayaTheme ||
+                            yutuanTheme
+                        ) {
+                            8
                         } else {
                             9
                         }
                     ),
-                    dpInt(4)
+                    dpInt(
+                        if (
+                            yayaTheme ||
+                            yutuanTheme
+                        ) {
+                            3
+                        } else {
+                            4
+                        }
+                    )
                 )
 
                 background =
@@ -231,10 +352,10 @@ class PetSpeechBubbleView(
 
                         cornerRadius =
                             dp(
-                                if (yayaTheme) {
-                                    13f
-                                } else {
-                                    11f
+                                when {
+                                    yayaTheme -> 11.5f
+                                    yutuanTheme -> 11f
+                                    else -> 11f
                                 }
                             )
 
@@ -259,25 +380,34 @@ class PetSpeechBubbleView(
                 text = message
 
                 textSize =
-                    if (yayaTheme) {
-                        14.5f
-                    } else {
-                        14f
+                    when {
+                        yayaTheme -> 13.0f
+                        yutuanTheme -> 12.8f
+                        else -> 14f
                     }
 
                 setTextColor(
-                    if (yayaTheme) {
-                        Color.rgb(
-                            58,
-                            88,
-                            42
-                        )
-                    } else {
-                        Color.rgb(
-                            77,
-                            59,
-                            48
-                        )
+                    when {
+                        yayaTheme ->
+                            Color.rgb(
+                                58,
+                                88,
+                                42
+                            )
+
+                        yutuanTheme ->
+                            Color.rgb(
+                                57,
+                                79,
+                                103
+                            )
+
+                        else ->
+                            Color.rgb(
+                                77,
+                                59,
+                                48
+                            )
                     }
                 )
 
@@ -290,16 +420,19 @@ class PetSpeechBubbleView(
 
                 setLineSpacing(
                     0f,
-                    if (yayaTheme) {
-                        1.19f
-                    } else {
-                        1.14f
+                    when {
+                        yayaTheme -> 1.15f
+                        yutuanTheme -> 1.14f
+                        else -> 1.14f
                     }
                 )
 
                 maxLines =
-                    if (yayaTheme) {
-                        6
+                    if (
+                        yayaTheme ||
+                        yutuanTheme
+                    ) {
+                        5
                     } else {
                         4
                     }
@@ -313,8 +446,11 @@ class PetSpeechBubbleView(
             ).apply {
                 topMargin =
                     dpInt(
-                        if (yayaTheme) {
-                            10
+                        if (
+                            yayaTheme ||
+                            yutuanTheme
+                        ) {
+                            8
                         } else {
                             9
                         }
@@ -349,8 +485,11 @@ class PetSpeechBubbleView(
                 ).apply {
                     topMargin =
                         dpInt(
-                            if (yayaTheme) {
-                                12
+                            if (
+                                yayaTheme ||
+                                yutuanTheme
+                            ) {
+                                9
                             } else {
                                 10
                             }
@@ -363,7 +502,12 @@ class PetSpeechBubbleView(
             Button(context).apply {
                 text = label
                 isAllCaps = false
-                textSize = 12f
+                textSize =
+                    when {
+                        yayaTheme -> 10.7f
+                        yutuanTheme -> 10.5f
+                        else -> 12f
+                    }
                 minimumHeight = 0
                 minHeight = 0
 
@@ -375,6 +519,12 @@ class PetSpeechBubbleView(
                             66,
                             97,
                             48
+                        )
+                    } else if (yutuanTheme) {
+                        Color.rgb(
+                            58,
+                            91,
+                            122
                         )
                     } else {
                         Color.rgb(
@@ -393,8 +543,11 @@ class PetSpeechBubbleView(
 
                         cornerRadius =
                             dp(
-                                if (yayaTheme) {
-                                    15f
+                                if (
+                                    yayaTheme ||
+                                    yutuanTheme
+                                ) {
+                                    13f
                                 } else {
                                     13f
                                 }
@@ -408,6 +561,12 @@ class PetSpeechBubbleView(
                                     238,
                                     248,
                                     216
+                                )
+                            } else if (yutuanTheme) {
+                                Color.rgb(
+                                    231,
+                                    244,
+                                    255
                                 )
                             } else {
                                 Color.rgb(
@@ -429,10 +588,10 @@ class PetSpeechBubbleView(
             LinearLayout.LayoutParams(
                 0,
                 dpInt(
-                    if (yayaTheme) {
-                        40
-                    } else {
-                        38
+                    when {
+                        yayaTheme -> 34
+                        yutuanTheme -> 34
+                        else -> 38
                     }
                 ),
                 1f
@@ -479,15 +638,12 @@ class PetSpeechBubbleView(
             heightMeasureSpec
         )
 
-        if (yayaTheme) {
+        if (
+            yayaTheme ||
+            yutuanTheme
+        ) {
             val minHeight =
-                dpInt(
-                    if (actionCount > 0) {
-                        205
-                    } else {
-                        166
-                    }
-                )
+                minimumOverlayHeightPx()
 
             if (measuredHeight < minHeight) {
                 setMeasuredDimension(
@@ -503,6 +659,12 @@ class PetSpeechBubbleView(
     ) {
         if (yayaTheme) {
             drawYayaBubble(canvas)
+            super.onDraw(canvas)
+            return
+        }
+
+        if (yutuanTheme) {
+            drawYutuanBubble(canvas)
             super.onDraw(canvas)
             return
         }
@@ -630,19 +792,19 @@ class PetSpeechBubbleView(
         val h = height.toFloat()
 
         val tailSpace =
-            dp(17f)
+            dp(14f)
 
         val body =
             RectF(
-                dp(6f),
+                dp(5f),
                 if (tailAtTop) {
                     tailSpace
                 } else {
-                    dp(6f)
+                    dp(5f)
                 },
-                w - dp(6f),
+                w - dp(5f),
                 if (tailAtTop) {
-                    h - dp(6f)
+                    h - dp(5f)
                 } else {
                     h - tailSpace
                 }
@@ -668,11 +830,11 @@ class PetSpeechBubbleView(
                     )
 
                 setShadowLayer(
-                    dp(10f),
+                    dp(8f),
                     0f,
-                    dp(4f),
+                    dp(3f),
                     Color.argb(
-                        48,
+                        42,
                         79,
                         104,
                         38
@@ -701,7 +863,7 @@ class PetSpeechBubbleView(
                     Paint.Cap.ROUND
 
                 strokeWidth =
-                    dp(5.4f)
+                    dp(4.6f)
 
                 color =
                     Color.rgb(
@@ -730,7 +892,7 @@ class PetSpeechBubbleView(
                     Paint.Cap.ROUND
 
                 strokeWidth =
-                    dp(3.2f)
+                    dp(2.7f)
 
                 color =
                     Color.rgb(
@@ -783,6 +945,810 @@ class PetSpeechBubbleView(
         drawYayaDecorations(
             canvas,
             body
+        )
+    }
+
+    private fun drawYutuanBubble(
+        canvas: Canvas
+    ) {
+        if (
+            width <= 0 ||
+            height <= 0
+        ) {
+            return
+        }
+
+        val w =
+            width.toFloat()
+
+        val h =
+            height.toFloat()
+
+        val tailSpace =
+            dp(14f)
+
+        val body =
+            RectF(
+                dp(5f),
+                if (tailAtTop) {
+                    tailSpace
+                } else {
+                    dp(5f)
+                },
+                w - dp(5f),
+                if (tailAtTop) {
+                    h - dp(5f)
+                } else {
+                    h - tailSpace
+                }
+            )
+
+        val cloud =
+            buildYayaCloudPath(
+                body
+            )
+
+        val fill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.rgb(
+                        252,
+                        253,
+                        255
+                    )
+
+                setShadowLayer(
+                    dp(8f),
+                    0f,
+                    dp(3f),
+                    Color.argb(
+                        38,
+                        69,
+                        115,
+                        160
+                    )
+                )
+            }
+
+        canvas.drawPath(
+            cloud,
+            fill
+        )
+
+        fill.clearShadowLayer()
+
+        val glow =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                strokeCap =
+                    Paint.Cap.ROUND
+
+                strokeWidth =
+                    dp(4.5f)
+
+                color =
+                    Color.argb(
+                        120,
+                        171,
+                        211,
+                        247
+                    )
+            }
+
+        canvas.drawPath(
+            cloud,
+            glow
+        )
+
+        val middle =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                strokeCap =
+                    Paint.Cap.ROUND
+
+                strokeWidth =
+                    dp(2.4f)
+
+                color =
+                    Color.rgb(
+                        112,
+                        169,
+                        225
+                    )
+            }
+
+        canvas.drawPath(
+            cloud,
+            middle
+        )
+
+        val inner =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                strokeCap =
+                    Paint.Cap.ROUND
+
+                strokeWidth =
+                    dp(0.9f)
+
+                color =
+                    Color.argb(
+                        220,
+                        235,
+                        247,
+                        255
+                    )
+            }
+
+        canvas.drawPath(
+            cloud,
+            inner
+        )
+
+        drawYutuanTail(
+            canvas,
+            body
+        )
+
+        drawYutuanDecorations(
+            canvas,
+            body
+        )
+    }
+
+    private fun drawYutuanTail(
+        canvas: Canvas,
+        body: RectF
+    ) {
+        val anchor =
+            tailCenter.coerceIn(
+                body.left +
+                    dp(42f),
+                body.right -
+                    dp(42f)
+            )
+
+        val direction =
+            if (tailAtTop) {
+                -1f
+            } else {
+                1f
+            }
+
+        val baseY =
+            if (tailAtTop) {
+                body.top +
+                    dp(2f)
+            } else {
+                body.bottom -
+                    dp(2f)
+            }
+
+        val tipY =
+            baseY +
+                direction *
+                    dp(13f)
+
+        val tail =
+            Path().apply {
+                moveTo(
+                    anchor -
+                        dp(13f),
+                    baseY
+                )
+
+                cubicTo(
+                    anchor -
+                        dp(6f),
+                    baseY +
+                        direction *
+                            dp(1f),
+                    anchor -
+                        dp(4f),
+                    tipY -
+                        direction *
+                            dp(2f),
+                    anchor,
+                    tipY
+                )
+
+                cubicTo(
+                    anchor +
+                        dp(4f),
+                    tipY -
+                        direction *
+                            dp(2f),
+                    anchor +
+                        dp(7f),
+                    baseY +
+                        direction *
+                            dp(1f),
+                    anchor +
+                        dp(13f),
+                    baseY
+                )
+
+                close()
+            }
+
+        val fill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.rgb(
+                        248,
+                        252,
+                        255
+                    )
+            }
+
+        val stroke =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(2.1f)
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                color =
+                    Color.rgb(
+                        112,
+                        169,
+                        225
+                    )
+            }
+
+        canvas.drawPath(
+            tail,
+            fill
+        )
+
+        canvas.drawPath(
+            tail,
+            stroke
+        )
+    }
+
+    private fun drawYutuanDecorations(
+        canvas: Canvas,
+        body: RectF
+    ) {
+        val w =
+            body.width()
+
+        val h =
+            body.height()
+
+        val topLeftX =
+            body.left +
+                w *
+                    0.145f
+
+        val topLeftY =
+            body.top +
+                h *
+                    0.10f
+
+        drawYutuanCloud(
+            canvas,
+            topLeftX,
+            topLeftY,
+            dp(17f)
+        )
+
+        drawRainDrop(
+            canvas,
+            topLeftX +
+                dp(2f),
+            topLeftY +
+                dp(24f),
+            dp(5.8f)
+        )
+
+        drawRainDrop(
+            canvas,
+            topLeftX +
+                dp(18f),
+            topLeftY +
+                dp(18f),
+            dp(3.3f)
+        )
+
+        drawWaterBubble(
+            canvas,
+            body.left +
+                dp(27f),
+            body.top +
+                h *
+                    0.70f,
+            dp(7f)
+        )
+
+        drawWaterBubble(
+            canvas,
+            body.left +
+                dp(46f),
+            body.top +
+                h *
+                    0.77f,
+            dp(3.6f)
+        )
+
+        val rightX =
+            body.right -
+                w *
+                    0.115f
+
+        val rightY =
+            body.top +
+                h *
+                    0.63f
+
+        drawYutuanCloud(
+            canvas,
+            rightX,
+            rightY,
+            dp(14f)
+        )
+
+        drawRainDrop(
+            canvas,
+            rightX +
+                dp(7f),
+            rightY +
+                dp(21f),
+            dp(5.2f)
+        )
+
+        drawRainDrop(
+            canvas,
+            rightX +
+                dp(20f),
+            rightY +
+                dp(25f),
+            dp(3.0f)
+        )
+
+        drawWaterBubble(
+            canvas,
+            body.right -
+                dp(28f),
+            body.top +
+                h *
+                    0.24f,
+            dp(5.8f)
+        )
+
+        drawBlueSparkle(
+            canvas,
+            body.left +
+                w *
+                    0.49f,
+            body.top +
+                dp(12f),
+            dp(4.2f)
+        )
+
+        drawBlueSparkle(
+            canvas,
+            body.right -
+                dp(24f),
+            body.top +
+                h *
+                    0.49f,
+            dp(3.2f)
+        )
+    }
+
+    private fun drawYutuanCloud(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        radius: Float
+    ) {
+        val fill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.rgb(
+                        250,
+                        252,
+                        255
+                    )
+            }
+
+        val outline =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(1.2f)
+
+                color =
+                    Color.rgb(
+                        153,
+                        191,
+                        229
+                    )
+            }
+
+        val circles =
+            arrayOf(
+                floatArrayOf(
+                    centerX -
+                        radius *
+                            0.62f,
+                    centerY +
+                        radius *
+                            0.08f,
+                    radius *
+                        0.62f
+                ),
+                floatArrayOf(
+                    centerX,
+                    centerY -
+                        radius *
+                            0.24f,
+                    radius *
+                        0.82f
+                ),
+                floatArrayOf(
+                    centerX +
+                        radius *
+                            0.70f,
+                    centerY +
+                        radius *
+                            0.07f,
+                    radius *
+                        0.57f
+                )
+            )
+
+        circles.forEach {
+            canvas.drawCircle(
+                it[0],
+                it[1],
+                it[2],
+                fill
+            )
+
+            canvas.drawCircle(
+                it[0],
+                it[1],
+                it[2],
+                outline
+            )
+        }
+    }
+
+    private fun drawRainDrop(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        radius: Float
+    ) {
+        val drop =
+            Path().apply {
+                moveTo(
+                    centerX,
+                    centerY -
+                        radius *
+                            1.45f
+                )
+
+                cubicTo(
+                    centerX +
+                        radius *
+                            0.90f,
+                    centerY -
+                        radius *
+                            0.35f,
+                    centerX +
+                        radius *
+                            0.82f,
+                    centerY +
+                        radius *
+                            0.82f,
+                    centerX,
+                    centerY +
+                        radius
+                )
+
+                cubicTo(
+                    centerX -
+                        radius *
+                            0.82f,
+                    centerY +
+                        radius *
+                            0.82f,
+                    centerX -
+                        radius *
+                            0.90f,
+                    centerY -
+                        radius *
+                            0.35f,
+                    centerX,
+                    centerY -
+                        radius *
+                            1.45f
+                )
+
+                close()
+            }
+
+        val fill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.argb(
+                        190,
+                        169,
+                        214,
+                        246
+                    )
+            }
+
+        val stroke =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(1.1f)
+
+                color =
+                    Color.rgb(
+                        88,
+                        153,
+                        218
+                    )
+            }
+
+        canvas.drawPath(
+            drop,
+            fill
+        )
+
+        canvas.drawPath(
+            drop,
+            stroke
+        )
+
+        val highlight =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.argb(
+                        220,
+                        255,
+                        255,
+                        255
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX -
+                radius *
+                    0.28f,
+            centerY -
+                radius *
+                    0.35f,
+            radius *
+                0.22f,
+            highlight
+        )
+    }
+
+    private fun drawWaterBubble(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        radius: Float
+    ) {
+        val fill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.argb(
+                        150,
+                        172,
+                        216,
+                        246
+                    )
+            }
+
+        val stroke =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(1f)
+
+                color =
+                    Color.rgb(
+                        107,
+                        164,
+                        222
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX,
+            centerY,
+            radius,
+            fill
+        )
+
+        canvas.drawCircle(
+            centerX,
+            centerY,
+            radius,
+            stroke
+        )
+
+        val highlight =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.argb(
+                        220,
+                        255,
+                        255,
+                        255
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX -
+                radius *
+                    0.30f,
+            centerY -
+                radius *
+                    0.34f,
+            radius *
+                0.24f,
+            highlight
+        )
+    }
+
+    private fun drawBlueSparkle(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        radius: Float
+    ) {
+        val sparkle =
+            Path().apply {
+                moveTo(
+                    centerX,
+                    centerY -
+                        radius
+                )
+
+                lineTo(
+                    centerX +
+                        radius *
+                            0.25f,
+                    centerY -
+                        radius *
+                            0.24f
+                )
+
+                lineTo(
+                    centerX +
+                        radius,
+                    centerY
+                )
+
+                lineTo(
+                    centerX +
+                        radius *
+                            0.25f,
+                    centerY +
+                        radius *
+                            0.24f
+                )
+
+                lineTo(
+                    centerX,
+                    centerY +
+                        radius
+                )
+
+                lineTo(
+                    centerX -
+                        radius *
+                            0.25f,
+                    centerY +
+                        radius *
+                            0.24f
+                )
+
+                lineTo(
+                    centerX -
+                        radius,
+                    centerY
+                )
+
+                lineTo(
+                    centerX -
+                        radius *
+                            0.25f,
+                    centerY -
+                        radius *
+                            0.24f
+                )
+
+                close()
+            }
+
+        val paint =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.argb(
+                        205,
+                        153,
+                        197,
+                        239
+                    )
+            }
+
+        canvas.drawPath(
+            sparkle,
+            paint
         )
     }
 
@@ -1538,10 +2504,20 @@ class PetSpeechBubbleView(
     private fun updatePadding() {
         if (yayaTheme) {
             setPadding(
-                dpInt(28),
-                dpInt(30),
-                dpInt(28),
-                dpInt(42)
+                dpInt(22),
+                dpInt(24),
+                dpInt(22),
+                dpInt(34)
+            )
+            return
+        }
+
+        if (yutuanTheme) {
+            setPadding(
+                dpInt(22),
+                dpInt(23),
+                dpInt(22),
+                dpInt(33)
             )
             return
         }
@@ -1672,6 +2648,38 @@ class PetSpeechBubbleView(
             }
         }
 
+        if (yutuanTheme) {
+            return when (tone) {
+                Tone.NORMAL ->
+                    Color.rgb(
+                        73,
+                        139,
+                        205
+                    )
+
+                Tone.REMINDER ->
+                    Color.rgb(
+                        66,
+                        129,
+                        198
+                    )
+
+                Tone.SUCCESS ->
+                    Color.rgb(
+                        83,
+                        151,
+                        177
+                    )
+
+                Tone.MOOD ->
+                    Color.rgb(
+                        99,
+                        133,
+                        185
+                    )
+            }
+        }
+
         return when (tone) {
             Tone.NORMAL ->
                 Color.rgb(
@@ -1734,6 +2742,38 @@ class PetSpeechBubbleView(
                         235,
                         245,
                         224
+                    )
+            }
+        }
+
+        if (yutuanTheme) {
+            return when (tone) {
+                Tone.NORMAL ->
+                    Color.rgb(
+                        229,
+                        243,
+                        255
+                    )
+
+                Tone.REMINDER ->
+                    Color.rgb(
+                        222,
+                        239,
+                        255
+                    )
+
+                Tone.SUCCESS ->
+                    Color.rgb(
+                        226,
+                        245,
+                        247
+                    )
+
+                Tone.MOOD ->
+                    Color.rgb(
+                        232,
+                        239,
+                        251
                     )
             }
         }

@@ -25,6 +25,7 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -74,6 +75,18 @@ class PetOverlayService : Service() {
         Runnable? = null
 
     private var lastAmbientBubbleAt = 0L
+
+    private var yutuanWeatherRunnable:
+        Runnable? = null
+
+    private var rainbowFollowRunnable:
+        Runnable? = null
+
+    private var rainbowView:
+        ImageView? = null
+
+    private var rainbowParams:
+        WindowManager.LayoutParams? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -195,6 +208,9 @@ class PetOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        stopYutuanWeatherCycle(
+            resetRain = false
+        )
         handler.removeCallbacksAndMessages(null)
         closePanel()
         hideSpeechBubble(
@@ -327,6 +343,7 @@ class PetOverlayService : Service() {
             scheduleEdgePeek()
             maybeShowDailyGreeting()
             scheduleContextBubble()
+            startYutuanWeatherCycle()
         }
     }
 
@@ -694,6 +711,8 @@ class PetOverlayService : Service() {
             )
         }
 
+        syncYutuanRainbowPosition()
+
         if (prefs.getBoolean("pet_auto_snap", true)) {
             snapToEdge(params)
         } else {
@@ -707,6 +726,9 @@ class PetOverlayService : Service() {
         closePanel()
         hideSpeechBubble(
             immediate = true
+        )
+        stopYutuanWeatherCycle(
+            resetRain = false
         )
 
         edgePeekRunnable?.let {
@@ -737,6 +759,523 @@ class PetOverlayService : Service() {
         petParams = null
 
         ensurePetView()
+    }
+
+
+    private fun startYutuanWeatherCycle() {
+        stopYutuanWeatherCycle(
+            resetRain = false
+        )
+
+        val pet =
+            petView ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YUTUAN.id
+        ) {
+            return
+        }
+
+        pet.setYutuanRainTarget(
+            1f
+        )
+
+        scheduleYutuanRainStop()
+    }
+
+    private fun scheduleYutuanRainStop() {
+        val pet =
+            petView ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YUTUAN.id
+        ) {
+            return
+        }
+
+        yutuanWeatherRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        val delay =
+            kotlin.random.Random
+                .nextLong(
+                    10_000L,
+                    20_001L
+                )
+
+        val runnable =
+            Runnable {
+                beginYutuanRainStop()
+            }
+
+        yutuanWeatherRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            delay
+        )
+    }
+
+    private fun beginYutuanRainStop() {
+        val pet =
+            petView ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YUTUAN.id
+        ) {
+            return
+        }
+
+        pet.setYutuanRainTarget(
+            0f
+        )
+
+        val runnable =
+            Runnable {
+                if (
+                    petView
+                        ?.currentPetId() !=
+                    PetKind.YUTUAN.id
+                ) {
+                    return@Runnable
+                }
+
+                if (
+                    kotlin.random.Random
+                        .nextFloat() <
+                    0.65f
+                ) {
+                    showYutuanRainbowMoment()
+                } else {
+                    scheduleYutuanRainRestart(
+                        kotlin.random.Random
+                            .nextLong(
+                                5_000L,
+                                12_001L
+                            )
+                    )
+                }
+            }
+
+        yutuanWeatherRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            1_800L
+        )
+    }
+
+    private fun showYutuanRainbowMoment() {
+        val pet =
+            petView ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YUTUAN.id
+        ) {
+            return
+        }
+
+        showYutuanRainbow()
+
+        val lines =
+            listOf(
+                "雨停啦，彩虹出来了～",
+                "你看，是彩虹耶！",
+                "雨过之后，也会有一点点晴天呀。",
+                "今天的雨，先下到这里吧～"
+            )
+
+        handler.postDelayed(
+            {
+                if (
+                    petView
+                        ?.currentPetId() ==
+                    PetKind.YUTUAN.id &&
+                    rainbowView != null
+                ) {
+                    showPetBubble(
+                        title =
+                            "雨团 · 雨停啦 🌈",
+                        message =
+                            lines.random(),
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD,
+                        priority =
+                            PRIORITY_AMBIENT,
+                        durationMs =
+                            4_800L,
+                        preferBelow =
+                            true
+                    )
+                }
+            },
+            260L
+        )
+
+        val rainbowDuration =
+            kotlin.random.Random
+                .nextLong(
+                    5_000L,
+                    8_001L
+                )
+
+        val runnable =
+            Runnable {
+                hideYutuanRainbow(
+                    immediate = false
+                )
+
+                scheduleYutuanRainRestart(
+                    kotlin.random.Random
+                        .nextLong(
+                            5_000L,
+                            12_001L
+                        )
+                )
+            }
+
+        yutuanWeatherRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            rainbowDuration
+        )
+    }
+
+    private fun scheduleYutuanRainRestart(
+        delayMs: Long
+    ) {
+        yutuanWeatherRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        val runnable =
+            Runnable {
+                val pet =
+                    petView
+                        ?: return@Runnable
+
+                if (
+                    pet.currentPetId() !=
+                    PetKind.YUTUAN.id
+                ) {
+                    return@Runnable
+                }
+
+                pet.setYutuanRainTarget(
+                    1f
+                )
+
+                scheduleYutuanRainStop()
+            }
+
+        yutuanWeatherRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            delayMs
+        )
+    }
+
+    private fun showYutuanRainbow() {
+        hideYutuanRainbow(
+            immediate = true
+        )
+
+        val pet =
+            petParams ?: return
+
+        if (
+            petView
+                ?.currentPetId() !=
+            PetKind.YUTUAN.id
+        ) {
+            return
+        }
+
+        val width =
+            (
+                pet.width *
+                    0.82f
+                )
+                .toInt()
+                .coerceIn(
+                    dp(58),
+                    dp(124)
+                )
+
+        val height =
+            (
+                width *
+                    172f /
+                    256f
+                )
+                .toInt()
+                .coerceAtLeast(
+                    dp(38)
+                )
+
+        val view =
+            ImageView(this).apply {
+                setImageResource(
+                    R.drawable
+                        .pet_yutuan_rainbow
+                )
+                scaleType =
+                    ImageView
+                        .ScaleType
+                        .FIT_CENTER
+                isClickable = false
+                alpha = 0f
+                scaleX = 0.88f
+                scaleY = 0.88f
+                translationY =
+                    dp(6)
+                        .toFloat()
+            }
+
+        val params =
+            WindowManager
+                .LayoutParams(
+                    width,
+                    height,
+                    WindowManager
+                        .LayoutParams
+                        .TYPE_APPLICATION_OVERLAY,
+                    WindowManager
+                        .LayoutParams
+                        .FLAG_NOT_FOCUSABLE or
+                        WindowManager
+                            .LayoutParams
+                            .FLAG_NOT_TOUCHABLE or
+                        WindowManager
+                            .LayoutParams
+                            .FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                )
+                .apply {
+                    gravity =
+                        Gravity.TOP or
+                            Gravity.START
+                }
+
+        positionYutuanRainbow(
+            params
+        )
+
+        runCatching {
+            windowManager.addView(
+                view,
+                params
+            )
+
+            rainbowView =
+                view
+            rainbowParams =
+                params
+
+            view.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationY(0f)
+                .setDuration(620L)
+                .start()
+
+            startYutuanRainbowFollowing()
+        }
+    }
+
+    private fun positionYutuanRainbow(
+        params:
+            WindowManager.LayoutParams
+    ) {
+        val pet =
+            petParams ?: return
+
+        val screenW =
+            resources
+                .displayMetrics
+                .widthPixels
+
+        val headTop =
+            pet.y +
+                (
+                    pet.height *
+                        0.10f
+                    ).toInt()
+
+        params.x =
+            (
+                pet.x +
+                    (
+                        pet.width -
+                            params.width
+                        ) /
+                    2
+                )
+                .coerceIn(
+                    -dp(6),
+                    screenW -
+                        params.width +
+                        dp(6)
+                )
+
+        params.y =
+            (
+                headTop -
+                    params.height -
+                    dp(6)
+                )
+                .coerceAtLeast(
+                    dp(8)
+                )
+    }
+
+    private fun syncYutuanRainbowPosition() {
+        val view =
+            rainbowView ?: return
+        val params =
+            rainbowParams ?: return
+
+        positionYutuanRainbow(
+            params
+        )
+
+        runCatching {
+            windowManager
+                .updateViewLayout(
+                    view,
+                    params
+                )
+        }
+    }
+
+    private fun startYutuanRainbowFollowing() {
+        rainbowFollowRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        val runnable =
+            object : Runnable {
+                override fun run() {
+                    if (
+                        rainbowView ==
+                        null
+                    ) {
+                        return
+                    }
+
+                    syncYutuanRainbowPosition()
+
+                    handler.postDelayed(
+                        this,
+                        32L
+                    )
+                }
+            }
+
+        rainbowFollowRunnable =
+            runnable
+
+        handler.post(
+            runnable
+        )
+    }
+
+    private fun hideYutuanRainbow(
+        immediate: Boolean
+    ) {
+        rainbowFollowRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        rainbowFollowRunnable =
+            null
+
+        val view =
+            rainbowView ?: return
+
+        rainbowView =
+            null
+        rainbowParams =
+            null
+
+        if (immediate) {
+            runCatching {
+                windowManager
+                    .removeView(
+                        view
+                    )
+            }
+            return
+        }
+
+        view.animate()
+            .alpha(0f)
+            .scaleX(0.94f)
+            .scaleY(0.94f)
+            .translationY(
+                -dp(3)
+                    .toFloat()
+            )
+            .setDuration(480L)
+            .withEndAction {
+                runCatching {
+                    windowManager
+                        .removeView(
+                            view
+                        )
+                }
+            }
+            .start()
+    }
+
+    private fun stopYutuanWeatherCycle(
+        resetRain: Boolean = true
+    ) {
+        yutuanWeatherRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        yutuanWeatherRunnable =
+            null
+
+        hideYutuanRainbow(
+            immediate = true
+        )
+
+        if (resetRain) {
+            petView
+                ?.setYutuanRainTarget(
+                    1f
+                )
+        }
     }
 
     private fun scheduleEdgePeek() {
@@ -1262,7 +1801,8 @@ class PetOverlayService : Service() {
         tone:
             PetSpeechBubbleView.Tone,
         priority: Int,
-        durationMs: Long
+        durationMs: Long,
+        preferBelow: Boolean = false
     ) {
         val bubble =
             PetSpeechBubbleView(
@@ -1279,14 +1819,16 @@ class PetOverlayService : Service() {
         showSpeechBubbleView(
             view = bubble,
             priority = priority,
-            durationMs = durationMs
+            durationMs = durationMs,
+            preferBelow = preferBelow
         )
     }
 
     private fun showSpeechBubbleView(
         view: PetSpeechBubbleView,
         priority: Int,
-        durationMs: Long
+        durationMs: Long,
+        preferBelow: Boolean = false
     ) {
         val pet =
             petParams ?: return
@@ -1356,7 +1898,9 @@ class PetOverlayService : Service() {
                 dp(28)
 
         val placeAbove =
-            if (
+            if (preferBelow) {
+                false
+            } else if (
                 view.isDecorativeTheme()
             ) {
                 availableAbove >=

@@ -94,7 +94,20 @@ class YutuanRainSystem {
     private var lastNanos = 0L
     private var puddleAmount = 0f
 
+    // Weather controller: service changes the target while this class
+    // eases the actual intensity so the rain never switches off abruptly.
+    private var rainTargetScale = 1f
+    private var rainScale = 1f
+
     private val spawnCarry = FloatArray(3)
+
+    fun setRainTargetScale(scale: Float) {
+        rainTargetScale =
+            scale.coerceIn(
+                0f,
+                1f
+            )
+    }
 
     fun reset() {
         drops.clear()
@@ -103,6 +116,8 @@ class YutuanRainSystem {
         beads.clear()
         puddleAmount = 0f
         lastNanos = 0L
+        rainTargetScale = 1f
+        rainScale = 1f
         for (i in spawnCarry.indices) {
             spawnCarry[i] = 0f
         }
@@ -130,6 +145,36 @@ class YutuanRainSystem {
             }
 
         lastNanos = nowNanos
+
+        val rainEase =
+            (
+                dt *
+                    if (
+                        rainTargetScale <
+                        rainScale
+                    ) {
+                        2.35f
+                    } else {
+                        1.45f
+                    }
+                ).coerceIn(
+                0f,
+                1f
+            )
+
+        rainScale +=
+            (
+                rainTargetScale -
+                    rainScale
+                ) *
+                rainEase
+
+        if (
+            rainTargetScale <= 0f &&
+            rainScale < 0.008f
+        ) {
+            rainScale = 0f
+        }
 
         val timeSeconds =
             nowNanos /
@@ -165,9 +210,13 @@ class YutuanRainSystem {
                 ).toFloat()
 
         val intensity =
-            (stateMultiplier * breathingRain)
+            (
+                stateMultiplier *
+                    breathingRain *
+                    rainScale
+                )
                 .coerceIn(
-                    0.48f,
+                    0f,
                     1.28f
                 )
 

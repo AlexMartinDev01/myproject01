@@ -301,7 +301,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.7.2 雨团专属气泡精简版 · 橘团 / 芽芽 / 雨团",
+                        "V1.7.3 雨团原图气泡小型版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -910,7 +910,7 @@ fun PetSettingsScreen(
                         }
                     )
                     Text("• 3–5 分钟无互动可自动犯困 → 打哈欠 → 闭眼蜷睡，时间可调")
-                    Text("• 气泡会根据文字自动调整大小并避开屏幕边缘；芽芽与雨团都使用更小、更轻量的专属气泡")
+                    Text("• 雨团直接使用指定的蓝白云朵水滴透明原图气泡；雨团与芽芽的气泡、字体和按钮均进一步缩小，并继续按文字自适应")
                     Text("• 待办提前 10 分钟轻提醒；到点正式提醒；完成后根据今天剩余任务庆祝")
                     Text(
                         "• 点击" +

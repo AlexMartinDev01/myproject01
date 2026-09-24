@@ -299,8 +299,9 @@ class YutuanRainSystem {
                 spawnCarry[layer]
                     .toInt()
 
-            spawnCarry[layer] -=
-                spawnCount
+            spawnCarry[layer] =
+                spawnCarry[layer] -
+                    spawnCount.toFloat()
 
             if (
                 random.nextFloat() <

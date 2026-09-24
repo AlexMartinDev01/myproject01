@@ -12,8 +12,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 36
-        versionName '1.7.3'
+        versionCode 37
+        versionName '1.7.4'
     }
 
     buildFeatures {
@@ -138,6 +138,128 @@ def decodePetWakeAsset = tasks.register("decodePetWakeAsset") {
     }
 }
 
+def orangeBubbleAssetPartsDir =
+    file("$projectDir/src/main/pet_assets/orange_bubble")
+
+def orangeBubbleAssetOutput =
+    file("$projectDir/src/main/res/drawable-nodpi/pet_orange_bubble.webp")
+
+def decodeOrangeBubbleAsset =
+    tasks.register("decodeOrangeBubbleAsset") {
+        inputs.dir(orangeBubbleAssetPartsDir)
+        outputs.file(orangeBubbleAssetOutput)
+
+        doLast {
+            def parts =
+                orangeBubbleAssetPartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Orange bubble asset chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
+            orangeBubbleAssetOutput
+                .parentFile
+                .mkdirs()
+
+            orangeBubbleAssetOutput.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
+
+            println(
+                "Decoded Orange bubble asset: " +
+                    orangeBubbleAssetOutput +
+                    " (" +
+                    orangeBubbleAssetOutput.length() +
+                    " bytes)"
+            )
+        }
+    }
+
+def yayaBubbleAssetPartsDir =
+    file("$projectDir/src/main/pet_assets/yaya_bubble")
+
+def yayaBubbleAssetOutput =
+    file("$projectDir/src/main/res/drawable-nodpi/pet_yaya_bubble.webp")
+
+def decodeYayaBubbleAsset =
+    tasks.register("decodeYayaBubbleAsset") {
+        inputs.dir(yayaBubbleAssetPartsDir)
+        outputs.file(yayaBubbleAssetOutput)
+
+        doLast {
+            def parts =
+                yayaBubbleAssetPartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Yaya bubble asset chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
+            yayaBubbleAssetOutput
+                .parentFile
+                .mkdirs()
+
+            yayaBubbleAssetOutput.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
+
+            println(
+                "Decoded Yaya bubble asset: " +
+                    yayaBubbleAssetOutput +
+                    " (" +
+                    yayaBubbleAssetOutput.length() +
+                    " bytes)"
+            )
+        }
+    }
+
 def yutuanBubbleAssetPartsDir =
     file("$projectDir/src/main/pet_assets/yutuan_bubble")
 
@@ -206,6 +328,8 @@ tasks.named("preBuild").configure {
         decodePetSleepAsset,
         decodePetTiredAsset,
         decodePetWakeAsset,
+        decodeOrangeBubbleAsset,
+        decodeYayaBubbleAsset,
         decodeYutuanBubbleAsset
     )
 }

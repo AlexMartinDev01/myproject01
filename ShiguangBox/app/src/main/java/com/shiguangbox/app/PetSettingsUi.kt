@@ -301,7 +301,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.7.3 雨团原图气泡小型版 · 橘团 / 芽芽 / 雨团",
+                        "V1.7.4 三宠物原图气泡版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -590,13 +590,15 @@ fun PetSettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                if (
-                                    selectedPet ==
-                                    PetKind.YAYA
-                                ) {
-                                    "预览芽芽专属植物气泡"
-                                } else {
-                                    "预览新版气泡"
+                                when (selectedPet) {
+                                    PetKind.ORANGE ->
+                                        "预览橘团专属猫咪气泡"
+
+                                    PetKind.YAYA ->
+                                        "预览芽芽专属花叶气泡"
+
+                                    PetKind.YUTUAN ->
+                                        "预览雨团专属雨云气泡"
                                 }
                             )
                         }
@@ -910,7 +912,7 @@ fun PetSettingsScreen(
                         }
                     )
                     Text("• 3–5 分钟无互动可自动犯困 → 打哈欠 → 闭眼蜷睡，时间可调")
-                    Text("• 雨团直接使用指定的蓝白云朵水滴透明原图气泡；雨团与芽芽的气泡、字体和按钮均进一步缩小，并继续按文字自适应")
+                    Text("• 橘团、芽芽、雨团均使用各自的透明原图气泡；文字区会自动伸缩，整体继续保持小巧不挡屏幕")
                     Text("• 待办提前 10 分钟轻提醒；到点正式提醒；完成后根据今天剩余任务庆祝")
                     Text(
                         "• 点击" +

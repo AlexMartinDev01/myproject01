@@ -29,11 +29,45 @@ class PetSpeechBubbleView(
         MOOD
     }
 
+    private val orangeTheme =
+        petKind == PetKind.ORANGE
+
     private val yayaTheme =
         petKind == PetKind.YAYA
 
     private val yutuanTheme =
         petKind == PetKind.YUTUAN
+
+    private val imageBubbleTheme =
+        orangeTheme ||
+            yayaTheme ||
+            yutuanTheme
+
+    private val orangeBubbleBitmap: Bitmap? by lazy {
+        if (orangeTheme) {
+            runCatching {
+                BitmapFactory.decodeResource(
+                    resources,
+                    R.drawable.pet_orange_bubble
+                )
+            }.getOrNull()
+        } else {
+            null
+        }
+    }
+
+    private val yayaBubbleBitmap: Bitmap? by lazy {
+        if (yayaTheme) {
+            runCatching {
+                BitmapFactory.decodeResource(
+                    resources,
+                    R.drawable.pet_yaya_bubble
+                )
+            }.getOrNull()
+        } else {
+            null
+        }
+    }
 
     private val yutuanBubbleBitmap: Bitmap? by lazy {
         if (yutuanTheme) {
@@ -47,6 +81,12 @@ class PetSpeechBubbleView(
             null
         }
     }
+
+    private val imageBubblePaint =
+        Paint(
+            Paint.ANTI_ALIAS_FLAG or
+                Paint.FILTER_BITMAP_FLAG
+        )
 
     private val yutuanBitmapPaint =
         Paint(
@@ -95,7 +135,7 @@ class PetSpeechBubbleView(
         clipChildren = false
         clipToPadding = false
         elevation =
-            if (yutuanTheme) {
+            if (imageBubbleTheme) {
                 0f
             } else {
                 dp(10f)
@@ -108,12 +148,18 @@ class PetSpeechBubbleView(
         yayaTheme
 
     fun isDecorativeTheme(): Boolean =
-        yayaTheme ||
-            yutuanTheme
+        imageBubbleTheme
 
     fun minimumOverlayHeightPx(): Int =
         dpInt(
             when {
+                orangeTheme ->
+                    if (actionCount > 0) {
+                        152
+                    } else {
+                        120
+                    }
+
                 yayaTheme ->
                     if (actionCount > 0) {
                         156
@@ -134,7 +180,8 @@ class PetSpeechBubbleView(
 
     fun tailAnchorFraction(): Float =
         when {
-            yayaTheme -> 0.47f
+            orangeTheme -> 0.31f
+            yayaTheme -> 0.32f
             yutuanTheme -> 0.76f
             else -> 0.50f
         }
@@ -142,47 +189,48 @@ class PetSpeechBubbleView(
     fun preferredWidthPx(
         screenWidthPx: Int
     ): Int {
-        if (
-            !yayaTheme &&
-            !yutuanTheme
-        ) {
+        if (!imageBubbleTheme) {
             return dpInt(248)
         }
 
         val minWidth =
             dpInt(
-                if (yutuanTheme) {
-                    166
-                } else {
-                    170
+                when {
+                    orangeTheme -> 166
+                    yayaTheme -> 170
+                    yutuanTheme -> 166
+                    else -> 166
                 }
             )
 
         val maxWidth =
             minOf(
                 dpInt(
-                    if (yutuanTheme) {
-                        238
-                    } else {
-                        246
+                    when {
+                        orangeTheme -> 240
+                        yayaTheme -> 246
+                        yutuanTheme -> 238
+                        else -> 240
                     }
                 ),
                 (
                     screenWidthPx *
-                        if (yutuanTheme) {
-                            0.62f
-                        } else {
-                            0.64f
+                        when {
+                            orangeTheme -> 0.62f
+                            yayaTheme -> 0.64f
+                            yutuanTheme -> 0.62f
+                            else -> 0.62f
                         }
                     ).toInt()
             ).coerceAtLeast(minWidth)
 
         sizingPaint.textSize =
             sp(
-                if (yutuanTheme) {
-                    11.8f
-                } else {
-                    12.2f
+                when {
+                    orangeTheme -> 11.8f
+                    yayaTheme -> 12.2f
+                    yutuanTheme -> 11.8f
+                    else -> 12f
                 }
             )
 
@@ -203,10 +251,11 @@ class PetSpeechBubbleView(
 
         sizingPaint.textSize =
             sp(
-                if (yutuanTheme) {
-                    9.2f
-                } else {
-                    9.4f
+                when {
+                    orangeTheme -> 9.2f
+                    yayaTheme -> 9.4f
+                    yutuanTheme -> 9.2f
+                    else -> 9.2f
                 }
             )
 
@@ -217,28 +266,36 @@ class PetSpeechBubbleView(
             sizingPaint
                 .measureText(boundTitle)
 
+        val messagePadding =
+            dp(
+                when {
+                    orangeTheme -> 44f
+                    yayaTheme -> 44f
+                    yutuanTheme -> 42f
+                    else -> 44f
+                }
+            )
+
+        val titlePadding =
+            dp(
+                when {
+                    orangeTheme -> 44f
+                    yayaTheme -> 48f
+                    yutuanTheme -> 46f
+                    else -> 44f
+                }
+            )
+
         var desired =
             maxOf(
                 minWidth,
                 (
                     widestMessage +
-                        dp(
-                            if (yutuanTheme) {
-                                42f
-                            } else {
-                                44f
-                            }
-                        )
+                        messagePadding
                     ).toInt(),
                 (
                     titleWidth +
-                        dp(
-                            if (yutuanTheme) {
-                                46f
-                            } else {
-                                48f
-                            }
-                        )
+                        titlePadding
                     ).toInt()
             )
 
@@ -251,10 +308,11 @@ class PetSpeechBubbleView(
                     maxOf(
                         desired,
                         dpInt(
-                            if (yutuanTheme) {
-                                220
-                            } else {
-                                228
+                            when {
+                                orangeTheme -> 220
+                                yayaTheme -> 228
+                                yutuanTheme -> 220
+                                else -> 220
                             }
                         )
                     )
@@ -266,10 +324,11 @@ class PetSpeechBubbleView(
                     maxOf(
                         desired,
                         dpInt(
-                            if (yutuanTheme) {
-                                218
-                            } else {
-                                226
+                            when {
+                                orangeTheme -> 218
+                                yayaTheme -> 226
+                                yutuanTheme -> 218
+                                else -> 218
                             }
                         )
                     )
@@ -278,10 +337,11 @@ class PetSpeechBubbleView(
                     maxOf(
                         desired,
                         dpInt(
-                            if (yutuanTheme) {
-                                196
-                            } else {
-                                202
+                            when {
+                                orangeTheme -> 196
+                                yayaTheme -> 202
+                                yutuanTheme -> 196
+                                else -> 196
                             }
                         )
                     )
@@ -314,6 +374,7 @@ class PetSpeechBubbleView(
                 text = title
                 textSize =
                     when {
+                        orangeTheme -> 9.2f
                         yayaTheme -> 9.4f
                         yutuanTheme -> 9.2f
                         else -> 11.5f
@@ -331,8 +392,7 @@ class PetSpeechBubbleView(
                 setPadding(
                     dpInt(
                         if (
-                            yayaTheme ||
-                            yutuanTheme
+                            imageBubbleTheme
                         ) {
                             7
                         } else {
@@ -341,8 +401,7 @@ class PetSpeechBubbleView(
                     ),
                     dpInt(
                         if (
-                            yayaTheme ||
-                            yutuanTheme
+                            imageBubbleTheme
                         ) {
                             2
                         } else {
@@ -351,8 +410,7 @@ class PetSpeechBubbleView(
                     ),
                     dpInt(
                         if (
-                            yayaTheme ||
-                            yutuanTheme
+                            imageBubbleTheme
                         ) {
                             7
                         } else {
@@ -361,8 +419,7 @@ class PetSpeechBubbleView(
                     ),
                     dpInt(
                         if (
-                            yayaTheme ||
-                            yutuanTheme
+                            imageBubbleTheme
                         ) {
                             2
                         } else {
@@ -380,6 +437,7 @@ class PetSpeechBubbleView(
                         cornerRadius =
                             dp(
                                 when {
+                                    orangeTheme -> 10f
                                     yayaTheme -> 10.5f
                                     yutuanTheme -> 10f
                                     else -> 11f
@@ -408,6 +466,7 @@ class PetSpeechBubbleView(
 
                 textSize =
                     when {
+                        orangeTheme -> 11.8f
                         yayaTheme -> 12.2f
                         yutuanTheme -> 11.8f
                         else -> 14f
@@ -448,6 +507,7 @@ class PetSpeechBubbleView(
                 setLineSpacing(
                     0f,
                     when {
+                        orangeTheme -> 1.10f
                         yayaTheme -> 1.12f
                         yutuanTheme -> 1.10f
                         else -> 1.14f
@@ -455,10 +515,7 @@ class PetSpeechBubbleView(
                 )
 
                 maxLines =
-                    if (
-                        yayaTheme ||
-                        yutuanTheme
-                    ) {
+                    if (imageBubbleTheme) {
                         5
                     } else {
                         4
@@ -474,8 +531,7 @@ class PetSpeechBubbleView(
                 topMargin =
                     dpInt(
                         if (
-                            yayaTheme ||
-                            yutuanTheme
+                            imageBubbleTheme
                         ) {
                             6
                         } else {
@@ -531,6 +587,7 @@ class PetSpeechBubbleView(
                 isAllCaps = false
                 textSize =
                     when {
+                        orangeTheme -> 9.8f
                         yayaTheme -> 10.0f
                         yutuanTheme -> 9.8f
                         else -> 12f
@@ -570,10 +627,7 @@ class PetSpeechBubbleView(
 
                         cornerRadius =
                             dp(
-                                if (
-                                    yayaTheme ||
-                                    yutuanTheme
-                                ) {
+                                if (imageBubbleTheme) {
                                     13f
                                 } else {
                                     13f
@@ -616,6 +670,7 @@ class PetSpeechBubbleView(
                 0,
                 dpInt(
                     when {
+                        orangeTheme -> 31
                         yayaTheme -> 32
                         yutuanTheme -> 31
                         else -> 38
@@ -665,10 +720,7 @@ class PetSpeechBubbleView(
             heightMeasureSpec
         )
 
-        if (
-            yayaTheme ||
-            yutuanTheme
-        ) {
+        if (imageBubbleTheme) {
             val minHeight =
                 minimumOverlayHeightPx()
 
@@ -684,8 +736,14 @@ class PetSpeechBubbleView(
     override fun onDraw(
         canvas: Canvas
     ) {
+        if (orangeTheme) {
+            drawOrangeBubble(canvas)
+            super.onDraw(canvas)
+            return
+        }
+
         if (yayaTheme) {
-            drawYayaBubble(canvas)
+            drawYayaImageBubble(canvas)
             super.onDraw(canvas)
             return
         }
@@ -803,6 +861,211 @@ class PetSpeechBubbleView(
         )
 
         super.onDraw(canvas)
+    }
+
+    private fun drawOrangeBubble(
+        canvas: Canvas
+    ) {
+        if (
+            width <= 0 ||
+            height <= 0
+        ) {
+            return
+        }
+
+        val bitmap =
+            orangeBubbleBitmap
+                ?: return
+
+        drawExactImageBubble(
+            canvas = canvas,
+            bitmap = bitmap,
+            destination =
+                RectF(
+                    0f,
+                    0f,
+                    width.toFloat(),
+                    height.toFloat()
+                ),
+            sourceLeftFraction = 0.31f,
+            sourceRightFraction = 0.69f,
+            sourceTopFraction = 0.35f,
+            sourceBottomFraction = 0.69f,
+            leftEdgeDp = 40f,
+            rightEdgeDp = 44f,
+            topEdgeDp = 38f,
+            bottomEdgeDp = 40f
+        )
+    }
+
+    private fun drawYayaImageBubble(
+        canvas: Canvas
+    ) {
+        if (
+            width <= 0 ||
+            height <= 0
+        ) {
+            return
+        }
+
+        val bitmap =
+            yayaBubbleBitmap
+                ?: return
+
+        drawExactImageBubble(
+            canvas = canvas,
+            bitmap = bitmap,
+            destination =
+                RectF(
+                    0f,
+                    0f,
+                    width.toFloat(),
+                    height.toFloat()
+                ),
+            sourceLeftFraction = 0.32f,
+            sourceRightFraction = 0.70f,
+            sourceTopFraction = 0.35f,
+            sourceBottomFraction = 0.69f,
+            leftEdgeDp = 44f,
+            rightEdgeDp = 44f,
+            topEdgeDp = 40f,
+            bottomEdgeDp = 42f
+        )
+    }
+
+    private fun drawExactImageBubble(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        destination: RectF,
+        sourceLeftFraction: Float,
+        sourceRightFraction: Float,
+        sourceTopFraction: Float,
+        sourceBottomFraction: Float,
+        leftEdgeDp: Float,
+        rightEdgeDp: Float,
+        topEdgeDp: Float,
+        bottomEdgeDp: Float
+    ) {
+        val sourceLeft =
+            (bitmap.width *
+                sourceLeftFraction)
+                .toInt()
+                .coerceIn(
+                    1,
+                    bitmap.width - 2
+                )
+
+        val sourceRight =
+            (bitmap.width *
+                sourceRightFraction)
+                .toInt()
+                .coerceIn(
+                    sourceLeft + 1,
+                    bitmap.width - 1
+                )
+
+        val sourceTop =
+            (bitmap.height *
+                sourceTopFraction)
+                .toInt()
+                .coerceIn(
+                    1,
+                    bitmap.height - 2
+                )
+
+        val sourceBottom =
+            (bitmap.height *
+                sourceBottomFraction)
+                .toInt()
+                .coerceIn(
+                    sourceTop + 1,
+                    bitmap.height - 1
+                )
+
+        val leftEdge =
+            minOf(
+                dp(leftEdgeDp),
+                destination.width() *
+                    0.30f
+            )
+
+        val rightEdge =
+            minOf(
+                dp(rightEdgeDp),
+                destination.width() *
+                    0.30f
+            )
+
+        val topEdge =
+            minOf(
+                dp(topEdgeDp),
+                destination.height() *
+                    0.31f
+            )
+
+        val bottomEdge =
+            minOf(
+                dp(bottomEdgeDp),
+                destination.height() *
+                    0.32f
+            )
+
+        val dx =
+            floatArrayOf(
+                destination.left,
+                destination.left +
+                    leftEdge,
+                destination.right -
+                    rightEdge,
+                destination.right
+            )
+
+        val dy =
+            floatArrayOf(
+                destination.top,
+                destination.top +
+                    topEdge,
+                destination.bottom -
+                    bottomEdge,
+                destination.bottom
+            )
+
+        val sx =
+            intArrayOf(
+                0,
+                sourceLeft,
+                sourceRight,
+                bitmap.width
+            )
+
+        val sy =
+            intArrayOf(
+                0,
+                sourceTop,
+                sourceBottom,
+                bitmap.height
+            )
+
+        for (row in 0 until 3) {
+            for (column in 0 until 3) {
+                canvas.drawBitmap(
+                    bitmap,
+                    Rect(
+                        sx[column],
+                        sy[row],
+                        sx[column + 1],
+                        sy[row + 1]
+                    ),
+                    RectF(
+                        dx[column],
+                        dy[row],
+                        dx[column + 1],
+                        dy[row + 1]
+                    ),
+                    imageBubblePaint
+                )
+            }
+        }
     }
 
     private fun drawYayaBubble(
@@ -2507,12 +2770,22 @@ class PetSpeechBubbleView(
     }
 
     private fun updatePadding() {
+        if (orangeTheme) {
+            setPadding(
+                dpInt(25),
+                dpInt(25),
+                dpInt(25),
+                dpInt(29)
+            )
+            return
+        }
+
         if (yayaTheme) {
             setPadding(
-                dpInt(18),
-                dpInt(20),
-                dpInt(18),
-                dpInt(28)
+                dpInt(28),
+                dpInt(28),
+                dpInt(28),
+                dpInt(30)
             )
             return
         }

@@ -35,10 +35,10 @@ jobs:
         run: gradle assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/拾光盒_v1.5.4_橘团芽芽切换稳定最终版.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/拾光盒_v1.5.5_芽芽灵动动作版.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: 拾光盒-v1.5.4-双宠切换稳定最终版-APK
-          path: ShiguangBox/app/build/outputs/apk/debug/拾光盒_v1.5.4_橘团芽芽切换稳定最终版.apk
+          name: 拾光盒-v1.5.5-芽芽灵动动作版-APK
+          path: ShiguangBox/app/build/outputs/apk/debug/拾光盒_v1.5.5_芽芽灵动动作版.apk

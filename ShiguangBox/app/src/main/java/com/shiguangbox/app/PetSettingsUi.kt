@@ -274,7 +274,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.5.2 双宠切换稳定修正版 · 橘团 / 芽芽",
+                        "V1.5.5 芽芽灵动动作版 · 橘团 / 芽芽",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -422,7 +422,7 @@ fun PetSettingsScreen(
                             selectedPetId ==
                             PetKind.YAYA.id
                         ) {
-                            "芽芽：平静系垂耳兔 · 耳根稳定、耳尖柔和延迟、动作更慢更轻。"
+                            "芽芽：平静系垂耳兔 · 耳朵、腿部、挥爪与呼吸更灵动，依然保持柔和自然。"
                         } else {
                             "橘团：开心系小橘猫 · 摇尾巴、挥爪和庆祝动作更明显。"
                         },

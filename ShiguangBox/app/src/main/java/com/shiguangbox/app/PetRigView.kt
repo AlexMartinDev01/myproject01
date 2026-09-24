@@ -1003,29 +1003,29 @@ class PetRigView @JvmOverloads constructor(
         val quietNight = hour >= 23 || hour < 7
 
         val breath =
-            sin(idleSeconds * 2.0 * PI / 3.35)
+            sin(idleSeconds * 2.0 * PI / 3.15)
 
         val signatureStrength =
             when (state) {
                 State.TAIL_WAG -> 1.0
-                State.HAPPY -> 0.76
-                State.PETTED -> 0.58
-                State.REMINDER -> 0.68
-                State.WAVE -> 0.24
-                State.DRAGGING -> 0.10
+                State.HAPPY -> 0.90
+                State.PETTED -> 0.68
+                State.REMINDER -> 0.78
+                State.WAVE -> 0.30
+                State.DRAGGING -> 0.12
                 else ->
                     if (quietNight) {
-                        0.10
+                        0.13
                     } else {
-                        0.18
+                        0.24
                     }
             }
 
         val legStrength =
             when (state) {
-                State.HAPPY -> 0.70
-                State.PETTED -> 0.28
-                State.DRAGGING -> 0.45
+                State.HAPPY -> 0.90
+                State.PETTED -> 0.40
+                State.DRAGGING -> 0.55
                 else -> 0.0
             }
 
@@ -1063,7 +1063,7 @@ class PetRigView @JvmOverloads constructor(
                             0.0,
                             1.0
                         )
-                    -0.013 *
+                    -0.017 *
                         abs(
                             sin(
                                 p *
@@ -1075,7 +1075,7 @@ class PetRigView @JvmOverloads constructor(
                 }
 
                 State.PETTED ->
-                    -0.0035 *
+                    -0.0050 *
                         abs(
                             sin(
                                 stateSeconds *
@@ -1155,7 +1155,7 @@ class PetRigView @JvmOverloads constructor(
                 }
 
                 y +=
-                    0.0021 *
+                    0.0028 *
                         breath *
                         chestWeight
 
@@ -1217,9 +1217,9 @@ class PetRigView @JvmOverloads constructor(
 
                     val period =
                         if (left) {
-                            3.05
+                            2.90
                         } else {
-                            3.25
+                            3.12
                         }
 
                     val phase =
@@ -1231,30 +1231,30 @@ class PetRigView @JvmOverloads constructor(
 
                     val tipDelay =
                         if (left) {
-                            0.36
+                            0.40
                         } else {
-                            0.34
+                            0.38
                         }
 
                     val rootAngle =
                         if (left) {
-                            1.4
+                            1.9
                         } else {
-                            1.2
+                            1.7
                         }
 
                     val midAngle =
                         if (left) {
-                            4.6
+                            6.1
                         } else {
-                            4.1
+                            5.6
                         }
 
                     val tipAngle =
                         if (left) {
-                            8.6
+                            11.4
                         } else {
-                            7.8
+                            10.1
                         }
 
                     var localWeight =
@@ -1429,9 +1429,9 @@ class PetRigView @JvmOverloads constructor(
                         val gravityDrop =
                             (
                                 if (left) {
-                                    0.0075
+                                    0.0092
                                 } else {
-                                    0.0070
+                                    0.0087
                                 }
                                 ) *
                                 tipWeight *
@@ -1493,7 +1493,7 @@ class PetRigView @JvmOverloads constructor(
                         )
 
                     val compression =
-                        0.60 *
+                        0.66 *
                             blinkAmount *
                             eyeWeight
 
@@ -1598,9 +1598,9 @@ class PetRigView @JvmOverloads constructor(
 
                         val period =
                             if (left) {
-                                3.8
+                                3.55
                             } else {
-                                4.0
+                                3.75
                             }
 
                         val phase =
@@ -1612,23 +1612,23 @@ class PetRigView @JvmOverloads constructor(
 
                         val rootAngle =
                             if (left) {
-                                0.6
+                                0.8
                             } else {
-                                0.5
+                                0.7
                             }
 
                         val midAngle =
                             if (left) {
-                                1.6
+                                2.2
                             } else {
-                                1.4
+                                1.9
                             }
 
                         val tipAngle =
                             if (left) {
-                                2.8
+                                3.7
                             } else {
-                                2.5
+                                3.3
                             }
 
                         val angleDegrees =
@@ -1697,9 +1697,9 @@ class PetRigView @JvmOverloads constructor(
                             val settle =
                                 (
                                     if (left) {
-                                        0.0045
+                                        0.0062
                                     } else {
-                                        0.0040
+                                        0.0058
                                     }
                                     ) *
                                     tipWeight *
@@ -1941,9 +1941,9 @@ class PetRigView @JvmOverloads constructor(
 
             return WaveParams(
                 true,
-                -30.0 * p,
-                0.012 * p,
-                -0.027 * p
+                -35.0 * p,
+                0.014 * p,
+                -0.031 * p
             )
         }
 
@@ -1962,14 +1962,14 @@ class PetRigView @JvmOverloads constructor(
 
             return WaveParams(
                 true,
-                -30.0 -
-                    5.0 *
+                -35.0 -
+                    6.0 *
                     swing,
-                0.012 +
+                0.014 +
+                    0.0030 *
+                    swing,
+                -0.031 -
                     0.0025 *
-                    swing,
-                -0.027 -
-                    0.002 *
                     abs(swing)
             )
         }
@@ -1987,11 +1987,11 @@ class PetRigView @JvmOverloads constructor(
 
             return WaveParams(
                 true,
-                -30.0 *
+                -35.0 *
                     remain,
-                0.012 *
+                0.014 *
                     remain,
-                -0.027 *
+                -0.031 *
                     remain
             )
         }

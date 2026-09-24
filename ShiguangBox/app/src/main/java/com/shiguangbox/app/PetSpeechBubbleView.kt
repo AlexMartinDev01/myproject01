@@ -54,10 +54,14 @@ class PetSpeechBubbleView(
 
     private val yayaBubbleBitmap: Bitmap? =
         if (yayaTheme) {
-            BitmapFactory.decodeResource(
-                resources,
-                R.drawable.pet_yaya_bubble
-            )
+            resources
+                .openRawResource(
+                    R.raw.pet_yaya_bubble
+                )
+                .use { stream ->
+                    BitmapFactory
+                        .decodeStream(stream)
+                }
         } else {
             null
         }

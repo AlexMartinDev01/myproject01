@@ -1,13 +1,10 @@
 package com.shiguangbox.app
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -41,30 +38,10 @@ class PetSpeechBubbleView(
             strokeWidth = dp(1.25f)
         }
 
-    private val bitmapPaint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG or
-                Paint.FILTER_BITMAP_FLAG
-        )
-
     private val sizingPaint =
         Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val bubblePath = Path()
-
-    private val yayaBubbleBitmap: Bitmap? =
-        if (yayaTheme) {
-            resources
-                .openRawResource(
-                    R.raw.pet_yaya_bubble
-                )
-                .use { stream ->
-                    BitmapFactory
-                        .decodeStream(stream)
-                }
-        } else {
-            null
-        }
 
     private var tailAtTop = false
     private var tailCenter = 0f
@@ -642,9 +619,6 @@ class PetSpeechBubbleView(
     private fun drawYayaBubble(
         canvas: Canvas
     ) {
-        val bitmap =
-            yayaBubbleBitmap ?: return
-
         if (
             width <= 0 ||
             height <= 0
@@ -652,236 +626,912 @@ class PetSpeechBubbleView(
             return
         }
 
-        val sourceW =
-            bitmap.width
+        val w = width.toFloat()
+        val h = height.toFloat()
 
-        val sourceH =
-            bitmap.height
+        val tailSpace =
+            dp(17f)
 
-        val x1 = 349
-        val x2 = 450
-        val y1 = 273
-        val y2 = 323
+        val body =
+            RectF(
+                dp(6f),
+                if (tailAtTop) {
+                    tailSpace
+                } else {
+                    dp(6f)
+                },
+                w - dp(6f),
+                if (tailAtTop) {
+                    h - dp(6f)
+                } else {
+                    h - tailSpace
+                }
+            )
 
-        val densityScale =
-            resources
-                .displayMetrics
-                .density /
-                2.25f
+        val cloud =
+            buildYayaCloudPath(
+                body
+            )
 
-        val fixedW =
-            x1 +
-                (
-                    sourceW -
-                        x2
+        val fill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.rgb(
+                        255,
+                        250,
+                        239
                     )
 
-        val fixedH =
-            y1 +
-                (
-                    sourceH -
-                        y2
+                setShadowLayer(
+                    dp(10f),
+                    0f,
+                    dp(4f),
+                    Color.argb(
+                        48,
+                        79,
+                        104,
+                        38
                     )
+                )
+            }
 
-        val fixedScale =
-            minOf(
-                densityScale,
-                width.toFloat() /
-                    (
-                        fixedW +
-                            1f
-                        ),
-                height.toFloat() /
-                    (
-                        fixedH +
-                            1f
-                        )
-            ).coerceAtLeast(0.18f)
-
-        val leftDst =
-            x1 *
-                fixedScale
-
-        val rightDst =
-            (
-                sourceW -
-                    x2
-                ) *
-                fixedScale
-
-        val topDst =
-            y1 *
-                fixedScale
-
-        val bottomDst =
-            (
-                sourceH -
-                    y2
-                ) *
-                fixedScale
-
-        val dx1 = leftDst
-        val dx2 =
-            width -
-                rightDst
-
-        val dy1 = topDst
-        val dy2 =
-            height -
-                bottomDst
-
-        drawPatch(
-            canvas,
-            bitmap,
-            0,
-            0,
-            x1,
-            y1,
-            0f,
-            0f,
-            dx1,
-            dy1
+        canvas.drawPath(
+            cloud,
+            fill
         )
 
-        drawPatch(
-            canvas,
-            bitmap,
-            x1,
-            0,
-            x2,
-            y1,
-            dx1,
-            0f,
-            dx2,
-            dy1
+        fill.clearShadowLayer()
+
+        val outer =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                strokeCap =
+                    Paint.Cap.ROUND
+
+                strokeWidth =
+                    dp(5.4f)
+
+                color =
+                    Color.rgb(
+                        92,
+                        143,
+                        45
+                    )
+            }
+
+        canvas.drawPath(
+            cloud,
+            outer
         )
 
-        drawPatch(
-            canvas,
-            bitmap,
-            x2,
-            0,
-            sourceW,
-            y1,
-            dx2,
-            0f,
-            width.toFloat(),
-            dy1
+        val middle =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                strokeCap =
+                    Paint.Cap.ROUND
+
+                strokeWidth =
+                    dp(3.2f)
+
+                color =
+                    Color.rgb(
+                        168,
+                        207,
+                        86
+                    )
+            }
+
+        canvas.drawPath(
+            cloud,
+            middle
         )
 
-        drawPatch(
-            canvas,
-            bitmap,
-            0,
-            y1,
-            x1,
-            y2,
-            0f,
-            dy1,
-            dx1,
-            dy2
+        val inner =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeJoin =
+                    Paint.Join.ROUND
+
+                strokeCap =
+                    Paint.Cap.ROUND
+
+                strokeWidth =
+                    dp(1.25f)
+
+                color =
+                    Color.argb(
+                        225,
+                        255,
+                        255,
+                        245
+                    )
+            }
+
+        canvas.drawPath(
+            cloud,
+            inner
         )
 
-        drawPatch(
+        drawYayaTail(
             canvas,
-            bitmap,
-            x1,
-            y1,
-            x2,
-            y2,
-            dx1,
-            dy1,
-            dx2,
-            dy2
+            body
         )
 
-        drawPatch(
+        drawYayaDecorations(
             canvas,
-            bitmap,
-            x2,
-            y1,
-            sourceW,
-            y2,
-            dx2,
-            dy1,
-            width.toFloat(),
-            dy2
-        )
-
-        drawPatch(
-            canvas,
-            bitmap,
-            0,
-            y2,
-            x1,
-            sourceH,
-            0f,
-            dy2,
-            dx1,
-            height.toFloat()
-        )
-
-        drawPatch(
-            canvas,
-            bitmap,
-            x1,
-            y2,
-            x2,
-            sourceH,
-            dx1,
-            dy2,
-            dx2,
-            height.toFloat()
-        )
-
-        drawPatch(
-            canvas,
-            bitmap,
-            x2,
-            y2,
-            sourceW,
-            sourceH,
-            dx2,
-            dy2,
-            width.toFloat(),
-            height.toFloat()
+            body
         )
     }
 
-    private fun drawPatch(
+    private fun buildYayaCloudPath(
+        body: RectF
+    ): Path {
+        val path = Path()
+
+        val l = body.left
+        val t = body.top
+        val r = body.right
+        val b = body.bottom
+
+        val w =
+            body.width()
+
+        val h =
+            body.height()
+
+        path.moveTo(
+            l + w * 0.09f,
+            t + h * 0.17f
+        )
+
+        path.cubicTo(
+            l + w * 0.035f,
+            t + h * 0.20f,
+            l + w * 0.015f,
+            t + h * 0.36f,
+            l + w * 0.02f,
+            t + h * 0.52f
+        )
+
+        path.cubicTo(
+            l + w * 0.015f,
+            t + h * 0.70f,
+            l + w * 0.055f,
+            t + h * 0.84f,
+            l + w * 0.13f,
+            t + h * 0.86f
+        )
+
+        path.cubicTo(
+            l + w * 0.16f,
+            b + h * 0.015f,
+            l + w * 0.28f,
+            b + h * 0.025f,
+            l + w * 0.34f,
+            b - h * 0.035f
+        )
+
+        path.cubicTo(
+            l + w * 0.40f,
+            b + h * 0.035f,
+            l + w * 0.50f,
+            b + h * 0.04f,
+            l + w * 0.56f,
+            b - h * 0.035f
+        )
+
+        path.cubicTo(
+            l + w * 0.63f,
+            b + h * 0.025f,
+            l + w * 0.76f,
+            b + h * 0.015f,
+            l + w * 0.80f,
+            b - h * 0.055f
+        )
+
+        path.cubicTo(
+            l + w * 0.90f,
+            b - h * 0.02f,
+            l + w * 0.975f,
+            b - h * 0.16f,
+            l + w * 0.975f,
+            t + h * 0.55f
+        )
+
+        path.cubicTo(
+            l + w * 0.985f,
+            t + h * 0.35f,
+            l + w * 0.95f,
+            t + h * 0.18f,
+            l + w * 0.88f,
+            t + h * 0.16f
+        )
+
+        path.cubicTo(
+            l + w * 0.84f,
+            t - h * 0.015f,
+            l + w * 0.69f,
+            t - h * 0.035f,
+            l + w * 0.61f,
+            t + h * 0.09f
+        )
+
+        path.cubicTo(
+            l + w * 0.55f,
+            t - h * 0.005f,
+            l + w * 0.43f,
+            t - h * 0.01f,
+            l + w * 0.38f,
+            t + h * 0.085f
+        )
+
+        path.cubicTo(
+            l + w * 0.32f,
+            t + h * 0.005f,
+            l + w * 0.19f,
+            t - h * 0.005f,
+            l + w * 0.15f,
+            t + h * 0.10f
+        )
+
+        path.cubicTo(
+            l + w * 0.13f,
+            t + h * 0.13f,
+            l + w * 0.11f,
+            t + h * 0.16f,
+            l + w * 0.09f,
+            t + h * 0.17f
+        )
+
+        path.close()
+
+        return path
+    }
+
+    private fun drawYayaDecorations(
         canvas: Canvas,
-        bitmap: Bitmap,
-        srcLeft: Int,
-        srcTop: Int,
-        srcRight: Int,
-        srcBottom: Int,
-        dstLeft: Float,
-        dstTop: Float,
-        dstRight: Float,
-        dstBottom: Float
+        body: RectF
     ) {
-        if (
-            dstRight <= dstLeft ||
-            dstBottom <= dstTop
-        ) {
-            return
+        val w =
+            body.width()
+
+        val h =
+            body.height()
+
+        val leftX =
+            body.left +
+                w *
+                0.115f
+
+        val topY =
+            body.top +
+                h *
+                0.12f
+
+        drawLeaf(
+            canvas,
+            leftX -
+                dp(6f),
+            topY -
+                dp(4f),
+            dp(39f),
+            dp(19f),
+            -48f
+        )
+
+        drawLeaf(
+            canvas,
+            leftX -
+                dp(19f),
+            topY +
+                dp(2f),
+            dp(25f),
+            dp(13f),
+            -150f
+        )
+
+        drawLeaf(
+            canvas,
+            leftX +
+                dp(12f),
+            topY +
+                dp(3f),
+            dp(25f),
+            dp(13f),
+            -20f
+        )
+
+        drawFlower(
+            canvas,
+            leftX,
+            topY +
+                dp(14f),
+            dp(8f)
+        )
+
+        drawDewBubble(
+            canvas,
+            leftX -
+                dp(25f),
+            topY +
+                dp(25f),
+            dp(9f)
+        )
+
+        drawDewBubble(
+            canvas,
+            leftX +
+                dp(22f),
+            topY +
+                dp(17f),
+            dp(4f)
+        )
+
+        val rightX =
+            body.right -
+                w *
+                0.115f
+
+        val rightY =
+            body.top +
+                h *
+                0.13f
+
+        drawLeaf(
+            canvas,
+            rightX +
+                dp(3f),
+            rightY -
+                dp(2f),
+            dp(30f),
+            dp(15f),
+            42f
+        )
+
+        drawLeaf(
+            canvas,
+            rightX +
+                dp(18f),
+            rightY +
+                dp(9f),
+            dp(23f),
+            dp(12f),
+            118f
+        )
+
+        drawFlower(
+            canvas,
+            rightX,
+            rightY +
+                dp(16f),
+            dp(6.2f)
+        )
+
+        drawDewBubble(
+            canvas,
+            rightX +
+                dp(23f),
+            rightY +
+                dp(9f),
+            dp(7f)
+        )
+
+        drawSparkle(
+            canvas,
+            body.left +
+                dp(23f),
+            body.top +
+                h *
+                0.49f,
+            dp(7f)
+        )
+
+        drawSparkle(
+            canvas,
+            body.left +
+                dp(34f),
+            body.top +
+                h *
+                0.55f,
+            dp(3.5f)
+        )
+
+        drawLeaf(
+            canvas,
+            body.left +
+                dp(28f),
+            body.top +
+                h *
+                0.66f,
+            dp(27f),
+            dp(13f),
+            -145f
+        )
+
+        drawSparkle(
+            canvas,
+            body.right -
+                dp(28f),
+            body.top +
+                h *
+                0.54f,
+            dp(5f)
+        )
+
+        drawLeaf(
+            canvas,
+            body.right -
+                dp(26f),
+            body.top +
+                h *
+                0.66f,
+            dp(24f),
+            dp(12f),
+            -35f
+        )
+    }
+
+    private fun drawYayaTail(
+        canvas: Canvas,
+        body: RectF
+    ) {
+        val anchor =
+            tailCenter.coerceIn(
+                body.left +
+                    dp(48f),
+                body.right -
+                    dp(48f)
+            )
+
+        val y =
+            if (tailAtTop) {
+                body.top -
+                    dp(3f)
+            } else {
+                body.bottom +
+                    dp(4f)
+            }
+
+        drawLeaf(
+            canvas,
+            anchor,
+            y,
+            dp(32f),
+            dp(16f),
+            if (tailAtTop) {
+                -90f
+            } else {
+                92f
+            }
+        )
+    }
+
+    private fun drawLeaf(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        leafWidth: Float,
+        leafHeight: Float,
+        rotation: Float
+    ) {
+        canvas.save()
+
+        canvas.rotate(
+            rotation,
+            centerX,
+            centerY
+        )
+
+        val halfW =
+            leafWidth /
+                2f
+
+        val halfH =
+            leafHeight /
+                2f
+
+        val leaf =
+            Path().apply {
+                moveTo(
+                    centerX -
+                        halfW,
+                    centerY
+                )
+
+                cubicTo(
+                    centerX -
+                        halfW *
+                        0.28f,
+                    centerY -
+                        halfH *
+                        1.15f,
+                    centerX +
+                        halfW *
+                        0.55f,
+                    centerY -
+                        halfH,
+                    centerX +
+                        halfW,
+                    centerY
+                )
+
+                cubicTo(
+                    centerX +
+                        halfW *
+                        0.45f,
+                    centerY +
+                        halfH,
+                    centerX -
+                        halfW *
+                        0.35f,
+                    centerY +
+                        halfH *
+                        1.05f,
+                    centerX -
+                        halfW,
+                    centerY
+                )
+
+                close()
+            }
+
+        val leafFill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.rgb(
+                        150,
+                        198,
+                        74
+                    )
+            }
+
+        canvas.drawPath(
+            leaf,
+            leafFill
+        )
+
+        val leafStroke =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(1.2f)
+
+                color =
+                    Color.rgb(
+                        87,
+                        137,
+                        44
+                    )
+            }
+
+        canvas.drawPath(
+            leaf,
+            leafStroke
+        )
+
+        val vein =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(0.75f)
+
+                color =
+                    Color.argb(
+                        135,
+                        76,
+                        124,
+                        45
+                    )
+            }
+
+        canvas.drawLine(
+            centerX -
+                halfW *
+                0.62f,
+            centerY,
+            centerX +
+                halfW *
+                0.70f,
+            centerY,
+            vein
+        )
+
+        canvas.restore()
+    }
+
+    private fun drawFlower(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        petalRadius: Float
+    ) {
+        val petal =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.rgb(
+                        255,
+                        253,
+                        246
+                    )
+
+                setShadowLayer(
+                    dp(1.8f),
+                    0f,
+                    dp(0.8f),
+                    Color.argb(
+                        30,
+                        92,
+                        114,
+                        48
+                    )
+                )
+            }
+
+        for (i in 0 until 5) {
+            val angle =
+                Math.toRadians(
+                    (
+                        i *
+                            72 -
+                            90
+                        ).toDouble()
+                )
+
+            val px =
+                centerX +
+                    kotlin.math.cos(
+                        angle
+                    ).toFloat() *
+                    petalRadius *
+                    0.95f
+
+            val py =
+                centerY +
+                    kotlin.math.sin(
+                        angle
+                    ).toFloat() *
+                    petalRadius *
+                    0.95f
+
+            canvas.drawCircle(
+                px,
+                py,
+                petalRadius *
+                    0.74f,
+                petal
+            )
         }
 
-        canvas.drawBitmap(
-            bitmap,
-            Rect(
-                srcLeft,
-                srcTop,
-                srcRight,
-                srcBottom
-            ),
-            RectF(
-                dstLeft,
-                dstTop,
-                dstRight,
-                dstBottom
-            ),
-            bitmapPaint
+        petal.clearShadowLayer()
+
+        val center =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.rgb(
+                        248,
+                        177,
+                        39
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX,
+            centerY,
+            petalRadius *
+                0.48f,
+            center
+        )
+    }
+
+    private fun drawDewBubble(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        radius: Float
+    ) {
+        val bubble =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.FILL
+
+                color =
+                    Color.argb(
+                        165,
+                        196,
+                        225,
+                        105
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX,
+            centerY,
+            radius,
+            bubble
+        )
+
+        val rim =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                style =
+                    Paint.Style.STROKE
+
+                strokeWidth =
+                    dp(1f)
+
+                color =
+                    Color.rgb(
+                        105,
+                        158,
+                        54
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX,
+            centerY,
+            radius,
+            rim
+        )
+
+        val highlight =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.argb(
+                        225,
+                        255,
+                        255,
+                        245
+                    )
+            }
+
+        canvas.drawCircle(
+            centerX -
+                radius *
+                0.32f,
+            centerY -
+                radius *
+                0.34f,
+            radius *
+                0.24f,
+            highlight
+        )
+    }
+
+    private fun drawSparkle(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        radius: Float
+    ) {
+        val star =
+            Path().apply {
+                moveTo(
+                    centerX,
+                    centerY -
+                        radius
+                )
+
+                lineTo(
+                    centerX +
+                        radius *
+                        0.28f,
+                    centerY -
+                        radius *
+                        0.27f
+                )
+
+                lineTo(
+                    centerX +
+                        radius,
+                    centerY
+                )
+
+                lineTo(
+                    centerX +
+                        radius *
+                        0.28f,
+                    centerY +
+                        radius *
+                        0.27f
+                )
+
+                lineTo(
+                    centerX,
+                    centerY +
+                        radius
+                )
+
+                lineTo(
+                    centerX -
+                        radius *
+                        0.28f,
+                    centerY +
+                        radius *
+                        0.27f
+                )
+
+                lineTo(
+                    centerX -
+                        radius,
+                    centerY
+                )
+
+                lineTo(
+                    centerX -
+                        radius *
+                        0.28f,
+                    centerY -
+                        radius *
+                        0.27f
+                )
+
+                close()
+            }
+
+        val paint =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color =
+                    Color.rgb(
+                        247,
+                        184,
+                        55
+                    )
+            }
+
+        canvas.drawPath(
+            star,
+            paint
         )
     }
 

@@ -12,8 +12,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 37
-        versionName '1.7.4'
+        versionCode 38
+        versionName '1.7.5'
     }
 
     buildFeatures {
@@ -260,6 +260,68 @@ def decodeYayaBubbleAsset =
         }
     }
 
+def yutuanRainbowAssetPartsDir =
+    file("$projectDir/src/main/pet_assets/yutuan_rainbow")
+
+def yutuanRainbowAssetOutput =
+    file("$projectDir/src/main/res/drawable-nodpi/pet_yutuan_rainbow.webp")
+
+def decodeYutuanRainbowAsset =
+    tasks.register("decodeYutuanRainbowAsset") {
+        inputs.dir(yutuanRainbowAssetPartsDir)
+        outputs.file(yutuanRainbowAssetOutput)
+
+        doLast {
+            def parts =
+                yutuanRainbowAssetPartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Yutuan rainbow asset chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
+            yutuanRainbowAssetOutput
+                .parentFile
+                .mkdirs()
+
+            yutuanRainbowAssetOutput.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
+
+            println(
+                "Decoded Yutuan rainbow asset: " +
+                    yutuanRainbowAssetOutput +
+                    " (" +
+                    yutuanRainbowAssetOutput
+                        .length() +
+                    " bytes)"
+            )
+        }
+    }
+
 def yutuanBubbleAssetPartsDir =
     file("$projectDir/src/main/pet_assets/yutuan_bubble")
 
@@ -330,7 +392,8 @@ tasks.named("preBuild").configure {
         decodePetWakeAsset,
         decodeOrangeBubbleAsset,
         decodeYayaBubbleAsset,
-        decodeYutuanBubbleAsset
+        decodeYutuanBubbleAsset,
+        decodeYutuanRainbowAsset
     )
 }
 

@@ -1153,6 +1153,33 @@ class PetOverlayService : Service() {
             rainbowView ?: return
         val params =
             rainbowParams ?: return
+        val pet =
+            petParams ?: return
+
+        val targetWidth =
+            (
+                pet.width *
+                    0.82f
+                )
+                .toInt()
+                .coerceIn(
+                    dp(58),
+                    dp(124)
+                )
+
+        params.width =
+            targetWidth
+
+        params.height =
+            (
+                targetWidth *
+                    172f /
+                    256f
+                )
+                .toInt()
+                .coerceAtLeast(
+                    dp(38)
+                )
 
         positionYutuanRainbow(
             params

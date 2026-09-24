@@ -79,29 +79,43 @@ class PetRigView @JvmOverloads constructor(
             )
     }
 
+    private val yutuanBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            YutuanEmbeddedAsset.bitmap
+        } else {
+            null
+        }
+
     private val idleBitmap: Bitmap =
-        decodePetBitmap(
-            visualResources.idle,
-            R.drawable.pet_orange_idle
-        )
+        yutuanBitmap
+            ?: decodePetBitmap(
+                visualResources.idle,
+                R.drawable.pet_orange_idle
+            )
 
     private val sleepBitmap: Bitmap =
-        decodePetBitmap(
-            visualResources.sleep,
-            R.drawable.pet_orange_sleep
-        )
+        yutuanBitmap
+            ?: decodePetBitmap(
+                visualResources.sleep,
+                R.drawable.pet_orange_sleep
+            )
 
     private val tiredBitmap: Bitmap =
-        decodePetBitmap(
-            visualResources.tired,
-            R.drawable.pet_orange_tired
-        )
+        yutuanBitmap
+            ?: decodePetBitmap(
+                visualResources.tired,
+                R.drawable.pet_orange_tired
+            )
 
     private val wakeBitmap: Bitmap =
-        decodePetBitmap(
-            visualResources.wake,
-            R.drawable.pet_orange_wake
-        )
+        yutuanBitmap
+            ?: decodePetBitmap(
+                visualResources.wake,
+                R.drawable.pet_orange_wake
+            )
 
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG

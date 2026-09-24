@@ -66,10 +66,10 @@ object PetProfiles {
 
             PetKind.YUTUAN ->
                 PetVisualResources(
-                    idle = R.drawable.pet_yutuan_idle,
-                    tired = R.drawable.pet_yutuan_idle,
-                    sleep = R.drawable.pet_yutuan_idle,
-                    wake = R.drawable.pet_yutuan_idle
+                    idle = R.drawable.pet_orange_idle,
+                    tired = R.drawable.pet_orange_tired,
+                    sleep = R.drawable.pet_orange_sleep,
+                    wake = R.drawable.pet_orange_wake
                 )
         }
     }

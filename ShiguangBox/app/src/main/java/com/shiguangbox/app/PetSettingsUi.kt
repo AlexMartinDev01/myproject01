@@ -26,6 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -110,10 +113,33 @@ fun PetSettingsScreen(
         when (selectedPet) {
             PetKind.YAYA ->
                 R.drawable.pet_yaya_idle
-            PetKind.YUTUAN ->
-                R.drawable.pet_yutuan_idle
             else ->
                 R.drawable.pet_orange_idle
+        }
+
+    val selectedPetPainter: Painter =
+        if (
+            selectedPet ==
+            PetKind.YUTUAN
+        ) {
+            val bitmap =
+                YutuanEmbeddedAsset.bitmap
+
+            if (bitmap != null) {
+                remember(bitmap) {
+                    BitmapPainter(
+                        bitmap.asImageBitmap()
+                    )
+                }
+            } else {
+                painterResource(
+                    R.drawable.pet_orange_idle
+                )
+            }
+        } else {
+            painterResource(
+                selectedPetDrawable
+            )
         }
 
 
@@ -275,7 +301,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.6.1 雨团稳定接入版 · 橘团 / 芽芽 / 雨团",
+                        "V1.6.2 雨团内嵌资源版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -294,9 +320,7 @@ fun PetSettingsScreen(
                 ) {
                     Image(
                         painter =
-                            painterResource(
-                                selectedPetDrawable
-                            ),
+                            selectedPetPainter,
                         contentDescription =
                             selectedPet.displayName,
                         modifier = Modifier.size(180.dp).scale(scale)

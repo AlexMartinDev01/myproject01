@@ -654,16 +654,16 @@ class PetSpeechBubbleView(
         val sourceH =
             bitmap.height
 
-        val x1 = 465
-        val x2 = 600
-        val y1 = 364
-        val y2 = 430
+        val x1 = 349
+        val x2 = 450
+        val y1 = 273
+        val y2 = 323
 
         val densityScale =
             resources
                 .displayMetrics
                 .density /
-                3f
+                2.25f
 
         val fixedW =
             x1 +

@@ -301,7 +301,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.7.0 雨团真实雨系统版 · 橘团 / 芽芽 / 雨团",
+                        "V1.7.1 雨团增强雨势版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -437,7 +437,7 @@ fun PetSettingsScreen(
                                 "芽芽：平静系垂耳兔 · 耳朵、腿部、挥爪与呼吸更灵动，依然保持柔和自然。"
 
                             PetKind.YUTUAN ->
-                                "雨团：雨天系云朵小狗 · 三层真实细雨、落地水花与涟漪、耳尖挂水珠、抖水甩耳。"
+                                "雨团：雨天系云朵小狗 · 雨滴更大更密、近景雨更明显，落地水花/涟漪和抖水喷溅同步增强。"
 
                             else ->
                                 "橘团：开心系小橘猫 · 摇尾巴、挥爪和庆祝动作更明显。"

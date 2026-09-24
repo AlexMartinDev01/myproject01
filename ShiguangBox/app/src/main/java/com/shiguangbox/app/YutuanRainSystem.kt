@@ -71,9 +71,9 @@ class YutuanRainSystem {
 
     private val random = Random(20260924)
 
-    private val drops = ArrayList<Drop>(84)
-    private val ripples = ArrayList<Ripple>(32)
-    private val splashes = ArrayList<SplashDrop>(36)
+    private val drops = ArrayList<Drop>(108)
+    private val ripples = ArrayList<Ripple>(40)
+    private val splashes = ArrayList<SplashDrop>(48)
     private val beads = ArrayList<AttachedBead>(16)
 
     private val rainPaint =
@@ -137,25 +137,25 @@ class YutuanRainSystem {
 
         val stateMultiplier =
             when (state) {
-                PetRigView.State.SLEEP -> 0.48f
-                PetRigView.State.TIRED -> 0.62f
-                PetRigView.State.PETTED -> 0.66f
-                PetRigView.State.DRAGGING -> 0.72f
-                PetRigView.State.TAIL_WAG -> 1.08f
-                else -> 0.92f
+                PetRigView.State.SLEEP -> 0.58f
+                PetRigView.State.TIRED -> 0.74f
+                PetRigView.State.PETTED -> 0.78f
+                PetRigView.State.DRAGGING -> 0.82f
+                PetRigView.State.TAIL_WAG -> 1.20f
+                else -> 1.03f
             }
 
         val breathingRain =
             (
-                0.90 +
-                    0.11 *
+                0.96 +
+                    0.14 *
                         sin(
                             timeSeconds *
                                 2.0 *
                                 PI /
                                 22.0
                         ) +
-                    0.04 *
+                    0.05 *
                         sin(
                             timeSeconds *
                                 2.0 *
@@ -167,8 +167,8 @@ class YutuanRainSystem {
         val intensity =
             (stateMultiplier * breathingRain)
                 .coerceIn(
-                    0.38f,
-                    1.12f
+                    0.48f,
+                    1.28f
                 )
 
         spawnDrops(
@@ -284,9 +284,9 @@ class YutuanRainSystem {
     ) {
         val rates =
             floatArrayOf(
+                16.0f,
                 13.5f,
-                11.0f,
-                4.8f
+                6.3f
             )
 
         for (layer in 0..2) {
@@ -312,13 +312,13 @@ class YutuanRainSystem {
             }
 
             repeat(spawnCount) {
-                if (drops.size >= 84) return@repeat
+                if (drops.size >= 108) return@repeat
 
                 val terminal =
                     when (layer) {
-                        0 -> height * 1.55f
-                        1 -> height * 2.30f
-                        else -> height * 3.20f
+                        0 -> height * 1.68f
+                        1 -> height * 2.48f
+                        else -> height * 3.42f
                     }
 
                 val windAngle =
@@ -348,25 +348,25 @@ class YutuanRainSystem {
                         0 ->
                             height *
                                 (
-                                    0.020f +
+                                    0.024f +
                                         random.nextFloat() *
-                                            0.012f
+                                            0.014f
                                     )
 
                         1 ->
                             height *
                                 (
-                                    0.035f +
+                                    0.041f +
                                         random.nextFloat() *
-                                            0.018f
+                                            0.021f
                                     )
 
                         else ->
                             height *
                                 (
-                                    0.055f +
+                                    0.064f +
                                         random.nextFloat() *
-                                            0.030f
+                                            0.034f
                                     )
                     }
 
@@ -405,15 +405,15 @@ class YutuanRainSystem {
                         length = length,
                         stroke =
                             when (layer) {
-                                0 -> width * 0.0040f
-                                1 -> width * 0.0055f
-                                else -> width * 0.0080f
+                                0 -> width * 0.0048f
+                                1 -> width * 0.0066f
+                                else -> width * 0.0096f
                             }.coerceAtLeast(1f),
                         alpha =
                             when (layer) {
-                                0 -> 52
-                                1 -> 94
-                                else -> 132
+                                0 -> 58
+                                1 -> 104
+                                else -> 146
                             } +
                                 random.nextInt(
                                     -10,
@@ -442,9 +442,9 @@ class YutuanRainSystem {
 
             val terminal =
                 when (drop.layer) {
-                    0 -> height * 1.75f
-                    1 -> height * 2.48f
-                    else -> height * 3.35f
+                    0 -> height * 1.90f
+                    1 -> height * 2.68f
+                    else -> height * 3.62f
                 }
 
             drop.vy =
@@ -506,7 +506,7 @@ class YutuanRainSystem {
                 if (surface != null) {
                     if (
                         random.nextFloat() <
-                        0.42f
+                        0.50f
                     ) {
                         addAttachedBead(
                             surface,
@@ -691,9 +691,9 @@ class YutuanRainSystem {
                 maxRadius =
                     width *
                         (
-                            0.035f +
+                            0.040f +
                                 random.nextFloat() *
-                                    0.040f
+                                    0.048f
                             ) *
                         energy,
                 alpha =
@@ -709,13 +709,13 @@ class YutuanRainSystem {
 
         val splashCount =
             when {
-                chance < 0.05f ->
+                chance < 0.08f ->
                     random.nextInt(
                         4,
                         7
                     )
 
-                chance < 0.30f ->
+                chance < 0.36f ->
                     random.nextInt(
                         2,
                         4
@@ -725,13 +725,13 @@ class YutuanRainSystem {
             }
 
         repeat(splashCount) {
-            if (splashes.size >= 36) return@repeat
+            if (splashes.size >= 48) return@repeat
 
             val scale =
                 (
-                    0.65f +
+                    0.72f +
                         drop.layer *
-                            0.14f
+                            0.16f
                     )
 
             splashes +=
@@ -754,9 +754,9 @@ class YutuanRainSystem {
                     vy =
                         -height *
                             (
-                                0.56f +
+                                0.62f +
                                     random.nextFloat() *
-                                        0.46f
+                                        0.52f
                                 ) *
                             scale,
                     age = 0f,
@@ -768,9 +768,9 @@ class YutuanRainSystem {
                         (
                             width *
                                 (
-                                    0.006f +
+                                    0.007f +
                                         random.nextFloat() *
-                                            0.006f
+                                            0.007f
                                     )
                             ).coerceAtLeast(
                             1f
@@ -781,7 +781,7 @@ class YutuanRainSystem {
         puddleAmount =
             (
                 puddleAmount +
-                    0.0045f *
+                    0.0052f *
                         (
                             1f +
                                 drop.layer *
@@ -1588,8 +1588,8 @@ class YutuanRainSystem {
                         height
                     ) *
                         (
-                            0.08f +
-                                0.35f *
+                            0.10f +
+                                0.42f *
                                     local
                             )
 
@@ -1612,9 +1612,9 @@ class YutuanRainSystem {
                     (
                         width *
                             (
-                                0.006f +
+                                0.007f +
                                     dropletIndex *
-                                        0.0015f
+                                        0.0020f
                                 )
                         ).coerceAtLeast(
                         1f
@@ -1623,7 +1623,7 @@ class YutuanRainSystem {
                 effectPaint.color =
                     Color.argb(
                         (
-                            188 *
+                            205 *
                                 (
                                     1f -
                                         local

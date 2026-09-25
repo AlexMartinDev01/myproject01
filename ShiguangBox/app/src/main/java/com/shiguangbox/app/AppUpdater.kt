@@ -65,214 +65,214 @@ object AppUpdater {
         withContext(
             Dispatchers.IO
         ) {
-            var connection:
-                HttpURLConnection? =
+            fetchLatestRelease()
+        }
+
+    private fun fetchLatestRelease():
+        UpdateCheckResult {
+        var connection:
+            HttpURLConnection? =
+            null
+
+        return try {
+            connection =
+                (
+                    URL(
+                        RELEASE_API
+                    )
+                        .openConnection()
+                    as HttpURLConnection
+                    )
+                    .apply {
+                        requestMethod =
+                            "GET"
+                        connectTimeout =
+                            8_000
+                        readTimeout =
+                            10_000
+
+                        setRequestProperty(
+                            "Accept",
+                            "application/vnd.github+json"
+                        )
+
+                        setRequestProperty(
+                            "User-Agent",
+                            "ShiguangBox/" +
+                                BuildConfig
+                                    .VERSION_NAME
+                        )
+                    }
+
+            val code =
+                connection
+                    .responseCode
+
+            if (code == 404) {
+                return UpdateCheckResult
+                    .Error(
+                        "线上正式版本尚未发布"
+                    )
+            }
+
+            if (
+                code !in
+                200..299
+            ) {
+                return UpdateCheckResult
+                    .Error(
+                        "检查更新失败（HTTP " +
+                            code +
+                            "）"
+                    )
+            }
+
+            val body =
+                connection
+                    .inputStream
+                    .bufferedReader()
+                    .use {
+                        it.readText()
+                    }
+
+            val json =
+                JSONObject(
+                    body
+                )
+
+            val tag =
+                json.optString(
+                    "tag_name"
+                )
+
+            val versionName =
+                extractVersionName(
+                    tag
+                )
+                    ?: return UpdateCheckResult
+                        .Error(
+                            "线上版本号格式无法识别"
+                        )
+
+            val assets =
+                json.optJSONArray(
+                    "assets"
+                )
+
+            var foundApkUrl:
+                String? =
                 null
 
-            try {
-                connection =
-                    (
-                        URL(
-                            RELEASE_API
-                        )
-                            .openConnection()
-                        as HttpURLConnection
-                        )
-                        .apply {
-                            requestMethod =
-                                "GET"
-                            connectTimeout =
-                                8_000
-                            readTimeout =
-                                10_000
-
-                            setRequestProperty(
-                                "Accept",
-                                "application/vnd.github+json"
-                            )
-
-                            setRequestProperty(
-                                "User-Agent",
-                                "ShiguangBox/" +
-                                    BuildConfig
-                                        .VERSION_NAME
-                            )
-                        }
-
-                val code =
-                    connection
-                        .responseCode
-
-                if (code == 404) {
-                    return@withContext
-                        UpdateCheckResult
-                            .Error(
-                                "线上正式版本尚未发布"
-                            )
-                }
-
-                if (
-                    code !in
-                    200..299
+            if (assets != null) {
+                for (
+                    index in
+                    0 until
+                        assets.length()
                 ) {
-                    return@withContext
-                        UpdateCheckResult
-                            .Error(
-                                "检查更新失败（HTTP " +
-                                    code +
-                                    "）"
+                    val asset =
+                        assets
+                            .optJSONObject(
+                                index
                             )
-                }
+                            ?: continue
 
-                val body =
-                    connection
-                        .inputStream
-                        .bufferedReader()
-                        .use {
-                            it.readText()
-                        }
+                    val name =
+                        asset
+                            .optString(
+                                "name"
+                            )
 
-                val json =
-                    JSONObject(
-                        body
-                    )
+                    val url =
+                        asset
+                            .optString(
+                                "browser_download_url"
+                            )
 
-                val tag =
-                    json.optString(
-                        "tag_name"
-                    )
-
-                val versionName =
-                    extractVersionName(
-                        tag
-                    )
-                        ?: return@withContext
-                            UpdateCheckResult
-                                .Error(
-                                    "线上版本号格式无法识别"
-                                )
-
-                val assets =
-                    json.optJSONArray(
-                        "assets"
-                    )
-
-                var apkUrl:
-                    String? =
-                    null
-
-                if (assets != null) {
-                    for (
-                        index in
-                        0 until
-                            assets.length()
+                    if (
+                        name.endsWith(
+                            ".apk",
+                            ignoreCase =
+                                true
+                        ) &&
+                        url.isNotBlank()
                     ) {
-                        val asset =
-                            assets
-                                .optJSONObject(
-                                    index
-                                )
-                                ?: continue
-
-                        val name =
-                            asset
-                                .optString(
-                                    "name"
-                                )
-
-                        val url =
-                            asset
-                                .optString(
-                                    "browser_download_url"
-                                )
-
-                        if (
-                            name.endsWith(
-                                ".apk",
-                                ignoreCase =
-                                    true
-                            ) &&
-                            url.isNotBlank()
-                        ) {
-                            apkUrl =
-                                url
-                            break
-                        }
+                        foundApkUrl =
+                            url
+                        break
                     }
                 }
-
-                if (
-                    apkUrl
-                        .isNullOrBlank()
-                ) {
-                    return@withContext
-                        UpdateCheckResult
-                            .Error(
-                                "线上版本没有找到 APK 安装包"
-                            )
-                }
-
-                if (
-                    compareVersions(
-                        versionName,
-                        BuildConfig
-                            .VERSION_NAME
-                    ) <= 0
-                ) {
-                    return@withContext
-                        UpdateCheckResult
-                            .UpToDate
-                }
-
-                val notes =
-                    json.optString(
-                        "body"
-                    )
-                        .trim()
-                        .ifBlank {
-                            "本次更新包含功能优化与问题修复。"
-                        }
-
-                val title =
-                    json.optString(
-                        "name"
-                    )
-                        .trim()
-                        .ifBlank {
-                            "拾光盒 V" +
-                                versionName
-                        }
-
-                UpdateCheckResult
-                    .Available(
-                        UpdateInfo(
-                            versionName =
-                                versionName,
-                            title =
-                                title,
-                            notes =
-                                notes,
-                            apkUrl =
-                                apkUrl
-                        )
-                    )
-            } catch (
-                error:
-                    Exception
-            ) {
-                UpdateCheckResult
-                    .Error(
-                        error.message
-                            ?.takeIf {
-                                it.isNotBlank()
-                            }
-                            ?: "网络连接失败，请稍后再试"
-                    )
-            } finally {
-                connection
-                    ?.disconnect()
             }
+
+            val apkUrl =
+                foundApkUrl
+                    ?.takeIf {
+                        it.isNotBlank()
+                    }
+                    ?: return UpdateCheckResult
+                        .Error(
+                            "线上版本没有找到 APK 安装包"
+                        )
+
+            if (
+                compareVersions(
+                    versionName,
+                    BuildConfig
+                        .VERSION_NAME
+                ) <= 0
+            ) {
+                return UpdateCheckResult
+                    .UpToDate
+            }
+
+            val notes =
+                json.optString(
+                    "body"
+                )
+                    .trim()
+                    .ifBlank {
+                        "本次更新包含功能优化与问题修复。"
+                    }
+
+            val title =
+                json.optString(
+                    "name"
+                )
+                    .trim()
+                    .ifBlank {
+                        "拾光盒 V" +
+                            versionName
+                    }
+
+            UpdateCheckResult
+                .Available(
+                    UpdateInfo(
+                        versionName =
+                            versionName,
+                        title =
+                            title,
+                        notes =
+                            notes,
+                        apkUrl =
+                            apkUrl
+                    )
+                )
+        } catch (
+            error:
+                Exception
+        ) {
+            UpdateCheckResult
+                .Error(
+                    error.message
+                        ?.takeIf {
+                            it.isNotBlank()
+                        }
+                        ?: "网络连接失败，请稍后再试"
+                )
+        } finally {
+            connection
+                ?.disconnect()
         }
+    }
 
     fun autoCheckEnabled(
         context: Context

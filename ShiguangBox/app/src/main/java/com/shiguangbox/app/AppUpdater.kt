@@ -360,10 +360,9 @@ object AppUpdater {
                 extractVersionName(
                     json.optString("tag_name")
                 )
-                    ?: return
-                        UpdateCheckResult.Error(
-                            "线上版本号格式无法识别"
-                        )
+                    ?: return UpdateCheckResult.Error(
+                        "线上版本号格式无法识别"
+                    )
 
             val assets =
                 json.optJSONArray("assets")
@@ -404,10 +403,9 @@ object AppUpdater {
                 apkUrl?.takeIf {
                     it.isNotBlank()
                 }
-                    ?: return
-                        UpdateCheckResult.Error(
-                            "线上版本没有找到 APK 安装包"
-                        )
+                    ?: return UpdateCheckResult.Error(
+                        "线上版本没有找到 APK 安装包"
+                    )
 
             if (
                 compareVersions(

@@ -42,6 +42,40 @@ fun SettingsScreen(
     }
     val scope = rememberCoroutineScope()
 
+    val currentVersionName =
+        remember {
+            runCatching {
+                context.packageManager
+                    .getPackageInfo(
+                        context.packageName,
+                        0
+                    )
+                    .versionName
+                    ?: "未知"
+            }
+                .getOrDefault("未知")
+        }
+
+    var latestVersionName by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var updateStatusText by remember {
+        mutableStateOf("正在检查最新版本…")
+    }
+
+    var checkingUpdate by remember {
+        mutableStateOf(false)
+    }
+
+    var availableUpdate by remember {
+        mutableStateOf<UpdateInfo?>(null)
+    }
+
+    val updateDownloadState by
+        AppUpdater.downloadState
+            .collectAsState()
+
     var name by rememberSaveable {
         mutableStateOf(prefs.getString("name", "我") ?: "我")
     }
@@ -81,6 +115,60 @@ fun SettingsScreen(
         }
     }
 
+    fun checkForUpdates() {
+        if (checkingUpdate) {
+            return
+        }
+
+        checkingUpdate = true
+        updateStatusText =
+            "正在检查最新版本…"
+
+        scope.launch {
+            when (
+                val result =
+                    AppUpdater
+                        .checkLatestRelease(
+                            context
+                        )
+            ) {
+                is UpdateCheckResult.Available -> {
+                    latestVersionName =
+                        result.info
+                            .versionName
+                    availableUpdate =
+                        result.info
+                    updateStatusText =
+                        "发现新版本 V" +
+                            result.info
+                                .versionName
+                }
+
+                UpdateCheckResult.UpToDate -> {
+                    latestVersionName =
+                        currentVersionName
+                    availableUpdate =
+                        null
+                    updateStatusText =
+                        "已是最新版"
+                }
+
+                is UpdateCheckResult.Error -> {
+                    updateStatusText =
+                        "检查失败：" +
+                            result.message
+                }
+            }
+
+            checkingUpdate =
+                false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        checkForUpdates()
+    }
+
     fun saveSettings() {
         prefs.edit()
             .putString("name", name.ifBlank { "我" })
@@ -107,7 +195,11 @@ fun SettingsScreen(
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V1.1.3 橘团睡眠资源修正版", color = SettingsMuted)
+            Text(
+                "拾光盒 · V" +
+                    currentVersionName,
+                color = SettingsMuted
+            )
         }
 
         item {
@@ -152,6 +244,221 @@ fun SettingsScreen(
                     }
                     TextButton(onClick = onPetSettings) {
                         Text("设置")
+                    }
+                }
+            }
+        }
+
+        item {
+            SettingsCardBox {
+                Row(
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.SystemUpdate,
+                        null,
+                        tint = SettingsSage
+                    )
+                    Spacer(
+                        Modifier.width(10.dp)
+                    )
+                    Column(
+                        Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "应用更新",
+                            fontWeight =
+                                FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            "当前版本 V" +
+                                currentVersionName,
+                            color = SettingsMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(
+                    Modifier.height(12.dp)
+                )
+
+                Text(
+                    if (
+                        latestVersionName !=
+                        null
+                    ) {
+                        "线上最新 V" +
+                            latestVersionName
+                    } else {
+                        updateStatusText
+                    },
+                    fontWeight =
+                        FontWeight.Medium
+                )
+
+                if (
+                    latestVersionName !=
+                    null
+                ) {
+                    Spacer(
+                        Modifier.height(4.dp)
+                    )
+                    Text(
+                        updateStatusText,
+                        color = SettingsMuted,
+                        fontSize = 12.sp
+                    )
+                }
+
+                when (
+                    val download =
+                        updateDownloadState
+                ) {
+                    is UpdateDownloadState.Downloading -> {
+                        Spacer(
+                            Modifier.height(12.dp)
+                        )
+
+                        if (
+                            download.percent !=
+                            null
+                        ) {
+                            LinearProgressIndicator(
+                                progress =
+                                    download.percent /
+                                        100f,
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                            )
+                            Spacer(
+                                Modifier.height(6.dp)
+                            )
+                            Text(
+                                "正在下载 V" +
+                                    download.versionName +
+                                    " · " +
+                                    download.percent +
+                                    "%",
+                                color =
+                                    SettingsMuted,
+                                fontSize = 12.sp
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                            )
+                            Spacer(
+                                Modifier.height(6.dp)
+                            )
+                            Text(
+                                "正在连接更新服务器…",
+                                color =
+                                    SettingsMuted,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    is UpdateDownloadState.ReadyToInstall -> {
+                        Spacer(
+                            Modifier.height(8.dp)
+                        )
+                        Text(
+                            "下载完成，准备安装 V" +
+                                download.versionName,
+                            color = SettingsSage,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    is UpdateDownloadState.Installing -> {
+                        Spacer(
+                            Modifier.height(8.dp)
+                        )
+                        Text(
+                            "已打开 V" +
+                                download.versionName +
+                                " 安装页面",
+                            color = SettingsSage,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    is UpdateDownloadState.Error -> {
+                        Spacer(
+                            Modifier.height(8.dp)
+                        )
+                        Text(
+                            "下载失败：" +
+                                download.message,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .error,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    else -> Unit
+                }
+
+                Spacer(
+                    Modifier.height(12.dp)
+                )
+
+                Row(
+                    modifier =
+                        Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        Arrangement.spacedBy(
+                            8.dp
+                        )
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            checkForUpdates()
+                        },
+                        enabled =
+                            !checkingUpdate &&
+                                updateDownloadState
+                                    !is UpdateDownloadState.Downloading,
+                        modifier =
+                            Modifier.weight(1f)
+                    ) {
+                        Text(
+                            if (checkingUpdate)
+                                "检查中…"
+                            else
+                                "检查更新"
+                        )
+                    }
+
+                    val update =
+                        availableUpdate
+
+                    if (update != null) {
+                        Button(
+                            onClick = {
+                                AppUpdater
+                                    .enqueueUpdate(
+                                        context,
+                                        update
+                                    )
+                            },
+                            enabled =
+                                updateDownloadState
+                                    !is UpdateDownloadState.Downloading,
+                            modifier =
+                                Modifier.weight(1f)
+                        ) {
+                            Text("立即更新")
+                        }
                     }
                 }
             }

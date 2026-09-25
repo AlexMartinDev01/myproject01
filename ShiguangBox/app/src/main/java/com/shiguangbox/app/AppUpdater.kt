@@ -210,11 +210,89 @@ object AppUpdater {
             !apkFile.exists() ||
             apkFile.length() <= 0L
         ) {
-            prefs.edit()
-                .remove(
-                    KEY_PENDING_APK_PATH
+            clearPendingInstall(
+                prefs
+            )
+            return false
+        }
+
+        val downloadedPackage =
+            activity.packageManager
+                .getPackageArchiveInfo(
+                    apkFile.absolutePath,
+                    0
                 )
-                .apply()
+
+        val installedPackage =
+            runCatching {
+                activity.packageManager
+                    .getPackageInfo(
+                        activity.packageName,
+                        0
+                    )
+            }
+                .getOrNull()
+
+        if (
+            downloadedPackage == null ||
+            downloadedPackage.packageName !=
+            activity.packageName
+        ) {
+            clearPendingInstall(
+                prefs
+            )
+
+            runCatching {
+                apkFile.delete()
+            }
+
+            return false
+        }
+
+        val downloadedVersionCode =
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.P
+            ) {
+                downloadedPackage
+                    .longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                downloadedPackage
+                    .versionCode
+                    .toLong()
+            }
+
+        val installedVersionCode =
+            if (
+                installedPackage == null
+            ) {
+                -1L
+            } else if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.P
+            ) {
+                installedPackage
+                    .longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                installedPackage
+                    .versionCode
+                    .toLong()
+            }
+
+        if (
+            installedVersionCode >=
+            downloadedVersionCode
+        ) {
+            clearPendingInstall(
+                prefs
+            )
+
+            runCatching {
+                apkFile.delete()
+            }
+
             return false
         }
 
@@ -255,12 +333,9 @@ object AppUpdater {
             return true
         }
 
-        prefs.edit()
-            .putBoolean(
-                KEY_INSTALL_PERMISSION_REQUESTED,
-                false
-            )
-            .apply()
+        clearPendingInstall(
+            prefs
+        )
 
         val apkUri =
             FileProvider.getUriForFile(
@@ -285,6 +360,19 @@ object AppUpdater {
         )
 
         return true
+    }
+
+    private fun clearPendingInstall(
+        prefs: android.content.SharedPreferences
+    ) {
+        prefs.edit()
+            .remove(
+                KEY_PENDING_APK_PATH
+            )
+            .remove(
+                KEY_INSTALL_PERMISSION_REQUESTED
+            )
+            .apply()
     }
 
     private fun savePendingApk(

@@ -110,6 +110,7 @@ class PetSpeechBubbleView(
 
     private var tailAtTop = false
     private var tailCenter = 0f
+    private var compactMode = false
     private var tone = Tone.NORMAL
     private var actionsRow:
         LinearLayout? = null
@@ -150,28 +151,46 @@ class PetSpeechBubbleView(
     fun isDecorativeTheme(): Boolean =
         imageBubbleTheme
 
+    fun setCompactMode(
+        enabled: Boolean
+    ) {
+        if (
+            compactMode ==
+            enabled
+        ) {
+            return
+        }
+
+        compactMode =
+            enabled
+
+        updatePadding()
+        requestLayout()
+        invalidate()
+    }
+
     fun minimumOverlayHeightPx(): Int =
         dpInt(
             when {
                 orangeTheme ->
                     if (actionCount > 0) {
-                        152
+                        if (compactMode) 140 else 152
                     } else {
-                        120
+                        if (compactMode) 104 else 120
                     }
 
                 yayaTheme ->
                     if (actionCount > 0) {
-                        156
+                        if (compactMode) 144 else 156
                     } else {
-                        124
+                        if (compactMode) 108 else 124
                     }
 
                 yutuanTheme ->
                     if (actionCount > 0) {
-                        152
+                        if (compactMode) 140 else 152
                     } else {
-                        120
+                        if (compactMode) 104 else 120
                     }
 
                 else -> 72
@@ -186,6 +205,60 @@ class PetSpeechBubbleView(
             else -> 0.50f
         }
 
+    private fun backgroundMirrorX(): Boolean {
+        if (!imageBubbleTheme) {
+            return false
+        }
+
+        val desiredOnRight =
+            tailCenter >
+                width * 0.5f
+
+        val sourceOnRight =
+            yutuanTheme
+
+        return desiredOnRight !=
+            sourceOnRight
+    }
+
+    private fun backgroundMirrorY(): Boolean =
+        imageBubbleTheme &&
+            tailAtTop
+
+    private fun withBubbleBackgroundTransform(
+        canvas: Canvas,
+        draw: () -> Unit
+    ) {
+        val mirrorX =
+            backgroundMirrorX()
+        val mirrorY =
+            backgroundMirrorY()
+
+        if (
+            !mirrorX &&
+            !mirrorY
+        ) {
+            draw()
+            return
+        }
+
+        val save =
+            canvas.save()
+
+        canvas.scale(
+            if (mirrorX) -1f else 1f,
+            if (mirrorY) -1f else 1f,
+            width / 2f,
+            height / 2f
+        )
+
+        draw()
+
+        canvas.restoreToCount(
+            save
+        )
+    }
+
     fun preferredWidthPx(
         screenWidthPx: Int
     ): Int {
@@ -196,10 +269,14 @@ class PetSpeechBubbleView(
         val minWidth =
             dpInt(
                 when {
-                    orangeTheme -> 166
-                    yayaTheme -> 170
-                    yutuanTheme -> 166
-                    else -> 166
+                    orangeTheme ->
+                        if (compactMode) 154 else 166
+                    yayaTheme ->
+                        if (compactMode) 158 else 170
+                    yutuanTheme ->
+                        if (compactMode) 154 else 166
+                    else ->
+                        if (compactMode) 154 else 166
                 }
             )
 
@@ -207,19 +284,27 @@ class PetSpeechBubbleView(
             minOf(
                 dpInt(
                     when {
-                        orangeTheme -> 240
-                        yayaTheme -> 246
-                        yutuanTheme -> 238
-                        else -> 240
+                        orangeTheme ->
+                            if (compactMode) 218 else 240
+                        yayaTheme ->
+                            if (compactMode) 222 else 246
+                        yutuanTheme ->
+                            if (compactMode) 216 else 238
+                        else ->
+                            if (compactMode) 218 else 240
                     }
                 ),
                 (
                     screenWidthPx *
                         when {
-                            orangeTheme -> 0.62f
-                            yayaTheme -> 0.64f
-                            yutuanTheme -> 0.62f
-                            else -> 0.62f
+                            orangeTheme ->
+                                if (compactMode) 0.56f else 0.62f
+                            yayaTheme ->
+                                if (compactMode) 0.58f else 0.64f
+                            yutuanTheme ->
+                                if (compactMode) 0.56f else 0.62f
+                            else ->
+                                if (compactMode) 0.56f else 0.62f
                         }
                     ).toInt()
             ).coerceAtLeast(minWidth)
@@ -704,10 +789,7 @@ class PetSpeechBubbleView(
         tailAtTop = atTop
         tailCenter = centerPx
 
-        if (!yayaTheme) {
-            updatePadding()
-        }
-
+        updatePadding()
         invalidate()
     }
 
@@ -877,25 +959,29 @@ class PetSpeechBubbleView(
             orangeBubbleBitmap
                 ?: return
 
-        drawExactImageBubble(
-            canvas = canvas,
-            bitmap = bitmap,
-            destination =
-                RectF(
-                    0f,
-                    0f,
-                    width.toFloat(),
-                    height.toFloat()
-                ),
-            sourceLeftFraction = 0.31f,
-            sourceRightFraction = 0.69f,
-            sourceTopFraction = 0.35f,
-            sourceBottomFraction = 0.69f,
-            leftEdgeDp = 40f,
-            rightEdgeDp = 44f,
-            topEdgeDp = 38f,
-            bottomEdgeDp = 40f
-        )
+        withBubbleBackgroundTransform(
+            canvas
+        ) {
+            drawExactImageBubble(
+                canvas = canvas,
+                bitmap = bitmap,
+                destination =
+                    RectF(
+                        0f,
+                        0f,
+                        width.toFloat(),
+                        height.toFloat()
+                    ),
+                sourceLeftFraction = 0.31f,
+                sourceRightFraction = 0.69f,
+                sourceTopFraction = 0.35f,
+                sourceBottomFraction = 0.69f,
+                leftEdgeDp = 40f,
+                rightEdgeDp = 44f,
+                topEdgeDp = 38f,
+                bottomEdgeDp = 40f
+            )
+        }
     }
 
     private fun drawYayaImageBubble(
@@ -912,25 +998,29 @@ class PetSpeechBubbleView(
             yayaBubbleBitmap
                 ?: return
 
-        drawExactImageBubble(
-            canvas = canvas,
-            bitmap = bitmap,
-            destination =
-                RectF(
-                    0f,
-                    0f,
-                    width.toFloat(),
-                    height.toFloat()
-                ),
-            sourceLeftFraction = 0.32f,
-            sourceRightFraction = 0.70f,
-            sourceTopFraction = 0.35f,
-            sourceBottomFraction = 0.69f,
-            leftEdgeDp = 44f,
-            rightEdgeDp = 44f,
-            topEdgeDp = 40f,
-            bottomEdgeDp = 42f
-        )
+        withBubbleBackgroundTransform(
+            canvas
+        ) {
+            drawExactImageBubble(
+                canvas = canvas,
+                bitmap = bitmap,
+                destination =
+                    RectF(
+                        0f,
+                        0f,
+                        width.toFloat(),
+                        height.toFloat()
+                    ),
+                sourceLeftFraction = 0.32f,
+                sourceRightFraction = 0.70f,
+                sourceTopFraction = 0.35f,
+                sourceBottomFraction = 0.69f,
+                leftEdgeDp = 44f,
+                rightEdgeDp = 44f,
+                topEdgeDp = 40f,
+                bottomEdgeDp = 42f
+            )
+        }
     }
 
     private fun drawExactImageBubble(
@@ -1252,17 +1342,21 @@ class PetSpeechBubbleView(
             yutuanBubbleBitmap
                 ?: return
 
-        drawYutuanNineSlice(
-            canvas = canvas,
-            bitmap = bitmap,
-            destination =
-                RectF(
-                    0f,
-                    0f,
-                    width.toFloat(),
-                    height.toFloat()
-                )
-        )
+        withBubbleBackgroundTransform(
+            canvas
+        ) {
+            drawYutuanNineSlice(
+                canvas = canvas,
+                bitmap = bitmap,
+                destination =
+                    RectF(
+                        0f,
+                        0f,
+                        width.toFloat(),
+                        height.toFloat()
+                    )
+            )
+        }
     }
 
     private fun drawYutuanNineSlice(
@@ -2772,30 +2866,30 @@ class PetSpeechBubbleView(
     private fun updatePadding() {
         if (orangeTheme) {
             setPadding(
-                dpInt(25),
-                dpInt(25),
-                dpInt(25),
-                dpInt(29)
+                dpInt(if (compactMode) 21 else 25),
+                dpInt(if (compactMode) 21 else 25),
+                dpInt(if (compactMode) 21 else 25),
+                dpInt(if (compactMode) 24 else 29)
             )
             return
         }
 
         if (yayaTheme) {
             setPadding(
-                dpInt(28),
-                dpInt(28),
-                dpInt(28),
-                dpInt(30)
+                dpInt(if (compactMode) 23 else 28),
+                dpInt(if (compactMode) 23 else 28),
+                dpInt(if (compactMode) 23 else 28),
+                dpInt(if (compactMode) 25 else 30)
             )
             return
         }
 
         if (yutuanTheme) {
             setPadding(
-                dpInt(24),
-                dpInt(26),
-                dpInt(24),
-                dpInt(29)
+                dpInt(if (compactMode) 20 else 24),
+                dpInt(if (compactMode) 21 else 26),
+                dpInt(if (compactMode) 20 else 24),
+                dpInt(if (compactMode) 24 else 29)
             )
             return
         }

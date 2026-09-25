@@ -68,21 +68,10 @@ object AppUpdater {
     fun shouldAutoCheck(
         context: Context
     ): Boolean {
-        val prefs =
-            context.getSharedPreferences(
-                PREFS,
-                Context.MODE_PRIVATE
-            )
-
-        val last =
-            prefs.getLong(
-                KEY_LAST_AUTO_CHECK,
-                0L
-            )
-
-        return System.currentTimeMillis() -
-            last >=
-            autoCheckIntervalMs
+        // Bootstrap hotfix for formal V1.7.6:
+        // always allow one fresh check on launch so a newly-published
+        // V1.7.7 can be discovered immediately instead of waiting 24 hours.
+        return true
     }
 
     fun markAutoChecked(

@@ -170,3 +170,13 @@ jobs:
               --title "$RELEASE_TITLE" \
               --notes-file release-notes.md
           fi
+
+          RELEASE_ID=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '.id')
+
+          gh api \
+            --method PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -f make_latest=true \
+            >/dev/null

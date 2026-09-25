@@ -88,6 +88,17 @@ jobs:
           printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/shiguangbox-release.jks"
           test -s "$RUNNER_TEMP/shiguangbox-release.jks"
 
+      - name: Verify release signing key
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+        run: |
+          keytool -certreq             -alias "$KEY_ALIAS"             -keystore "$RUNNER_TEMP/shiguangbox-release.jks"             -storepass "$STORE_PASSWORD"             -keypass "$KEY_PASSWORD"             -file "$RUNNER_TEMP/shiguangbox-signing-check.csr"
+          test -s "$RUNNER_TEMP/shiguangbox-signing-check.csr"
+
       - name: Build signed release APK
         if: steps.signing.outputs.ready == 'true'
         env:

@@ -253,6 +253,10 @@ fun ShiguangBoxApp(
         mutableStateOf<UpdateInfo?>(null)
     }
 
+    var activeUpdateVersion by remember {
+        mutableStateOf<String?>(null)
+    }
+
     val updateDownloadState by
         AppUpdater.downloadState
             .collectAsState()
@@ -451,14 +455,20 @@ fun ShiguangBoxApp(
                 confirmButton = {
                     Button(
                         onClick = {
+                            activeUpdateVersion =
+                                update.versionName
+
+                            availableUpdate =
+                                null
+
+                            AppUpdater
+                                .resetDownloadState()
+
                             AppUpdater
                                 .enqueueUpdate(
                                     context,
                                     update
                                 )
-
-                            availableUpdate =
-                                null
                         }
                     ) {
                         Text("立即更新")
@@ -477,11 +487,54 @@ fun ShiguangBoxApp(
             )
         }
 
-        when (
-            val download =
-                updateDownloadState
+        if (
+            activeUpdateVersion != null ||
+            updateDownloadState !is
+            UpdateDownloadState.Idle
         ) {
-            is UpdateDownloadState.Downloading -> {
+            when (
+                val download =
+                    updateDownloadState
+            ) {
+                UpdateDownloadState.Idle -> {
+                    AlertDialog(
+                        onDismissRequest = {},
+                        title = {
+                            Text("正在准备更新")
+                        },
+                        text = {
+                            Row(
+                                verticalAlignment =
+                                    Alignment.CenterVertically,
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(
+                                        12.dp
+                                    )
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier =
+                                        Modifier.size(
+                                            24.dp
+                                        ),
+                                    strokeWidth =
+                                        3.dp
+                                )
+
+                                Text(
+                                    "正在启动 V" +
+                                        (
+                                            activeUpdateVersion
+                                                ?: ""
+                                            ) +
+                                        " 下载，请稍候…"
+                                )
+                            }
+                        },
+                        confirmButton = {}
+                    )
+                }
+
+                is UpdateDownloadState.Downloading -> {
                 AlertDialog(
                     onDismissRequest = {},
                     title = {
@@ -582,6 +635,8 @@ fun ShiguangBoxApp(
             is UpdateDownloadState.Error -> {
                 AlertDialog(
                     onDismissRequest = {
+                        activeUpdateVersion =
+                            null
                         AppUpdater
                             .resetDownloadState()
                     },
@@ -599,6 +654,8 @@ fun ShiguangBoxApp(
                     confirmButton = {
                         TextButton(
                             onClick = {
+                                activeUpdateVersion =
+                                    null
                                 AppUpdater
                                     .resetDownloadState()
                             }
@@ -609,7 +666,37 @@ fun ShiguangBoxApp(
                 )
             }
 
+            is UpdateDownloadState.Installing -> {
+                AlertDialog(
+                    onDismissRequest = {
+                        activeUpdateVersion =
+                            null
+                    },
+                    title = {
+                        Text("安装页面已打开")
+                    },
+                    text = {
+                        Text(
+                            "V" +
+                                download.versionName +
+                                " 已交给 Android 系统安装。安装完成后重新打开拾光盒即可。"
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                activeUpdateVersion =
+                                    null
+                            }
+                        ) {
+                            Text("知道了")
+                        }
+                    }
+                )
+            }
+
             else -> Unit
+            }
         }
     }
 }

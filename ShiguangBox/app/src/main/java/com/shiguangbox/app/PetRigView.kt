@@ -139,6 +139,8 @@ class PetRigView @JvmOverloads constructor(
     private var paused = false
 
     private var state: State = State.IDLE
+    private var stateChangeListener:
+        ((State, State) -> Unit)? = null
     private var stateStartNanos = 0L
     private var idleEpochNanos = 0L
     private var lastInteractionNanos = 0L
@@ -277,6 +279,18 @@ class PetRigView @JvmOverloads constructor(
         postFrame()
     }
 
+    fun setStateChangeListener(
+        listener:
+            ((State, State) -> Unit)?
+    ) {
+        stateChangeListener =
+            listener
+    }
+
+    fun currentState():
+        State =
+        state
+
     fun currentPetId(): String = petKind.id
 
     fun displayName(): String = petKind.displayName
@@ -360,18 +374,47 @@ class PetRigView @JvmOverloads constructor(
         // "trying to use a recycled bitmap".
     }
 
-    private fun setState(newState: State, now: Long = System.nanoTime()) {
-        state = newState
-        stateStartNanos = now
-        blinkStartNanos = 0L
+    private fun setState(
+        newState: State,
+        now: Long = System.nanoTime()
+    ) {
+        val oldState =
+            state
 
-        if (newState == State.IDLE) {
-            idleEpochNanos = now
-            scheduleNextBlink(now)
-            scheduleNextIdleAction(now)
+        state =
+            newState
+        stateStartNanos =
+            now
+        blinkStartNanos =
+            0L
+
+        if (
+            newState ==
+            State.IDLE
+        ) {
+            idleEpochNanos =
+                now
+            scheduleNextBlink(
+                now
+            )
+            scheduleNextIdleAction(
+                now
+            )
         }
 
-        paused = false
+        if (
+            oldState !=
+            newState
+        ) {
+            stateChangeListener
+                ?.invoke(
+                    oldState,
+                    newState
+                )
+        }
+
+        paused =
+            false
         postFrame()
     }
 

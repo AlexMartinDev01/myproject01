@@ -1,4 +1,4 @@
-name: Build and Release ShiguangBox V1.7.6
+name: Build and Release ShiguangBox
 
 on:
   workflow_dispatch:
@@ -53,8 +53,7 @@ jobs:
           VERSION_CODE=$(grep -E 'versionCode [0-9]+' app/build.gradle | head -1 | awk '{print $2}')
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          test "$VERSION_NAME" = "1.7.6"
-          test "$VERSION_CODE" = "39"
+          echo "Building ShiguangBox V$VERSION_NAME ($VERSION_CODE)"
 
       - name: Check release signing secrets
         shell: bash
@@ -77,10 +76,15 @@ jobs:
           KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
         run: |
-          keytool -certreq             -alias "$KEY_ALIAS"             -keystore "$RUNNER_TEMP/shiguangbox-release.jks"             -storepass "$STORE_PASSWORD"             -keypass "$KEY_PASSWORD"             -file "$RUNNER_TEMP/shiguangbox-signing-check.csr"
+          keytool -certreq \
+            -alias "$KEY_ALIAS" \
+            -keystore "$RUNNER_TEMP/shiguangbox-release.jks" \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -file "$RUNNER_TEMP/shiguangbox-signing-check.csr"
           test -s "$RUNNER_TEMP/shiguangbox-signing-check.csr"
 
-      - name: Build signed V1.7.6 release APK
+      - name: Build signed release APK
         env:
           SHIGUANGBOX_KEYSTORE_FILE: ${{ runner.temp }}/shiguangbox-release.jks
           SHIGUANGBOX_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
@@ -88,49 +92,81 @@ jobs:
           SHIGUANGBOX_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
         run: gradle assembleRelease
 
-      - name: Prepare formal V1.7.6 APK
+      - name: Prepare release APK
         shell: bash
         run: |
-          cp app/build/outputs/apk/release/app-release.apk              app/build/outputs/apk/release/ShiguangBox_v1.7.6_Release.apk
+          VERSION_NAME="${{ steps.app_version.outputs.version_name }}"
+          if [[ "$VERSION_NAME" == "1.7.7" ]]; then
+            OUTPUT_NAME="ShiguangBox_v1.7.7.apk"
+          else
+            OUTPUT_NAME="ShiguangBox_v${VERSION_NAME}_Release.apk"
+          fi
+          cp app/build/outputs/apk/release/app-release.apk \
+             "app/build/outputs/apk/release/$OUTPUT_NAME"
+          echo "OUTPUT_NAME=$OUTPUT_NAME" >> "$GITHUB_ENV"
 
-      - name: Upload formal V1.7.6 APK
+      - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShiguangBox-v1.7.6-Formal-Release-APK
-          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v1.7.6_Release.apk
+          name: ShiguangBox-v${{ steps.app_version.outputs.version_name }}-Release-APK
+          path: ShiguangBox/app/build/outputs/apk/release/${{ env.OUTPUT_NAME }}
 
-      - name: Retire incorrect V1.7.7 release
+      - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.app_version.outputs.version_code }}
         shell: bash
         run: |
-          if gh release view "shiguangbox-v1.7.7" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "shiguangbox-v1.7.7"               --repo "$GITHUB_REPOSITORY"               --prerelease
-          fi
+          TAG="shiguangbox-v$VERSION_NAME"
+          APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-      - name: Publish formal V1.7.6 GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          TAG="shiguangbox-v1.7.6"
-          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v1.7.6_Release.apk"
+          if [[ "$VERSION_NAME" == "1.7.7" ]]; then
+            RELEASE_TITLE="拾光盒 V1.7.7 · 在线更新链路测试"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.7.7 · 在线更新链路测试
 
-          cat > release-notes.md <<EOF
-          拾光盒 V1.7.6 正式版
-
-          - 基于已确认的 V1.7.6 最终功能版本
-          - versionCode: 39
-          - 使用固定 Release 签名
-          - 保持原 V1.7.6 宠物、雨团、彩虹、睡眠和界面逻辑
-          - 仅增加未来版本所需的应用内在线更新能力
+          - versionCode: $VERSION_CODE
+          - 仅用于验证 V1.7.6 → V1.7.7 在线覆盖更新
+          - 不修改宠物动作、雨团天气、彩虹、睡眠、界面和业务功能
+          - 与 V1.7.6 使用完全相同的固定 Release 签名
+          - 更新后应保留原有应用数据与设置
 
           提交：$GITHUB_SHA
           EOF
+          else
+            RELEASE_TITLE="拾光盒 V$VERSION_NAME"
+            cat > release-notes.md <<EOF
+          拾光盒 V$VERSION_NAME
+
+          - versionCode: $VERSION_CODE
+          - 固定 Release 签名构建
+
+          提交：$GITHUB_SHA
+          EOF
+          fi
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK_PATH"               --repo "$GITHUB_REPOSITORY"               --clobber
-            gh release edit "$TAG"               --repo "$GITHUB_REPOSITORY"               --title "拾光盒 V1.7.6 正式版"               --notes-file release-notes.md
+            gh release upload "$TAG" "$APK_PATH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+
+            if [[ "$VERSION_NAME" == "1.7.7" ]]; then
+              gh release edit "$TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$RELEASE_TITLE" \
+                --notes-file release-notes.md \
+                --prerelease=false
+            else
+              gh release edit "$TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$RELEASE_TITLE" \
+                --notes-file release-notes.md
+            fi
           else
-            gh release create "$TAG" "$APK_PATH"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "拾光盒 V1.7.6 正式版"               --notes-file release-notes.md
+            gh release create "$TAG" "$APK_PATH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TITLE" \
+              --notes-file release-notes.md
           fi

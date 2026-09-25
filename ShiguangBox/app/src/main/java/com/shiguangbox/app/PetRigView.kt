@@ -461,24 +461,101 @@ class PetRigView @JvmOverloads constructor(
         stateSeconds: Double
     ) {
         if (petKind == PetKind.YUTUAN) {
+            val p =
+                smoothStep(
+                    clamp(
+                        stateSeconds /
+                            TIRED_DURATION_SECONDS,
+                        0.0,
+                        1.0
+                    )
+                )
+
+            // 雨团犯困：不是直接“闭眼”，而是头越来越低、
+            // 身体慢慢泄力、耳朵更垂，最后自然进入睡姿。
+            val nod =
+                abs(
+                    sin(
+                        stateSeconds *
+                            PI *
+                            0.72
+                    )
+                ) *
+                    p
+
             val tiredBlink =
-                0.58 +
-                    0.30 *
-                        smoothStep(
-                            clamp(
-                                stateSeconds /
-                                    TIRED_DURATION_SECONDS,
-                                0.0,
-                                1.0
+                (
+                    0.30 +
+                        0.56 *
+                            p +
+                        0.10 *
+                            nod
+                    )
+                    .coerceIn(
+                        0.0,
+                        0.96
+                    )
+
+            val save =
+                canvas.save()
+
+            canvas.translate(
+                0f,
+                (
+                    height *
+                        (
+                            0.010 +
+                                0.022 *
+                                    p +
+                                0.010 *
+                                    nod
                             )
+                    ).toFloat()
+            )
+
+            canvas.scale(
+                (
+                    1.0 +
+                        0.012 *
+                            p
+                    ).toFloat(),
+                (
+                    1.0 -
+                        0.038 *
+                            p
+                    ).toFloat(),
+                width / 2f,
+                height * 0.72f
+            )
+
+            canvas.rotate(
+                (
+                    -1.4 *
+                        p *
+                        sin(
+                            stateSeconds *
+                                PI *
+                                0.42
                         )
+                    ).toFloat(),
+                width / 2f,
+                height * 0.48f
+            )
 
             buildYutuanMesh(
                 idleSeconds,
                 stateSeconds,
                 tiredBlink
             )
-            drawIdleMesh(canvas, 1f)
+
+            drawIdleMesh(
+                canvas,
+                1f
+            )
+
+            canvas.restoreToCount(
+                save
+            )
             return
         }
 
@@ -509,39 +586,75 @@ class PetRigView @JvmOverloads constructor(
         stateSeconds: Double
     ) {
         if (petKind == PetKind.YUTUAN) {
+            val enter =
+                smoothStep(
+                    clamp(
+                        stateSeconds /
+                            YUTUAN_SLEEP_SETTLE_SECONDS,
+                        0.0,
+                        1.0
+                    )
+                )
+
             val breath =
                 sin(
                     idleSeconds *
                         2.0 *
                         PI /
-                        4.2
+                        4.6
                 )
 
-            val save = canvas.save()
+            val save =
+                canvas.save()
+
+            // 真正的睡姿：整体压低并稍微侧卧。
+            // 这样不会再出现“闭眼但仍然站着”的感觉。
             canvas.translate(
-                0f,
+                (
+                    -width *
+                        0.018 *
+                        enter
+                    ).toFloat(),
                 (
                     height *
                         (
-                            0.030 +
-                                0.006 *
-                                    breath
+                            0.118 *
+                                enter +
+                                0.005 *
+                                    breath *
+                                    enter
                             )
                     ).toFloat()
             )
+
+            canvas.rotate(
+                (
+                    -7.5 *
+                        enter
+                    ).toFloat(),
+                width * 0.52f,
+                height * 0.72f
+            )
+
             canvas.scale(
                 (
                     1.0 +
-                        0.002 *
-                            breath
+                        0.090 *
+                            enter +
+                        0.003 *
+                            breath *
+                            enter
                     ).toFloat(),
                 (
-                    0.925 +
-                        0.006 *
-                            breath
+                    1.0 -
+                        0.285 *
+                            enter +
+                        0.008 *
+                            breath *
+                            enter
                     ).toFloat(),
                 width / 2f,
-                height * 0.82f
+                height * 0.78f
             )
 
             buildYutuanMesh(
@@ -549,11 +662,15 @@ class PetRigView @JvmOverloads constructor(
                 stateSeconds,
                 1.0
             )
+
             drawIdleMesh(
                 canvas,
                 1f
             )
-            canvas.restoreToCount(save)
+
+            canvas.restoreToCount(
+                save
+            )
             return
         }
 
@@ -600,35 +717,83 @@ class PetRigView @JvmOverloads constructor(
                     )
                 )
 
-            val save = canvas.save()
             val bounce =
                 sin(
                     p *
                         PI
                 )
 
+            val save =
+                canvas.save()
+
+            // 从侧卧压低的睡姿慢慢撑起来，
+            // 中段带一个轻微伸懒腰回弹，最后回到待机。
             canvas.translate(
-                0f,
+                (
+                    -width *
+                        0.018 *
+                        (1.0 - p)
+                    ).toFloat(),
                 (
                     height *
-                        0.018 *
-                        (1.0 - p) -
-                        height *
-                            0.016 *
-                            bounce
+                        (
+                            0.118 *
+                                (1.0 - p) -
+                                0.030 *
+                                    bounce
+                            )
                     ).toFloat()
+            )
+
+            canvas.rotate(
+                (
+                    -7.5 *
+                        (1.0 - p)
+                    ).toFloat(),
+                width * 0.52f,
+                height * 0.72f
+            )
+
+            canvas.scale(
+                (
+                    1.090 -
+                        0.090 *
+                            p +
+                        0.018 *
+                            bounce
+                    ).toFloat(),
+                (
+                    0.715 +
+                        0.285 *
+                            p -
+                        0.018 *
+                            bounce
+                    ).toFloat(),
+                width / 2f,
+                height * 0.78f
             )
 
             buildYutuanMesh(
                 idleSeconds,
                 stateSeconds,
-                1.0 - p
+                (
+                    1.0 -
+                        p
+                    )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
             )
+
             drawIdleMesh(
                 canvas,
                 1f
             )
-            canvas.restoreToCount(save)
+
+            canvas.restoreToCount(
+                save
+            )
             return
         }
 
@@ -1247,33 +1412,48 @@ class PetRigView @JvmOverloads constructor(
                 else -> 0.0
             }
 
-        val sleepyAmount =
+        val sleepyPoseAmount =
             when (state) {
                 State.TIRED ->
-                    0.012 *
-                        smoothStep(
-                            clamp(
-                                stateSeconds /
-                                    TIRED_DURATION_SECONDS,
-                                0.0,
-                                1.0
+                    smoothStep(
+                        clamp(
+                            stateSeconds /
+                                TIRED_DURATION_SECONDS,
+                            0.0,
+                            1.0
+                        )
+                    )
+
+                State.SLEEP -> 1.0
+
+                State.WAKE_UP ->
+                    (
+                        1.0 -
+                            smoothStep(
+                                clamp(
+                                    stateSeconds /
+                                        WAKE_DURATION_SECONDS,
+                                    0.0,
+                                    1.0
+                                )
                             )
                         )
 
-                State.SLEEP -> 0.026
+                else -> 0.0
+            }
+
+        val sleepyAmount =
+            when (state) {
+                State.TIRED ->
+                    0.034 *
+                        sleepyPoseAmount
+
+                State.SLEEP ->
+                    0.056
+
                 State.WAKE_UP ->
-                    0.014 *
-                        (
-                            1.0 -
-                                smoothStep(
-                                    clamp(
-                                        stateSeconds /
-                                            WAKE_DURATION_SECONDS,
-                                        0.0,
-                                        1.0
-                                    )
-                                )
-                            )
+                    0.050 *
+                        sleepyPoseAmount
 
                 else -> 0.0
             }
@@ -1344,6 +1524,28 @@ class PetRigView @JvmOverloads constructor(
                 y +=
                     sleepyAmount *
                         headWeight
+
+                if (
+                    sleepyPoseAmount >
+                    0.0
+                ) {
+                    val lowerBodyWeight =
+                        exp(
+                            -square(
+                                (u - 0.50) /
+                                    0.34
+                            ) -
+                                square(
+                                    (v - 0.73) /
+                                        0.24
+                                )
+                        )
+
+                    y +=
+                        0.018 *
+                            sleepyPoseAmount *
+                            lowerBodyWeight
+                }
 
                 if (state == State.DRAGGING) {
                     val hangingWeight =
@@ -1469,6 +1671,31 @@ class PetRigView @JvmOverloads constructor(
                         )
 
                     localWeight *= anchor
+
+                    if (
+                        sleepyPoseAmount >
+                        0.0 &&
+                        localWeight >
+                        0.002
+                    ) {
+                        // 犯困/睡眠时耳尖明显更沉、更向外摊，
+                        // 强化“泄力”和侧卧感。
+                        y +=
+                            0.042 *
+                                sleepyPoseAmount *
+                                localWeight
+
+                        x +=
+                            (
+                                if (left) {
+                                    -0.014
+                                } else {
+                                    0.014
+                                }
+                                ) *
+                                sleepyPoseAmount *
+                                localWeight
+                    }
 
                     val phase =
                         if (left) {
@@ -1655,7 +1882,9 @@ class PetRigView @JvmOverloads constructor(
                             State.WAVE -> 9.0
                             State.PETTED -> 7.0
                             State.DRAGGING -> 5.0
-                            State.SLEEP -> 1.0
+                            State.TIRED -> 2.4
+                            State.SLEEP -> 0.55
+                            State.WAKE_UP -> 2.8
                             else -> 5.5
                         }
 
@@ -2916,10 +3145,11 @@ class PetRigView @JvmOverloads constructor(
         private const val HAPPY_DURATION_SECONDS = 1.15
         private const val TAIL_WAG_DURATION_SECONDS = 2.35
         private const val PETTED_DURATION_SECONDS = 1.85
-        private const val TIRED_DURATION_SECONDS = 4.2
+        private const val TIRED_DURATION_SECONDS = 4.8
         private const val TIRED_CROSSFADE_SECONDS = 0.32
-        private const val WAKE_DURATION_SECONDS = 1.45
+        private const val WAKE_DURATION_SECONDS = 1.90
         private const val SLEEP_CROSSFADE_SECONDS = 0.42
+        private const val YUTUAN_SLEEP_SETTLE_SECONDS = 0.72
 
 
         private const val BLINK_DURATION_NANOS = 340_000_000L

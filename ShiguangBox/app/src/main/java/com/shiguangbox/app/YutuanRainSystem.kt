@@ -182,8 +182,9 @@ class YutuanRainSystem {
 
         val stateMultiplier =
             when (state) {
-                PetRigView.State.SLEEP -> 0.58f
-                PetRigView.State.TIRED -> 0.74f
+                PetRigView.State.SLEEP -> 0.44f
+                PetRigView.State.TIRED -> 0.66f
+                PetRigView.State.WAKE_UP -> 0.70f
                 PetRigView.State.PETTED -> 0.78f
                 PetRigView.State.DRAGGING -> 0.82f
                 PetRigView.State.TAIL_WAG -> 1.20f

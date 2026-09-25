@@ -1031,7 +1031,9 @@ class PetOverlayService : Service() {
 
         if (
             pet.currentPetId() !=
-            PetKind.YUTUAN.id
+            PetKind.YUTUAN.id ||
+            pet.isSleepingOrTired() ||
+            yutuanSleepWeatherSuspended
         ) {
             return
         }
@@ -1070,7 +1072,9 @@ class PetOverlayService : Service() {
 
         if (
             pet.currentPetId() !=
-            PetKind.YUTUAN.id
+            PetKind.YUTUAN.id ||
+            pet.isSleepingOrTired() ||
+            yutuanSleepWeatherSuspended
         ) {
             return
         }
@@ -1084,7 +1088,11 @@ class PetOverlayService : Service() {
                 if (
                     petView
                         ?.currentPetId() !=
-                    PetKind.YUTUAN.id
+                    PetKind.YUTUAN.id ||
+                    petView
+                        ?.isSleepingOrTired() ==
+                    true ||
+                    yutuanSleepWeatherSuspended
                 ) {
                     return@Runnable
                 }
@@ -1121,7 +1129,9 @@ class PetOverlayService : Service() {
 
         if (
             pet.currentPetId() !=
-            PetKind.YUTUAN.id
+            PetKind.YUTUAN.id ||
+            pet.isSleepingOrTired() ||
+            yutuanSleepWeatherSuspended
         ) {
             return
         }
@@ -1142,6 +1152,10 @@ class PetOverlayService : Service() {
                     petView
                         ?.currentPetId() ==
                     PetKind.YUTUAN.id &&
+                    petView
+                        ?.isSleepingOrTired() !=
+                    true &&
+                    !yutuanSleepWeatherSuspended &&
                     rainbowView != null
                 ) {
                     showPetBubble(
@@ -1213,7 +1227,9 @@ class PetOverlayService : Service() {
 
                 if (
                     pet.currentPetId() !=
-                    PetKind.YUTUAN.id
+                    PetKind.YUTUAN.id ||
+                    pet.isSleepingOrTired() ||
+                    yutuanSleepWeatherSuspended
                 ) {
                     return@Runnable
                 }
@@ -1245,7 +1261,11 @@ class PetOverlayService : Service() {
         if (
             petView
                 ?.currentPetId() !=
-            PetKind.YUTUAN.id
+            PetKind.YUTUAN.id ||
+            petView
+                ?.isSleepingOrTired() ==
+            true ||
+            yutuanSleepWeatherSuspended
         ) {
             return
         }

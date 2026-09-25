@@ -121,7 +121,21 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.7.7" ]]; then
+          if [[ "$VERSION_NAME" == "1.8.0" ]]; then
+            RELEASE_TITLE="拾光盒 V1.8.0 · 雨团睡眠天气联动"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.8.0 · 雨团睡眠天气联动
+
+          - versionCode: $VERSION_CODE
+          - 雨团犯困时雨势会自然减弱
+          - 雨团睡着后只保留极轻小雨或自然停雨
+          - 睡眠期间禁止触发彩虹
+          - 醒来后雨势分阶段恢复，再重新进入原有天气循环
+          - 橘团、芽芽、在线更新系统及其他业务功能保持不变
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.7.7" ]]; then
             RELEASE_TITLE="拾光盒 V1.7.7 · 在线更新链路测试"
             cat > release-notes.md <<EOF
           拾光盒 V1.7.7 · 在线更新链路测试

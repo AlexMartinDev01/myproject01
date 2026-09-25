@@ -1,4 +1,4 @@
-name: Build ShiguangBox APK
+name: Build and Release ShiguangBox
 
 on:
   workflow_dispatch:
@@ -9,9 +9,19 @@ on:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      RELEASE_KEYSTORE_B64: ${{ secrets.SHIGUANGBOX_KEYSTORE_BASE64 }}
+      RELEASE_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+
     defaults:
       run:
         working-directory: ShiguangBox
@@ -31,14 +41,102 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Read app version
+        id: app_version
+        shell: bash
+        run: |
+          VERSION_NAME=$(grep -E "versionName '[^']+'" app/build.gradle | head -1 | cut -d"'" -f2)
+          VERSION_CODE=$(grep -E 'versionCode [0-9]+' app/build.gradle | head -1 | awk '{print $2}')
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Building ShiguangBox V$VERSION_NAME ($VERSION_CODE)"
+
       - name: Build debug APK
         run: gradle assembleDebug
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/ShiguangBox_v1.7.6_YutuanSleepWake.apk
+      - name: Prepare debug APK
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk              "app/build/outputs/apk/debug/ShiguangBox_v${{ steps.app_version.outputs.version_name }}_debug.apk"
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShiguangBox-v1.7.6-YutuanSleepWake-APK
-          path: ShiguangBox/app/build/outputs/apk/debug/ShiguangBox_v1.7.6_YutuanSleepWake.apk
+          name: ShiguangBox-v${{ steps.app_version.outputs.version_name }}-debug-APK
+          path: ShiguangBox/app/build/outputs/apk/debug/ShiguangBox_v${{ steps.app_version.outputs.version_name }}_debug.apk
+
+      - name: Check release signing secrets
+        id: signing
+        shell: bash
+        run: |
+          if [[ -n "$RELEASE_KEYSTORE_B64"              && -n "$RELEASE_STORE_PASSWORD"              && -n "$RELEASE_KEY_ALIAS"              && -n "$RELEASE_KEY_PASSWORD" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Release signing is configured."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Release signing secrets are not configured yet."
+          fi
+
+      - name: Restore release keystore
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/shiguangbox-release.jks"
+          test -s "$RUNNER_TEMP/shiguangbox-release.jks"
+
+      - name: Build signed release APK
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          SHIGUANGBOX_KEYSTORE_FILE: ${{ runner.temp }}/shiguangbox-release.jks
+          SHIGUANGBOX_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+          SHIGUANGBOX_KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+          SHIGUANGBOX_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+        run: gradle assembleRelease
+
+      - name: Prepare signed release APK
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk              "app/build/outputs/apk/release/ShiguangBox_v${{ steps.app_version.outputs.version_name }}.apk"
+
+      - name: Upload signed release APK
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShiguangBox-v${{ steps.app_version.outputs.version_name }}-signed-release-APK
+          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v${{ steps.app_version.outputs.version_name }}.apk
+
+      - name: Publish GitHub Release for online update
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.app_version.outputs.version_code }}
+        shell: bash
+        run: |
+          TAG="shiguangbox-v$VERSION_NAME"
+          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v$VERSION_NAME.apk"
+
+          cat > release-notes.md <<EOF
+          拾光盒 V$VERSION_NAME
+
+          - Android versionCode: $VERSION_CODE
+          - 已支持应用内检查更新与下载安装
+          - 本版本由 shiguangbox-v1 分支自动构建并使用固定 Release 签名
+
+          提交：$GITHUB_SHA
+          EOF
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_PATH"               --repo "$GITHUB_REPOSITORY"               --clobber
+            gh release edit "$TAG"               --repo "$GITHUB_REPOSITORY"               --title "拾光盒 V$VERSION_NAME"               --notes-file release-notes.md
+          else
+            gh release create "$TAG" "$APK_PATH"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "拾光盒 V$VERSION_NAME"               --notes-file release-notes.md
+          fi
+
+      - name: Signing setup reminder
+        if: steps.signing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          echo "Debug build succeeded."
+          echo "Add the four SHIGUANGBOX_* repository secrets to enable signed releases and in-app online updates."

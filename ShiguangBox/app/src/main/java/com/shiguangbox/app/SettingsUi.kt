@@ -58,6 +58,29 @@ fun SettingsScreen(
         mutableStateOf(prefs.getBoolean("auto_favorite_ai", false))
     }
 
+    var autoUpdateCheck by rememberSaveable {
+        mutableStateOf(
+            AppUpdater.autoCheckEnabled(
+                context
+            )
+        )
+    }
+
+    var checkingUpdate by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var updateMessage by rememberSaveable {
+        mutableStateOf(
+            "当前版本 V" +
+                BuildConfig.VERSION_NAME
+        )
+    }
+
+    var manualUpdate by remember {
+        mutableStateOf<UpdateInfo?>(null)
+    }
+
     var saveMessage by rememberSaveable { mutableStateOf("") }
     var exporting by rememberSaveable { mutableStateOf(false) }
 
@@ -78,6 +101,57 @@ fun SettingsScreen(
                 exporting = false
                 saveMessage = "备份已导出"
             }
+        }
+    }
+
+    fun checkForUpdate() {
+        if (checkingUpdate) {
+            return
+        }
+
+        checkingUpdate = true
+        updateMessage =
+            "正在检查更新…"
+
+        scope.launch {
+            when (
+                val result =
+                    AppUpdater
+                        .checkLatestRelease()
+            ) {
+                is UpdateCheckResult
+                    .Available -> {
+                    manualUpdate =
+                        result.info
+
+                    updateMessage =
+                        "发现新版本 V" +
+                            result.info
+                                .versionName
+                }
+
+                UpdateCheckResult
+                    .UpToDate -> {
+                    manualUpdate =
+                        null
+
+                    updateMessage =
+                        "已经是最新版本 V" +
+                            BuildConfig
+                                .VERSION_NAME
+                }
+
+                is UpdateCheckResult
+                    .Error -> {
+                    manualUpdate =
+                        null
+
+                    updateMessage =
+                        result.message
+                }
+            }
+
+            checkingUpdate = false
         }
     }
 
@@ -107,7 +181,11 @@ fun SettingsScreen(
     ) {
         item {
             Text("我的", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("拾光盒 · V1.1.3 橘团睡眠资源修正版", color = SettingsMuted)
+            Text(
+                "拾光盒 · V" +
+                    BuildConfig.VERSION_NAME,
+                color = SettingsMuted
+            )
         }
 
         item {
@@ -278,6 +356,204 @@ fun SettingsScreen(
                     }
                     TextButton(onClick = onAiSettings) {
                         Text("设置")
+                    }
+                }
+            }
+        }
+
+
+        item {
+            SettingsCardBox {
+                Text(
+                    "应用更新",
+                    fontWeight =
+                        FontWeight.Bold,
+                    fontSize =
+                        18.sp
+                )
+
+                Spacer(
+                    Modifier.height(
+                        8.dp
+                    )
+                )
+
+                Text(
+                    updateMessage,
+                    color =
+                        SettingsMuted,
+                    fontSize =
+                        13.sp
+                )
+
+                Spacer(
+                    Modifier.height(
+                        10.dp
+                    )
+                )
+
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(),
+                    verticalAlignment =
+                        Alignment
+                            .CenterVertically
+                ) {
+                    Column(
+                        Modifier
+                            .weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "每天自动检查更新",
+                            fontWeight =
+                                FontWeight
+                                    .Medium
+                        )
+
+                        Text(
+                            "检测到新版本时会弹窗提醒，不会自动安装。",
+                            color =
+                                SettingsMuted,
+                            fontSize =
+                                12.sp
+                        )
+                    }
+
+                    Switch(
+                        checked =
+                            autoUpdateCheck,
+                        onCheckedChange = {
+                            autoUpdateCheck =
+                                it
+
+                            AppUpdater
+                                .setAutoCheckEnabled(
+                                    context,
+                                    it
+                                )
+                        }
+                    )
+                }
+
+                Spacer(
+                    Modifier.height(
+                        8.dp
+                    )
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        checkForUpdate()
+                    },
+                    enabled =
+                        !checkingUpdate,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Outlined.Refresh,
+                        null
+                    )
+
+                    Spacer(
+                        Modifier.width(
+                            8.dp
+                        )
+                    )
+
+                    Text(
+                        if (
+                            checkingUpdate
+                        ) {
+                            "正在检查…"
+                        } else {
+                            "检查更新"
+                        }
+                    )
+                }
+
+                val update =
+                    manualUpdate
+
+                if (update != null) {
+                    Spacer(
+                        Modifier.height(
+                            12.dp
+                        )
+                    )
+
+                    Text(
+                        update.title,
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+
+                    Spacer(
+                        Modifier.height(
+                            4.dp
+                        )
+                    )
+
+                    Text(
+                        update.notes
+                            .take(
+                                700
+                            ),
+                        color =
+                            SettingsMuted,
+                        fontSize =
+                            13.sp,
+                        lineHeight =
+                            19.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(
+                            10.dp
+                        )
+                    )
+
+                    Button(
+                        onClick = {
+                            AppUpdater
+                                .enqueueUpdate(
+                                    context,
+                                    update
+                                )
+
+                            updateMessage =
+                                "V" +
+                                    update
+                                        .versionName +
+                                    " 已开始下载，完成后会打开系统安装页"
+
+                            manualUpdate =
+                                null
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Outlined.Download,
+                            null
+                        )
+
+                        Spacer(
+                            Modifier.width(
+                                8.dp
+                            )
+                        )
+
+                        Text(
+                            "立即更新到 V" +
+                                update
+                                    .versionName
+                        )
                     }
                 }
             }

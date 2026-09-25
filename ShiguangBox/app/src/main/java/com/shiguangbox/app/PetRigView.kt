@@ -178,15 +178,42 @@ class PetRigView @JvmOverloads constructor(
     }
 
     fun startIdle() {
-        val now = System.nanoTime()
-        state = State.IDLE
-        stateStartNanos = now
-        idleEpochNanos = now
-        lastInteractionNanos = now
-        blinkStartNanos = 0L
-        scheduleNextBlink(now)
-        scheduleNextIdleAction(now)
-        paused = false
+        val now =
+            System.nanoTime()
+        val oldState =
+            state
+
+        state =
+            State.IDLE
+        stateStartNanos =
+            now
+        idleEpochNanos =
+            now
+        lastInteractionNanos =
+            now
+        blinkStartNanos =
+            0L
+
+        scheduleNextBlink(
+            now
+        )
+        scheduleNextIdleAction(
+            now
+        )
+
+        if (
+            oldState !=
+            State.IDLE
+        ) {
+            stateChangeListener
+                ?.invoke(
+                    oldState,
+                    State.IDLE
+                )
+        }
+
+        paused =
+            false
         postFrame()
     }
 
@@ -366,6 +393,7 @@ class PetRigView @JvmOverloads constructor(
         Choreographer.getInstance()
             .removeFrameCallback(this)
         callbackPosted = false
+        stateChangeListener = null
         yutuanRainSystem?.reset()
 
         // Resource bitmaps are intentionally NOT recycled manually.

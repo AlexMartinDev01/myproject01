@@ -138,6 +138,9 @@ private val navItems = listOf(
 
 class MainActivity : ComponentActivity() {
 
+    private var updateCheckTrigger by
+        mutableIntStateOf(0)
+
     private val updateDownloadReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(
@@ -185,6 +188,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ShiguangBoxApp(
+                updateCheckTrigger =
+                    updateCheckTrigger,
                 requestNotifications = {
                     if (Build.VERSION.SDK_INT >= 33 &&
                         ActivityCompat.checkSelfPermission(
@@ -210,6 +215,8 @@ class MainActivity : ComponentActivity() {
             .tryInstallPendingUpdate(
                 this
             )
+
+        updateCheckTrigger += 1
     }
 
     override fun onDestroy() {
@@ -224,7 +231,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ShiguangBoxApp(requestNotifications: () -> Unit) {
+fun ShiguangBoxApp(
+    updateCheckTrigger: Int,
+    requestNotifications: () -> Unit
+) {
     val context = LocalContext.current
     val prefs = remember {
         context.getSharedPreferences("shiguangbox_settings", Context.MODE_PRIVATE)
@@ -319,7 +329,8 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
     }
 
     LaunchedEffect(
-        onboardingDone
+        onboardingDone,
+        updateCheckTrigger
     ) {
         if (
             onboardingDone &&
@@ -327,10 +338,6 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
                 context
             )
         ) {
-            AppUpdater.markAutoChecked(
-                context
-            )
-
             when (
                 val result =
                     AppUpdater
@@ -338,11 +345,24 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
                             context
                         )
             ) {
-                is UpdateCheckResult.Available ->
+                is UpdateCheckResult.Available -> {
+                    AppUpdater.markAutoChecked(
+                        context
+                    )
                     availableUpdate =
                         result.info
+                }
 
-                else -> Unit
+                UpdateCheckResult.UpToDate -> {
+                    AppUpdater.markAutoChecked(
+                        context
+                    )
+                }
+
+                is UpdateCheckResult.Error -> {
+                    // Do not consume the check interval on a failed request.
+                    // The next foreground entry can retry.
+                }
             }
         }
     }

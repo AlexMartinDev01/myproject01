@@ -83,6 +83,7 @@ fun SettingsScreen(
 
     var saveMessage by rememberSaveable { mutableStateOf("") }
     var exporting by rememberSaveable { mutableStateOf(false) }
+    var importing by rememberSaveable { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -103,6 +104,122 @@ fun SettingsScreen(
             }
         }
     }
+
+    val restoreLauncher =
+        rememberLauncherForActivityResult(
+            contract =
+                ActivityResultContracts
+                    .OpenDocument()
+        ) { uri ->
+            if (uri != null) {
+                importing = true
+
+                scope.launch {
+                    runCatching {
+                        val jsonText =
+                            withContext(
+                                Dispatchers.IO
+                            ) {
+                                context
+                                    .contentResolver
+                                    .openInputStream(
+                                        uri
+                                    )
+                                    ?.bufferedReader()
+                                    ?.use {
+                                        it.readText()
+                                    }
+                                    ?: error(
+                                        "无法读取备份文件"
+                                    )
+                            }
+
+                        val result =
+                            withContext(
+                                Dispatchers.IO
+                            ) {
+                                BackupUtils
+                                    .restoreBackup(
+                                        context,
+                                        db,
+                                        jsonText
+                                    )
+                            }
+
+                        val restoredPrefs =
+                            context
+                                .getSharedPreferences(
+                                    "shiguangbox_settings",
+                                    Context.MODE_PRIVATE
+                                )
+
+                        name =
+                            restoredPrefs
+                                .getString(
+                                    "name",
+                                    "我"
+                                ) ?: "我"
+
+                        city =
+                            restoredPrefs
+                                .getString(
+                                    "city",
+                                    ""
+                                ) ?: ""
+
+                        summaryTime =
+                            restoredPrefs
+                                .getString(
+                                    "summary_time",
+                                    "22:30"
+                                ) ?: "22:30"
+
+                        autoSummary =
+                            restoredPrefs
+                                .getBoolean(
+                                    "auto_summary",
+                                    false
+                                )
+
+                        autoFavoriteAi =
+                            restoredPrefs
+                                .getBoolean(
+                                    "auto_favorite_ai",
+                                    false
+                                )
+
+                        DailySummaryScheduler
+                            .schedule(
+                                context,
+                                summaryTime
+                            )
+
+                        "恢复完成：记录 " +
+                            result.notes +
+                            "，待办 " +
+                            result.tasks +
+                            "，收藏 " +
+                            result.favorites +
+                            "，总结 " +
+                            result.dailySummaries
+                    }
+                        .onSuccess {
+                            saveMessage =
+                                it
+                        }
+                        .onFailure {
+                            saveMessage =
+                                "恢复失败：" +
+                                    (
+                                        it.message
+                                            ?: "备份文件格式不正确"
+                                        )
+                        }
+
+                    importing = false
+                }
+            }
+        }
 
     fun checkForUpdate() {
         if (checkingUpdate) {
@@ -581,6 +698,49 @@ fun SettingsScreen(
                     Icon(Icons.Outlined.Download, null)
                     Spacer(Modifier.width(8.dp))
                     Text(if (exporting) "正在导出…" else "导出我的拾光盒")
+                }
+
+                Spacer(
+                    Modifier.height(
+                        8.dp
+                    )
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        restoreLauncher
+                            .launch(
+                                arrayOf(
+                                    "application/json",
+                                    "text/json",
+                                    "text/plain"
+                                )
+                            )
+                    },
+                    enabled =
+                        !importing,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Outlined.Upload,
+                        null
+                    )
+
+                    Spacer(
+                        Modifier.width(
+                            8.dp
+                        )
+                    )
+
+                    Text(
+                        if (importing) {
+                            "正在恢复…"
+                        } else {
+                            "从备份恢复"
+                        }
+                    )
                 }
             }
         }

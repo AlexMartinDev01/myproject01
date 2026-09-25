@@ -1,8 +1,11 @@
 package com.shiguangbox.app
 
 import android.Manifest
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
@@ -134,8 +137,52 @@ private val navItems = listOf(
 )
 
 class MainActivity : ComponentActivity() {
+
+    private val updateDownloadReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(
+                context: Context?,
+                intent: Intent?
+            ) {
+                if (
+                    intent?.action !=
+                    DownloadManager
+                        .ACTION_DOWNLOAD_COMPLETE
+                ) {
+                    return
+                }
+
+                val downloadId =
+                    intent.getLongExtra(
+                        DownloadManager
+                            .EXTRA_DOWNLOAD_ID,
+                        -1L
+                    )
+
+                if (downloadId >= 0L) {
+                    AppUpdater
+                        .onDownloadComplete(
+                            this@MainActivity,
+                            downloadId
+                        )
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        ContextCompat.registerReceiver(
+            this,
+            updateDownloadReceiver,
+            IntentFilter(
+                DownloadManager
+                    .ACTION_DOWNLOAD_COMPLETE
+            ),
+            ContextCompat
+                .RECEIVER_NOT_EXPORTED
+        )
+
         setContent {
             ShiguangBoxApp(
                 requestNotifications = {
@@ -155,6 +202,25 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+
+        AppUpdater
+            .tryInstallPendingUpdate(
+                this
+            )
+    }
+
+    override fun onDestroy() {
+        runCatching {
+            unregisterReceiver(
+                updateDownloadReceiver
+            )
+        }
+
+        super.onDestroy()
+    }
 }
 
 @Composable
@@ -171,6 +237,10 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
     }
     var journalThemeOffset by remember {
         mutableIntStateOf(prefs.getInt("journal_theme_offset", 0))
+    }
+
+    var availableUpdate by remember {
+        mutableStateOf<UpdateInfo?>(null)
     }
 
     val journalProfile = remember(journalMood, journalThemeOffset) {
@@ -248,6 +318,34 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
         }
     }
 
+
+    LaunchedEffect(
+        onboardingDone
+    ) {
+        if (
+            onboardingDone &&
+            AppUpdater.shouldAutoCheck(
+                context
+            )
+        ) {
+            AppUpdater.markAutoChecked(
+                context
+            )
+
+            when (
+                val result =
+                    AppUpdater
+                        .checkLatestRelease()
+            ) {
+                is UpdateCheckResult.Available ->
+                    availableUpdate =
+                        result.info
+
+                else -> Unit
+            }
+        }
+    }
+
     JournalMaterialTheme(profile = journalProfile) {
         if (!onboardingDone) {
             SetupScreen(
@@ -271,6 +369,94 @@ fun ShiguangBoxApp(requestNotifications: () -> Unit) {
                 journalMood = journalMood,
                 onSelectMood = selectMood,
                 onShuffleTheme = shuffleJournalTheme
+            )
+        }
+
+        val update =
+            availableUpdate
+
+        if (
+            onboardingDone &&
+            update != null
+        ) {
+            AlertDialog(
+                onDismissRequest = {
+                    availableUpdate =
+                        null
+                },
+                title = {
+                    Text(
+                        "发现新版本 V" +
+                            update
+                                .versionName
+                    )
+                },
+                text = {
+                    Column(
+                        verticalArrangement =
+                            Arrangement
+                                .spacedBy(
+                                    8.dp
+                                )
+                    ) {
+                        Text(
+                            update.title,
+                            fontWeight =
+                                FontWeight.Bold
+                        )
+
+                        Text(
+                            update.notes
+                                .take(
+                                    800
+                                ),
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant
+                        )
+
+                        Text(
+                            "下载完成后会自动打开 Android 系统安装页。",
+                            fontSize =
+                                12.sp,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            AppUpdater
+                                .enqueueUpdate(
+                                    context,
+                                    update
+                                )
+
+                            availableUpdate =
+                                null
+                        }
+                    ) {
+                        Text(
+                            "立即更新"
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            availableUpdate =
+                                null
+                        }
+                    ) {
+                        Text(
+                            "稍后"
+                        )
+                    }
+                }
             )
         }
     }

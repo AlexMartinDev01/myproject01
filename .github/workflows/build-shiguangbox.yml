@@ -47,7 +47,7 @@ jobs:
       - name: Verify V1.7.6 baseline
         shell: bash
         run: |
-          grep -q "versionCode 39" app/build.gradle
+          grep -q "versionCode 40" app/build.gradle
           grep -q "versionName '1.7.6'" app/build.gradle
 
       - name: Restore release keystore

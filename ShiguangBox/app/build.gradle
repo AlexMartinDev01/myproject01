@@ -4,6 +4,37 @@ plugins {
     id 'org.jetbrains.kotlin.kapt'
 }
 
+def releaseKeystorePath =
+    System.getenv(
+        "SHIGUANGBOX_KEYSTORE_FILE"
+    )
+
+def releaseStorePassword =
+    System.getenv(
+        "SHIGUANGBOX_STORE_PASSWORD"
+    )
+
+def releaseKeyAlias =
+    System.getenv(
+        "SHIGUANGBOX_KEY_ALIAS"
+    )
+
+def releaseKeyPassword =
+    System.getenv(
+        "SHIGUANGBOX_KEY_PASSWORD"
+    )
+
+def releaseSigningReady =
+    [
+        releaseKeystorePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+    ].every {
+        it != null &&
+            !it.trim().isEmpty()
+    }
+
 android {
     namespace 'com.shiguangbox.app'
     compileSdk 35
@@ -12,8 +43,44 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 39
-        versionName '1.7.6'
+        versionCode 40
+        versionName '1.7.7'
+    }
+
+    signingConfigs {
+        release {
+            if (
+                releaseSigningReady
+            ) {
+                storeFile =
+                    file(
+                        releaseKeystorePath
+                    )
+
+                storePassword =
+                    releaseStorePassword
+
+                keyAlias =
+                    releaseKeyAlias
+
+                keyPassword =
+                    releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (
+                releaseSigningReady
+            ) {
+                signingConfig =
+                    signingConfigs.release
+            }
+
+            minifyEnabled false
+            shrinkResources false
+        }
     }
 
     buildFeatures {

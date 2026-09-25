@@ -14,6 +14,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -39,6 +42,31 @@ sealed interface UpdateCheckResult {
     data class Error(
         val message: String
     ) : UpdateCheckResult
+}
+
+sealed interface UpdateDownloadState {
+    data object Idle :
+        UpdateDownloadState
+
+    data class Downloading(
+        val versionName: String,
+        val percent: Int?,
+        val downloadedBytes: Long,
+        val totalBytes: Long?
+    ) : UpdateDownloadState
+
+    data class ReadyToInstall(
+        val versionName: String
+    ) : UpdateDownloadState
+
+    data class Installing(
+        val versionName: String
+    ) : UpdateDownloadState
+
+    data class Error(
+        val versionName: String,
+        val message: String
+    ) : UpdateDownloadState
 }
 
 object AppUpdater {
@@ -69,6 +97,20 @@ object AppUpdater {
             SupervisorJob() +
                 Dispatchers.Main.immediate
         )
+
+    private val _downloadState =
+        MutableStateFlow<UpdateDownloadState>(
+            UpdateDownloadState.Idle
+        )
+
+    val downloadState:
+        StateFlow<UpdateDownloadState> =
+        _downloadState.asStateFlow()
+
+    fun resetDownloadState() {
+        _downloadState.value =
+            UpdateDownloadState.Idle
+    }
 
     suspend fun checkLatestRelease(
         context: Context
@@ -120,21 +162,31 @@ object AppUpdater {
             context as? Activity
 
         if (activity == null) {
-            Toast.makeText(
-                context,
-                "无法启动更新，请重新打开拾光盒后再试",
-                Toast.LENGTH_LONG
-            ).show()
+            _downloadState.value =
+                UpdateDownloadState.Error(
+                    versionName =
+                        info.versionName,
+                    message =
+                        "无法启动更新，请重新打开拾光盒后再试"
+                )
             return
         }
 
-        Toast.makeText(
-            activity,
-            "正在下载 V" +
-                info.versionName +
-                "，请稍候…",
-            Toast.LENGTH_SHORT
-        ).show()
+        if (
+            _downloadState.value is
+            UpdateDownloadState.Downloading
+        ) {
+            return
+        }
+
+        _downloadState.value =
+            UpdateDownloadState.Downloading(
+                versionName =
+                    info.versionName,
+                percent = 0,
+                downloadedBytes = 0L,
+                totalBytes = null
+            )
 
         scope.launch {
             val result =
@@ -144,7 +196,40 @@ object AppUpdater {
                     downloadWithRetry(
                         activity.applicationContext,
                         info
-                    )
+                    ) {
+                        downloadedBytes,
+                        totalBytes ->
+
+                        val percent =
+                            totalBytes
+                                ?.takeIf {
+                                    it > 0L
+                                }
+                                ?.let {
+                                    (
+                                        downloadedBytes *
+                                            100L /
+                                            it
+                                        )
+                                        .coerceIn(
+                                            0L,
+                                            100L
+                                        )
+                                        .toInt()
+                                }
+
+                        _downloadState.value =
+                            UpdateDownloadState.Downloading(
+                                versionName =
+                                    info.versionName,
+                                percent =
+                                    percent,
+                                downloadedBytes =
+                                    downloadedBytes,
+                                totalBytes =
+                                    totalBytes
+                            )
+                    }
                 }
 
             result.fold(
@@ -154,26 +239,24 @@ object AppUpdater {
                         apkFile
                     )
 
-                    Toast.makeText(
-                        activity,
-                        "下载完成，正在打开安装页面",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    _downloadState.value =
+                        UpdateDownloadState.ReadyToInstall(
+                            info.versionName
+                        )
 
                     tryInstallPendingUpdate(
                         activity
                     )
                 },
                 onFailure = { error ->
-                    Toast.makeText(
-                        activity,
-                        "更新下载失败：" +
-                            (
+                    _downloadState.value =
+                        UpdateDownloadState.Error(
+                            versionName =
+                                info.versionName,
+                            message =
                                 error.message
                                     ?: "网络连接异常"
-                                ),
-                        Toast.LENGTH_LONG
-                    ).show()
+                        )
                 }
             )
         }
@@ -293,6 +376,9 @@ object AppUpdater {
                 apkFile.delete()
             }
 
+            _downloadState.value =
+                UpdateDownloadState.Idle
+
             return false
         }
 
@@ -333,10 +419,6 @@ object AppUpdater {
             return true
         }
 
-        clearPendingInstall(
-            prefs
-        )
-
         val apkUri =
             FileProvider.getUriForFile(
                 activity,
@@ -345,21 +427,49 @@ object AppUpdater {
                 apkFile
             )
 
-        activity.startActivity(
-            Intent(
-                Intent.ACTION_VIEW
-            )
-                .setDataAndType(
-                    apkUri,
-                    APK_MIME
-                )
-                .addFlags(
-                    Intent
-                        .FLAG_GRANT_READ_URI_PERMISSION
-                )
-        )
+        val versionName =
+            downloadedPackage
+                .versionName
+                ?: ""
 
-        return true
+        return runCatching {
+            activity.startActivity(
+                Intent(
+                    Intent.ACTION_VIEW
+                )
+                    .setDataAndType(
+                        apkUri,
+                        APK_MIME
+                    )
+                    .addFlags(
+                        Intent
+                            .FLAG_GRANT_READ_URI_PERMISSION
+                    )
+            )
+
+            clearPendingInstall(
+                prefs
+            )
+
+            _downloadState.value =
+                UpdateDownloadState.Installing(
+                    versionName
+                )
+
+            true
+        }
+            .getOrElse {
+                _downloadState.value =
+                    UpdateDownloadState.Error(
+                        versionName =
+                            versionName,
+                        message =
+                            it.message
+                                ?: "无法打开系统安装页面"
+                    )
+
+                false
+            }
     }
 
     private fun clearPendingInstall(
@@ -397,7 +507,11 @@ object AppUpdater {
 
     private fun downloadWithRetry(
         context: Context,
-        info: UpdateInfo
+        info: UpdateInfo,
+        onProgress: (
+            downloadedBytes: Long,
+            totalBytes: Long?
+        ) -> Unit
     ): Result<File> {
         var lastError:
             Throwable? =
@@ -408,7 +522,8 @@ object AppUpdater {
                 return Result.success(
                     downloadApk(
                         context,
-                        info
+                        info,
+                        onProgress
                     )
                 )
             } catch (
@@ -436,7 +551,11 @@ object AppUpdater {
 
     private fun downloadApk(
         context: Context,
-        info: UpdateInfo
+        info: UpdateInfo,
+        onProgress: (
+            downloadedBytes: Long,
+            totalBytes: Long?
+        ) -> Unit
     ): File {
         val updateDir =
             File(
@@ -576,6 +695,16 @@ object AppUpdater {
                     )
                 }
 
+                val totalBytes =
+                    connection!!
+                        .contentLengthLong
+                        .takeIf {
+                            it > 0L
+                        }
+
+                var downloadedBytes =
+                    0L
+
                 tempFile
                     .outputStream()
                     .buffered(
@@ -590,10 +719,35 @@ object AppUpdater {
                             )
                             .use {
                                 input ->
-                                input.copyTo(
-                                    output,
-                                    64 * 1024
-                                )
+                                val buffer =
+                                    ByteArray(
+                                        64 * 1024
+                                    )
+
+                                while (true) {
+                                    val count =
+                                        input.read(
+                                            buffer
+                                        )
+
+                                    if (count < 0) {
+                                        break
+                                    }
+
+                                    output.write(
+                                        buffer,
+                                        0,
+                                        count
+                                    )
+
+                                    downloadedBytes +=
+                                        count
+
+                                    onProgress(
+                                        downloadedBytes,
+                                        totalBytes
+                                    )
+                                }
                             }
                     }
 

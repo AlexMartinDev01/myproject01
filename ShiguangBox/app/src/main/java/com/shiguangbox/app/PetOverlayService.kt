@@ -79,6 +79,12 @@ class PetOverlayService : Service() {
     private var yutuanWeatherRunnable:
         Runnable? = null
 
+    private var yutuanSleepWeatherRunnable:
+        Runnable? = null
+
+    private var yutuanSleepWeatherSuspended =
+        false
+
     private var rainbowFollowRunnable:
         Runnable? = null
 
@@ -325,6 +331,15 @@ class PetOverlayService : Service() {
                 sleepMinutes =
                     prefs.getInt("pet_sleep_minutes", 4)
             )
+
+            setStateChangeListener {
+                previous,
+                current ->
+                handleYutuanStateChange(
+                    previous,
+                    current
+                )
+            }
         }
 
         image.setOnTouchListener(PetTouchListener(image, params))
@@ -762,10 +777,236 @@ class PetOverlayService : Service() {
     }
 
 
+    private fun handleYutuanStateChange(
+        previous:
+            PetRigView.State,
+        current:
+            PetRigView.State
+    ) {
+        val pet =
+            petView ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YUTUAN.id
+        ) {
+            return
+        }
+
+        yutuanSleepWeatherRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+        yutuanSleepWeatherRunnable =
+            null
+
+        when (current) {
+            PetRigView.State.TIRED -> {
+                yutuanSleepWeatherSuspended =
+                    true
+
+                yutuanWeatherRunnable
+                    ?.let {
+                        handler.removeCallbacks(
+                            it
+                        )
+                    }
+                yutuanWeatherRunnable =
+                    null
+
+                hideYutuanRainbow(
+                    immediate = false
+                )
+
+                pet.setYutuanRainTarget(
+                    0.36f
+                )
+            }
+
+            PetRigView.State.SLEEP -> {
+                yutuanSleepWeatherSuspended =
+                    true
+
+                yutuanWeatherRunnable
+                    ?.let {
+                        handler.removeCallbacks(
+                            it
+                        )
+                    }
+                yutuanWeatherRunnable =
+                    null
+
+                hideYutuanRainbow(
+                    immediate = true
+                )
+
+                pet.setYutuanRainTarget(
+                    0.12f
+                )
+
+                val runnable =
+                    Runnable {
+                        val currentPet =
+                            petView
+                                ?: return@Runnable
+
+                        if (
+                            currentPet
+                                .currentPetId() ==
+                            PetKind.YUTUAN.id &&
+                            currentPet
+                                .currentState() ==
+                            PetRigView.State.SLEEP
+                        ) {
+                            currentPet
+                                .setYutuanRainTarget(
+                                    if (
+                                        kotlin.random.Random
+                                            .nextFloat() <
+                                        0.72f
+                                    ) {
+                                        0f
+                                    } else {
+                                        0.08f
+                                    }
+                                )
+                        }
+                    }
+
+                yutuanSleepWeatherRunnable =
+                    runnable
+
+                handler.postDelayed(
+                    runnable,
+                    2_400L
+                )
+            }
+
+            PetRigView.State.WAKE_UP -> {
+                yutuanSleepWeatherSuspended =
+                    true
+
+                yutuanWeatherRunnable
+                    ?.let {
+                        handler.removeCallbacks(
+                            it
+                        )
+                    }
+                yutuanWeatherRunnable =
+                    null
+
+                hideYutuanRainbow(
+                    immediate = true
+                )
+
+                pet.setYutuanRainTarget(
+                    0.22f
+                )
+            }
+
+            PetRigView.State.IDLE -> {
+                if (
+                    yutuanSleepWeatherSuspended
+                ) {
+                    yutuanSleepWeatherSuspended =
+                        false
+
+                    hideYutuanRainbow(
+                        immediate = true
+                    )
+
+                    pet.setYutuanRainTarget(
+                        0.48f
+                    )
+
+                    val first =
+                        Runnable {
+                            val currentPet =
+                                petView
+                                    ?: return@Runnable
+
+                            if (
+                                currentPet
+                                    .currentPetId() !=
+                                PetKind.YUTUAN.id ||
+                                currentPet
+                                    .currentState() !=
+                                PetRigView.State.IDLE
+                            ) {
+                                return@Runnable
+                            }
+
+                            currentPet
+                                .setYutuanRainTarget(
+                                    0.76f
+                                )
+
+                            val second =
+                                Runnable {
+                                    val idlePet =
+                                        petView
+                                            ?: return@Runnable
+
+                                    if (
+                                        idlePet
+                                            .currentPetId() !=
+                                        PetKind.YUTUAN.id ||
+                                        idlePet
+                                            .currentState() !=
+                                        PetRigView.State.IDLE
+                                    ) {
+                                        return@Runnable
+                                    }
+
+                                    idlePet
+                                        .setYutuanRainTarget(
+                                            1f
+                                        )
+
+                                    scheduleYutuanRainStop()
+                                }
+
+                            yutuanSleepWeatherRunnable =
+                                second
+
+                            handler.postDelayed(
+                                second,
+                                1_250L
+                            )
+                        }
+
+                    yutuanSleepWeatherRunnable =
+                        first
+
+                    handler.postDelayed(
+                        first,
+                        850L
+                    )
+                }
+            }
+
+            else -> {
+                if (
+                    yutuanSleepWeatherSuspended
+                ) {
+                    pet.setYutuanRainTarget(
+                        0.32f
+                    )
+                }
+            }
+        }
+    }
+
+
     private fun startYutuanWeatherCycle() {
         stopYutuanWeatherCycle(
             resetRain = false
         )
+
+        yutuanSleepWeatherSuspended =
+            false
 
         val pet =
             petView ?: return
@@ -1283,6 +1524,18 @@ class PetOverlayService : Service() {
     private fun stopYutuanWeatherCycle(
         resetRain: Boolean = true
     ) {
+        yutuanSleepWeatherRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        yutuanSleepWeatherRunnable =
+            null
+        yutuanSleepWeatherSuspended =
+            false
+
         yutuanWeatherRunnable
             ?.let {
                 handler.removeCallbacks(

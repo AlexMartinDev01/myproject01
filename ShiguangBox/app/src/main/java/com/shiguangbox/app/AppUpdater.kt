@@ -52,6 +52,9 @@ object AppUpdater {
     private const val KEY_PENDING_VERSION =
         "pending_version"
 
+    private const val KEY_INSTALL_PERMISSION_REQUESTED =
+        "install_permission_requested"
+
     private const val APK_MIME =
         "application/vnd.android.package-archive"
 
@@ -362,6 +365,8 @@ object AppUpdater {
         val fileName =
             "ShiguangBox_v" +
                 info.versionName +
+                "_" +
+                System.currentTimeMillis() +
                 ".apk"
 
         val request =
@@ -417,6 +422,10 @@ object AppUpdater {
             .putString(
                 KEY_PENDING_VERSION,
                 info.versionName
+            )
+            .putBoolean(
+                KEY_INSTALL_PERMISSION_REQUESTED,
+                false
             )
             .apply()
 
@@ -523,6 +532,26 @@ object AppUpdater {
                 .packageManager
                 .canRequestPackageInstalls()
         ) {
+            val alreadyRequested =
+                prefs.getBoolean(
+                    KEY_INSTALL_PERMISSION_REQUESTED,
+                    false
+                )
+
+            if (
+                alreadyRequested
+            ) {
+                return false
+            }
+
+            prefs
+                .edit()
+                .putBoolean(
+                    KEY_INSTALL_PERMISSION_REQUESTED,
+                    true
+                )
+                .apply()
+
             activity
                 .startActivity(
                     Intent(
@@ -539,6 +568,14 @@ object AppUpdater {
             return true
         }
 
+        prefs
+            .edit()
+            .putBoolean(
+                KEY_INSTALL_PERMISSION_REQUESTED,
+                false
+            )
+            .apply()
+
         val apkUri =
             manager
                 .getUriForDownloadedFile(
@@ -553,6 +590,9 @@ object AppUpdater {
             )
             .remove(
                 KEY_PENDING_VERSION
+            )
+            .remove(
+                KEY_INSTALL_PERMISSION_REQUESTED
             )
             .apply()
 

@@ -253,6 +253,10 @@ fun ShiguangBoxApp(
         mutableStateOf<UpdateInfo?>(null)
     }
 
+    val updateDownloadState by
+        AppUpdater.downloadState
+            .collectAsState()
+
     val journalProfile = remember(journalMood, journalThemeOffset) {
         resolveJournalTheme(
             moodId = journalMood,
@@ -471,6 +475,141 @@ fun ShiguangBoxApp(
                     }
                 }
             )
+        }
+
+        when (
+            val download =
+                updateDownloadState
+        ) {
+            is UpdateDownloadState.Downloading -> {
+                AlertDialog(
+                    onDismissRequest = {},
+                    title = {
+                        Text(
+                            "正在下载 V" +
+                                download.versionName
+                        )
+                    },
+                    text = {
+                        Column(
+                            verticalArrangement =
+                                Arrangement.spacedBy(
+                                    10.dp
+                                )
+                        ) {
+                            if (
+                                download.percent !=
+                                null
+                            ) {
+                                LinearProgressIndicator(
+                                    progress =
+                                        download.percent /
+                                            100f,
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                )
+
+                                Text(
+                                    "下载进度 " +
+                                        download.percent +
+                                        "%",
+                                    fontWeight =
+                                        FontWeight.Medium
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                )
+
+                                Text(
+                                    "正在连接更新服务器…",
+                                    fontWeight =
+                                        FontWeight.Medium
+                                )
+                            }
+
+                            Text(
+                                "请保持拾光盒在前台，下载完成后会自动打开 Android 系统安装页面。",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
+
+            is UpdateDownloadState.ReadyToInstall -> {
+                AlertDialog(
+                    onDismissRequest = {},
+                    title = {
+                        Text("下载完成")
+                    },
+                    text = {
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically,
+                            horizontalArrangement =
+                                Arrangement.spacedBy(
+                                    12.dp
+                                )
+                        ) {
+                            CircularProgressIndicator(
+                                modifier =
+                                    Modifier.size(
+                                        24.dp
+                                    ),
+                                strokeWidth =
+                                    3.dp
+                            )
+                            Text(
+                                "正在打开 V" +
+                                    download.versionName +
+                                    " 的系统安装页面…"
+                            )
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
+
+            is UpdateDownloadState.Error -> {
+                AlertDialog(
+                    onDismissRequest = {
+                        AppUpdater
+                            .resetDownloadState()
+                    },
+                    title = {
+                        Text("更新下载失败")
+                    },
+                    text = {
+                        Text(
+                            "V" +
+                                download.versionName +
+                                "：" +
+                                download.message
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                AppUpdater
+                                    .resetDownloadState()
+                            }
+                        ) {
+                            Text("知道了")
+                        }
+                    }
+                )
+            }
+
+            else -> Unit
         }
     }
 }

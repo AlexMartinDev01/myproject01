@@ -2,6 +2,7 @@ package com.shiguangbox.app
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -159,7 +160,7 @@ object AppUpdater {
         info: UpdateInfo
     ) {
         val activity =
-            context as? Activity
+            context.findActivity()
 
         if (activity == null) {
             _downloadState.value =
@@ -484,6 +485,19 @@ object AppUpdater {
             )
             .apply()
     }
+
+    private tailrec fun Context.findActivity():
+        Activity? =
+        when (this) {
+            is Activity ->
+                this
+
+            is ContextWrapper ->
+                baseContext.findActivity()
+
+            else ->
+                null
+        }
 
     private fun savePendingApk(
         context: Context,

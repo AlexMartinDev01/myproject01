@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
@@ -41,6 +42,13 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 class PetOverlayService : Service() {
+
+    private data class BubblePlacement(
+        val x: Int,
+        val y: Int,
+        val placeAbove: Boolean,
+        val score: Int
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val handler = Handler(Looper.getMainLooper())
@@ -1171,7 +1179,7 @@ class PetOverlayService : Service() {
                         durationMs =
                             4_800L,
                         preferBelow =
-                            true
+                            false
                     )
                 }
             },
@@ -2133,9 +2141,10 @@ class PetOverlayService : Service() {
         val pet =
             petParams ?: return
 
-        if (speechBubble != null &&
+        if (
+            speechBubble != null &&
             priority <
-                speechBubblePriority
+            speechBubblePriority
         ) {
             return
         }
@@ -2153,6 +2162,27 @@ class PetOverlayService : Service() {
             resources
                 .displayMetrics
                 .heightPixels
+
+        val rainbowRect =
+            rainbowParams
+                ?.let {
+                    Rect(
+                        it.x,
+                        it.y,
+                        it.x +
+                            it.width,
+                        it.y +
+                            it.height
+                    )
+                }
+
+        val compactForRainbow =
+            rainbowRect != null &&
+                view.isDecorativeTheme()
+
+        view.setCompactMode(
+            compactForRainbow
+        )
 
         val bubbleWidth =
             view.preferredWidthPx(
@@ -2186,76 +2216,24 @@ class PetOverlayService : Service() {
                     view.minimumOverlayHeightPx()
                 )
 
-        val availableAbove =
-            pet.y - dp(24)
-
-        val availableBelow =
-            screenH -
-                (
-                    pet.y +
-                        pet.height
-                    ) -
-                dp(28)
-
-        val placeAbove =
-            if (preferBelow) {
-                false
-            } else if (
-                view.isDecorativeTheme()
-            ) {
-                availableAbove >=
-                    measuredH ||
-                    availableAbove >=
-                        availableBelow
-            } else {
-                pet.y > dp(138)
-            }
+        val placement =
+            resolveSpeechBubblePlacement(
+                pet = pet,
+                bubbleWidth = bubbleWidth,
+                bubbleHeight = measuredH,
+                screenW = screenW,
+                screenH = screenH,
+                rainbowRect = rainbowRect,
+                preferBelow = preferBelow
+            )
 
         val petCenterX =
             pet.x +
                 pet.width / 2
 
-        val preferredX =
-            (
-                petCenterX -
-                    bubbleWidth *
-                    view.tailAnchorFraction()
-                ).toInt()
-
-        val x =
-            preferredX
-                .coerceIn(
-                    dp(8),
-                    screenW -
-                        bubbleWidth -
-                        dp(8)
-                )
-
-        val y =
-            if (placeAbove) {
-                (
-                    pet.y -
-                        measuredH +
-                        dp(7)
-                    )
-                    .coerceAtLeast(
-                        dp(24)
-                    )
-            } else {
-                (
-                    pet.y +
-                        pet.height -
-                        dp(7)
-                    )
-                    .coerceAtMost(
-                        screenH -
-                            measuredH -
-                            dp(28)
-                    )
-            }
-
         val tailCenter =
-            (petCenterX - x)
+            (petCenterX -
+                placement.x)
                 .toFloat()
                 .coerceIn(
                     dp(34).toFloat(),
@@ -2266,8 +2244,10 @@ class PetOverlayService : Service() {
                 )
 
         view.setTail(
-            atTop = !placeAbove,
-            centerPx = tailCenter
+            atTop =
+                !placement.placeAbove,
+            centerPx =
+                tailCenter
         )
 
         val params =
@@ -2292,8 +2272,10 @@ class PetOverlayService : Service() {
                     gravity =
                         Gravity.TOP or
                             Gravity.START
-                    this.x = x
-                    this.y = y
+                    x =
+                        placement.x
+                    y =
+                        placement.y
                 }
 
         runCatching {
@@ -2302,17 +2284,23 @@ class PetOverlayService : Service() {
                 params
             )
 
-            speechBubble = view
+            speechBubble =
+                view
             speechBubbleParams =
                 params
             speechBubblePriority =
                 priority
 
-            view.alpha = 0f
-            view.scaleX = 0.94f
-            view.scaleY = 0.94f
+            view.alpha =
+                0f
+            view.scaleX =
+                0.94f
+            view.scaleY =
+                0.94f
             view.translationY =
-                if (placeAbove) {
+                if (
+                    placement.placeAbove
+                ) {
                     dp(6).toFloat()
                 } else {
                     -dp(6).toFloat()
@@ -2344,6 +2332,312 @@ class PetOverlayService : Service() {
                 )
             }
         }
+    }
+
+    private fun resolveSpeechBubblePlacement(
+        pet:
+            WindowManager.LayoutParams,
+        bubbleWidth: Int,
+        bubbleHeight: Int,
+        screenW: Int,
+        screenH: Int,
+        rainbowRect: Rect?,
+        preferBelow: Boolean
+    ): BubblePlacement {
+        val safeLeft =
+            dp(8)
+        val safeRight =
+            screenW -
+                dp(8)
+        val safeTop =
+            dp(20)
+        val safeBottom =
+            screenH -
+                dp(28)
+
+        val petCenterX =
+            pet.x +
+                pet.width / 2
+
+        val tailEdgeOffset =
+            dp(44)
+
+        val leftX =
+            petCenterX -
+                bubbleWidth +
+                tailEdgeOffset
+
+        val rightX =
+            petCenterX -
+                tailEdgeOffset
+
+        val aboveY =
+            pet.y -
+                bubbleHeight +
+                dp(4)
+
+        val belowY =
+            pet.y +
+                pet.height -
+                dp(4)
+
+        val candidates =
+            listOf(
+                BubblePlacement(
+                    x = leftX,
+                    y = aboveY,
+                    placeAbove = true,
+                    score = 0
+                ),
+                BubblePlacement(
+                    x = rightX,
+                    y = aboveY,
+                    placeAbove = true,
+                    score = 0
+                ),
+                BubblePlacement(
+                    x = leftX,
+                    y = belowY,
+                    placeAbove = false,
+                    score = 0
+                ),
+                BubblePlacement(
+                    x = rightX,
+                    y = belowY,
+                    placeAbove = false,
+                    score = 0
+                )
+            )
+
+        val petRect =
+            Rect(
+                pet.x,
+                pet.y,
+                pet.x +
+                    pet.width,
+                pet.y +
+                    pet.height
+            )
+
+        val expandedRainbow =
+            rainbowRect
+                ?.let {
+                    Rect(
+                        it.left -
+                            dp(8),
+                        it.top -
+                            dp(8),
+                        it.right +
+                            dp(8),
+                        it.bottom +
+                            dp(8)
+                    )
+                }
+
+        fun scoreCandidate(
+            candidate:
+                BubblePlacement
+        ): Int {
+            val rect =
+                Rect(
+                    candidate.x,
+                    candidate.y,
+                    candidate.x +
+                        bubbleWidth,
+                    candidate.y +
+                        bubbleHeight
+                )
+
+            var score =
+                10_000
+
+            val overflowLeft =
+                (
+                    safeLeft -
+                        rect.left
+                    )
+                    .coerceAtLeast(0)
+
+            val overflowRight =
+                (
+                    rect.right -
+                        safeRight
+                    )
+                    .coerceAtLeast(0)
+
+            val overflowTop =
+                (
+                    safeTop -
+                        rect.top
+                    )
+                    .coerceAtLeast(0)
+
+            val overflowBottom =
+                (
+                    rect.bottom -
+                        safeBottom
+                    )
+                    .coerceAtLeast(0)
+
+            score -=
+                (
+                    overflowLeft +
+                        overflowRight +
+                        overflowTop +
+                        overflowBottom
+                    ) *
+                    24
+
+            if (
+                expandedRainbow != null &&
+                Rect.intersects(
+                    rect,
+                    expandedRainbow
+                )
+            ) {
+                score -=
+                    8_000
+            } else if (
+                expandedRainbow != null
+            ) {
+                score +=
+                    900
+            }
+
+            val petOverlap =
+                Rect(
+                    rect
+                )
+
+            if (
+                petOverlap.intersect(
+                    petRect
+                )
+            ) {
+                val overlapArea =
+                    petOverlap.width() *
+                        petOverlap.height()
+
+                score -=
+                    (
+                        overlapArea /
+                            10
+                        )
+                        .coerceAtMost(
+                            2_600
+                        )
+            } else {
+                score +=
+                    350
+            }
+
+            val bubbleCenterX =
+                candidate.x +
+                    bubbleWidth / 2
+
+            val bubbleIsLeft =
+                bubbleCenterX <
+                    petCenterX
+
+            val preferredLeft =
+                petCenterX >
+                    screenW / 2
+
+            if (
+                bubbleIsLeft ==
+                preferredLeft
+            ) {
+                score +=
+                    620
+            }
+
+            if (
+                preferBelow &&
+                !candidate
+                    .placeAbove
+            ) {
+                score +=
+                    240
+            }
+
+            if (
+                expandedRainbow != null &&
+                !candidate.placeAbove
+            ) {
+                score +=
+                    180
+            }
+
+            val verticalGap =
+                if (
+                    candidate.placeAbove
+                ) {
+                    kotlin.math.abs(
+                        pet.y -
+                            rect.bottom
+                    )
+                } else {
+                    kotlin.math.abs(
+                        rect.top -
+                            (
+                                pet.y +
+                                    pet.height
+                                )
+                    )
+                }
+
+            score -=
+                verticalGap *
+                    3
+
+            return score
+        }
+
+        val best =
+            candidates
+                .map {
+                    it.copy(
+                        score =
+                            scoreCandidate(
+                                it
+                            )
+                    )
+                }
+                .maxByOrNull {
+                    it.score
+                }
+                ?: candidates.first()
+
+        val finalX =
+            best.x
+                .coerceIn(
+                    safeLeft,
+                    (
+                        safeRight -
+                            bubbleWidth
+                        )
+                        .coerceAtLeast(
+                            safeLeft
+                        )
+                )
+
+        val finalY =
+            best.y
+                .coerceIn(
+                    safeTop,
+                    (
+                        safeBottom -
+                            bubbleHeight
+                        )
+                        .coerceAtLeast(
+                            safeTop
+                        )
+                )
+
+        return best.copy(
+            x = finalX,
+            y = finalY
+        )
     }
 
     private fun hideSpeechBubble(

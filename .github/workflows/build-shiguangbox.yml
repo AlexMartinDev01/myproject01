@@ -121,7 +121,22 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.8.0" ]]; then
+          if [[ "$VERSION_NAME" == "1.8.1" ]]; then
+            RELEASE_TITLE="拾光盒 V1.8.1 · 气泡智能布局修复"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.8.1 · 气泡智能布局修复
+
+          - versionCode: $VERSION_CODE
+          - 气泡会根据宠物左右位置自动选择更自然的位置
+          - 气泡尾巴会自动朝向宠物，不再固定方向
+          - 彩虹出现时气泡自动避让彩虹区域
+          - 彩虹场景启用更紧凑的装饰气泡尺寸
+          - 气泡在宠物下方时，装饰背景尾巴会上翻指向宠物
+          - 宠物、天气、在线更新和其他业务逻辑保持不变
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.8.0" ]]; then
             RELEASE_TITLE="拾光盒 V1.8.0 · 雨团睡眠天气联动"
             cat > release-notes.md <<EOF
           拾光盒 V1.8.0 · 雨团睡眠天气联动

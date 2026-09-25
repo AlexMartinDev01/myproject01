@@ -1,4 +1,4 @@
-name: Build ShiguangBox APK
+name: Build and Release ShiguangBox V1.7.6
 
 on:
   workflow_dispatch:
@@ -9,9 +9,23 @@ on:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
 
+permissions:
+  contents: write
+
+concurrency:
+  group: shiguangbox-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      RELEASE_KEYSTORE_B64: ${{ secrets.SHIGUANGBOX_KEYSTORE_BASE64 }}
+      RELEASE_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+
     defaults:
       run:
         working-directory: ShiguangBox
@@ -31,14 +45,92 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build debug APK
-        run: gradle assembleDebug
+      - name: Read app version
+        id: app_version
+        shell: bash
+        run: |
+          VERSION_NAME=$(grep -E "versionName '[^']+'" app/build.gradle | head -1 | cut -d"'" -f2)
+          VERSION_CODE=$(grep -E 'versionCode [0-9]+' app/build.gradle | head -1 | awk '{print $2}')
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          test "$VERSION_NAME" = "1.7.6"
+          test "$VERSION_CODE" = "39"
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/ShiguangBox_v1.7.6_YutuanSleepWake.apk
+      - name: Check release signing secrets
+        shell: bash
+        run: |
+          test -n "$RELEASE_KEYSTORE_B64"
+          test -n "$RELEASE_STORE_PASSWORD"
+          test -n "$RELEASE_KEY_ALIAS"
+          test -n "$RELEASE_KEY_PASSWORD"
 
-      - name: Upload APK
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/shiguangbox-release.jks"
+          test -s "$RUNNER_TEMP/shiguangbox-release.jks"
+
+      - name: Verify release signing key
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+        run: |
+          keytool -certreq             -alias "$KEY_ALIAS"             -keystore "$RUNNER_TEMP/shiguangbox-release.jks"             -storepass "$STORE_PASSWORD"             -keypass "$KEY_PASSWORD"             -file "$RUNNER_TEMP/shiguangbox-signing-check.csr"
+          test -s "$RUNNER_TEMP/shiguangbox-signing-check.csr"
+
+      - name: Build signed V1.7.6 release APK
+        env:
+          SHIGUANGBOX_KEYSTORE_FILE: ${{ runner.temp }}/shiguangbox-release.jks
+          SHIGUANGBOX_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+          SHIGUANGBOX_KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+          SHIGUANGBOX_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+        run: gradle assembleRelease
+
+      - name: Prepare formal V1.7.6 APK
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk              app/build/outputs/apk/release/ShiguangBox_v1.7.6_Release.apk
+
+      - name: Upload formal V1.7.6 APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShiguangBox-v1.7.6-YutuanSleepWake-APK
-          path: ShiguangBox/app/build/outputs/apk/debug/ShiguangBox_v1.7.6_YutuanSleepWake.apk
+          name: ShiguangBox-v1.7.6-Formal-Release-APK
+          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v1.7.6_Release.apk
+
+      - name: Retire incorrect V1.7.7 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "shiguangbox-v1.7.7" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "shiguangbox-v1.7.7"               --repo "$GITHUB_REPOSITORY"               --prerelease
+          fi
+
+      - name: Publish formal V1.7.6 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="shiguangbox-v1.7.6"
+          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v1.7.6_Release.apk"
+
+          cat > release-notes.md <<EOF
+          拾光盒 V1.7.6 正式版
+
+          - 基于已确认的 V1.7.6 最终功能版本
+          - versionCode: 39
+          - 使用固定 Release 签名
+          - 保持原 V1.7.6 宠物、雨团、彩虹、睡眠和界面逻辑
+          - 仅增加未来版本所需的应用内在线更新能力
+
+          提交：$GITHUB_SHA
+          EOF
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_PATH"               --repo "$GITHUB_REPOSITORY"               --clobber
+            gh release edit "$TAG"               --repo "$GITHUB_REPOSITORY"               --title "拾光盒 V1.7.6 正式版"               --notes-file release-notes.md
+          else
+            gh release create "$TAG" "$APK_PATH"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "拾光盒 V1.7.6 正式版"               --notes-file release-notes.md
+          fi

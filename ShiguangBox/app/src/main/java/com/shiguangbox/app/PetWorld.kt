@@ -697,10 +697,11 @@ object PetWorldEngine {
 
         val weighted =
             candidates.flatMap {
+                event ->
                 val weight =
                     weightFor(
                         context,
-                        it
+                        event
                     )
 
                 List(
@@ -709,7 +710,7 @@ object PetWorldEngine {
                             1
                         )
                 ) {
-                    it
+                    event
                 }
             }
 

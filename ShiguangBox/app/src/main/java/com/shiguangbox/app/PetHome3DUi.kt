@@ -32,13 +32,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 
 @Composable
 fun PetHome3DScreen(
@@ -60,47 +57,10 @@ fun PetHome3DScreen(
             )
         }
 
-    val lifecycleOwner =
-        LocalLifecycleOwner
-            .current
-
     DisposableEffect(
-        lifecycleOwner,
         view
     ) {
-        val observer =
-            LifecycleEventObserver {
-                    _,
-                    event ->
-                when (
-                    event
-                ) {
-                    Lifecycle.Event.ON_RESUME ->
-                        view
-                            ?.onResume()
-
-                    Lifecycle.Event.ON_PAUSE ->
-                        view
-                            ?.onPause()
-
-                    else ->
-                        Unit
-                }
-            }
-
-        lifecycleOwner
-            .lifecycle
-            .addObserver(
-                observer
-            )
-
         onDispose {
-            lifecycleOwner
-                .lifecycle
-                .removeObserver(
-                    observer
-                )
-
             view
                 ?.onPause()
         }

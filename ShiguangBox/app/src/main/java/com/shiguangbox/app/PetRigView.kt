@@ -297,7 +297,8 @@ class PetRigView @JvmOverloads constructor(
         motion: PetMotion,
         modifier:
             MotionModifier =
-            MotionModifier()
+            MotionModifier(),
+        replaceCurrent: Boolean = false
     ): Boolean {
         if (
             motion ==
@@ -310,6 +311,14 @@ class PetRigView @JvmOverloads constructor(
         if (
             state !=
             State.IDLE
+        ) {
+            return false
+        }
+
+        if (
+            currentMotion !=
+            PetMotion.NONE &&
+            !replaceCurrent
         ) {
             return false
         }

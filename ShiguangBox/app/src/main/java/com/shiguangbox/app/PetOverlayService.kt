@@ -94,6 +94,8 @@ class PetOverlayService : Service() {
 
     private var motionShowcaseToken = 0
 
+    private var behaviorSequenceToken = 0
+
     private var lifeChainActiveUntil =
         0L
 
@@ -244,6 +246,10 @@ class PetOverlayService : Service() {
             ACTION_TEST_MOTION_SHOWCASE -> {
                 ensurePetView()
                 playMotionShowcase()
+            }
+            ACTION_TEST_BEHAVIOR_SEQUENCE -> {
+                ensurePetView()
+                showBehaviorSequencePreview()
             }
             ACTION_TEST_WAVE -> {
                 ensurePetView()
@@ -466,25 +472,50 @@ class PetOverlayService : Service() {
         private var longPressed = false
         private var wasSleeping = false
 
-        private val longPressRunnable = Runnable {
-            if (!dragging) {
-                longPressed = true
-                closePanel()
-                petView?.playPetted()
-                showPetBubble(
-                    title =
-                        petName() + " · 被摸摸",
-                    message =
-                        "嘿嘿，好舒服～再摸一下也可以。",
-                    tone =
-                        PetSpeechBubbleView
-                            .Tone.MOOD,
-                    priority =
-                        PRIORITY_INTERACTION,
-                    durationMs = 3_200L
-                )
+        private val longPressRunnable =
+            Runnable {
+                if (
+                    !dragging
+                ) {
+                    longPressed =
+                        true
+                    closePanel()
+
+                    playBehaviorSequence(
+                        sequence =
+                            PetBehaviorLibrary
+                                .forLongPress(
+                                    selectedPetKind()
+                                ),
+                        requireNoPanel =
+                            false
+                    )
+
+                    showPetBubble(
+                        title =
+                            petName() +
+                                " · 被摸摸",
+                        message =
+                            when (
+                                selectedPetKind()
+                            ) {
+                                PetKind.ORANGE ->
+                                    "嘿嘿，好舒服～再摸一下也可以。"
+                                PetKind.YAYA ->
+                                    "嗯……这样安静摸摸也很好。"
+                                PetKind.YUTUAN ->
+                                    "轻轻摸一下，雨声都软下来啦。"
+                            },
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD,
+                        priority =
+                            PRIORITY_INTERACTION,
+                        durationMs =
+                            3_600L
+                    )
+                }
             }
-        }
 
         override fun onTouch(
             v: View?,
@@ -527,6 +558,9 @@ class PetOverlayService : Service() {
                     ) {
                         handler.removeCallbacks(
                             longPressRunnable
+                        )
+                        cancelBehaviorSequence(
+                            resetMotion = true
                         )
                         dragging = true
                         longPressed = false
@@ -585,7 +619,6 @@ class PetOverlayService : Service() {
                         }
 
                         longPressed -> {
-                            petView?.startIdle()
                             scheduleEdgePeek()
                         }
 
@@ -666,53 +699,121 @@ class PetOverlayService : Service() {
     }
 
     private fun queueTapReaction() {
-        val now = System.currentTimeMillis()
+        val now =
+            System.currentTimeMillis()
 
         tapCount =
-            if (now - lastTapAt <= 340L) {
-                tapCount + 1
+            if (
+                now -
+                    lastTapAt <=
+                340L
+            ) {
+                tapCount +
+                    1
             } else {
                 1
             }
 
-        lastTapAt = now
-        tapDispatchRunnable?.let {
-            handler.removeCallbacks(it)
-        }
+        lastTapAt =
+            now
 
-        val runnable = Runnable {
-            val count = tapCount
-            tapCount = 0
-
-            when {
-                count <= 1 -> {
-                    petView?.playTouchReaction()
-                    toggleQuickPanel()
-                }
-
-                count == 2 -> {
-                    closePanel()
-                    petView?.playHappy()
-                    showTransientBubble(
-                        "又来找我啦～"
-                    )
-                }
-
-                else -> {
-                    closePanel()
-                    petView?.playTailWag()
-                    playExcitedBounce()
-                    showTransientBubble(
-                        "好开心！再摸摸我～"
-                    )
-                }
+        tapDispatchRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
             }
 
-            scheduleEdgePeek()
-        }
+        val runnable =
+            Runnable {
+                val count =
+                    tapCount
 
-        tapDispatchRunnable = runnable
-        handler.postDelayed(runnable, 300L)
+                tapCount =
+                    0
+
+                val sequence =
+                    PetBehaviorLibrary
+                        .forTap(
+                            selectedPetKind(),
+                            count
+                        )
+
+                when {
+                    count <=
+                        1 -> {
+                        playBehaviorSequence(
+                            sequence =
+                                sequence,
+                            requireNoPanel =
+                                false
+                        )
+
+                        toggleQuickPanel()
+                    }
+
+                    count ==
+                        2 -> {
+                        closePanel()
+
+                        playBehaviorSequence(
+                            sequence =
+                                sequence,
+                            requireNoPanel =
+                                false,
+                            onComplete = {
+                                showTransientBubble(
+                                    when (
+                                        selectedPetKind()
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            "又来找我啦～"
+                                        PetKind.YAYA ->
+                                            "我看到你啦。"
+                                        PetKind.YUTUAN ->
+                                            "雨声里听到你啦。"
+                                    }
+                                )
+                            }
+                        )
+                    }
+
+                    else -> {
+                        closePanel()
+
+                        playBehaviorSequence(
+                            sequence =
+                                sequence,
+                            requireNoPanel =
+                                false,
+                            onComplete = {
+                                showTransientBubble(
+                                    when (
+                                        selectedPetKind()
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            "好开心！再摸摸我～"
+                                        PetKind.YAYA ->
+                                            "好啦好啦，我知道你在这里。"
+                                        PetKind.YUTUAN ->
+                                            "这么热闹，雨点都乱啦～"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                scheduleEdgePeek()
+            }
+
+        tapDispatchRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            300L
+        )
     }
 
     private fun playExcitedBounce() {
@@ -3105,6 +3206,10 @@ class PetOverlayService : Service() {
         lifeChainActiveUntil =
             0L
 
+        cancelBehaviorSequence(
+            resetMotion = true
+        )
+
         if (
             snoozeMs >
             0L
@@ -3179,6 +3284,191 @@ class PetOverlayService : Service() {
                 null &&
             petView !=
                 null
+
+    private fun cancelBehaviorSequence(
+        resetMotion: Boolean = true
+    ) {
+        behaviorSequenceToken += 1
+        motionShowcaseToken += 1
+
+        if (
+            resetMotion
+        ) {
+            petView
+                ?.let { pet ->
+                    if (
+                        pet.currentState() ==
+                        PetRigView.State.IDLE &&
+                        pet.currentMotion() !=
+                        PetMotion.NONE
+                    ) {
+                        pet.startIdle()
+                    }
+                }
+        }
+    }
+
+    private fun playBehaviorSequence(
+        sequence: PetBehaviorSequence,
+        requireNoPanel: Boolean = false,
+        externalGuard: () -> Boolean = { true },
+        onComplete: () -> Unit = {}
+    ) {
+        cancelBehaviorSequence(
+            resetMotion = true
+        )
+
+        val token =
+            behaviorSequenceToken
+
+        val pet =
+            petView ?: return
+
+        fun allowed():
+            Boolean =
+            token ==
+                behaviorSequenceToken &&
+                petView ===
+                pet &&
+                externalGuard() &&
+                (
+                    !requireNoPanel ||
+                        panelView ==
+                        null
+                    )
+
+        fun playStep(
+            index: Int
+        ) {
+            if (
+                !allowed()
+            ) {
+                return
+            }
+
+            if (
+                index >=
+                sequence.steps.size
+            ) {
+                handler.postDelayed(
+                    {
+                        if (
+                            allowed()
+                        ) {
+                            onComplete()
+                        }
+                    },
+                    sequence.settleAfterMs
+                )
+                return
+            }
+
+            if (
+                pet.currentState() !=
+                PetRigView.State.IDLE
+            ) {
+                return
+            }
+
+            val step =
+                sequence.steps[index]
+
+            val started =
+                pet.playMotion(
+                    step.motion,
+                    MotionModifier(
+                        intensity =
+                            step.intensity,
+                        speed =
+                            step.speed,
+                        direction =
+                            step.resolvedDirection()
+                    )
+                )
+
+            if (
+                !started
+            ) {
+                return
+            }
+
+            handler.postDelayed(
+                {
+                    playStep(
+                        index +
+                            1
+                    )
+                },
+                step.durationMs() +
+                    step.pauseAfterMs
+            )
+        }
+
+        playStep(
+            0
+        )
+    }
+
+    private fun showBehaviorSequencePreview() {
+        val kind =
+            selectedPetKind()
+
+        val sequence =
+            PetBehaviorLibrary
+                .forLifeEvent(
+                    kind,
+                    PetLifeEvent.MISS_YOU
+                )
+
+        cancelLifeChain()
+
+        lifeChainActiveUntil =
+            System.currentTimeMillis() +
+                sequence
+                    .estimatedDurationMs() +
+                4_000L
+
+        playBehaviorSequence(
+            sequence =
+                sequence,
+            requireNoPanel =
+                true,
+            onComplete = {
+                if (
+                    speechBubble ==
+                    null &&
+                    panelView ==
+                    null
+                ) {
+                    showPetBubble(
+                        title =
+                            petName() +
+                                " · 行为编排演示完成",
+                        message =
+                            when (
+                                kind
+                            ) {
+                                PetKind.ORANGE ->
+                                    "刚刚是橘团的“观察 → 求关注 → 歪头”等待回应链。"
+
+                                PetKind.YAYA ->
+                                    "刚刚是芽芽的“抬头 → 歪头 → 害羞”安静陪伴链。"
+
+                                PetKind.YUTUAN ->
+                                    "刚刚是雨团的“抬头 → 歪头 → 轻轻求关注”情绪链。"
+                            },
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD,
+                        priority =
+                            PRIORITY_INTERACTION,
+                        durationMs =
+                            4_200L
+                    )
+                }
+            }
+        )
+    }
 
     private fun maybeShowWelcomeBack() {
         if (
@@ -3256,46 +3546,14 @@ class PetOverlayService : Service() {
                                 false
                         )
 
-                    playCompanionAction(
-                        PetLifeEvent
-                            .WELCOME_BACK
-                    )
-
-                    handler.postDelayed(
-                        {
-                            if (
-                                speechBubble ==
-                                null &&
-                                panelView ==
-                                null
-                            ) {
-                                showPetBubble(
-                                    title =
-                                        petName() +
-                                            " · " +
-                                            PetLifeEngine
-                                                .titleSuffix(
-                                                    PetLifeEvent
-                                                        .WELCOME_BACK
-                                                ),
-                                    message =
-                                        PetLifeEngine
-                                            .message(
-                                                context,
-                                                PetLifeEvent
-                                                    .WELCOME_BACK
-                                            ),
-                                    tone =
-                                        PetSpeechBubbleView
-                                            .Tone.MOOD,
-                                    priority =
-                                        PRIORITY_AMBIENT,
-                                    durationMs =
-                                        4_800L
-                                )
-                            }
-                        },
-                        320L
+                    runLifeEventChain(
+                        context =
+                            context,
+                        event =
+                            PetLifeEvent
+                                .WELCOME_BACK,
+                        interactive =
+                            true
                     )
                 }
             },
@@ -3790,250 +4048,49 @@ class PetOverlayService : Service() {
     ) {
         cancelLifeChain()
 
-        val token =
+        val lifeToken =
             lifeChainToken
+
+        val sequence =
+            PetBehaviorLibrary
+                .forLifeEvent(
+                    context.petKind,
+                    event
+                )
 
         lifeChainActiveUntil =
             System.currentTimeMillis() +
+                sequence
+                    .estimatedDurationMs() +
                 if (
                     interactive
                 ) {
-                    7_500L
+                    8_000L
                 } else {
-                    4_800L
+                    1_200L
                 }
 
-        val pet =
-            petView ?: return
-
-        when (
-            context.petKind
-        ) {
-            PetKind.ORANGE -> {
-                val first =
-                    when (event) {
-                        PetLifeEvent.MISS_YOU,
-                        PetLifeEvent.WELCOME_BACK ->
-                            PetMotion.LOOK_AROUND
-
-                        PetLifeEvent.PROUD_OF_YOU,
-                        PetLifeEvent.AFTER_TASK ->
-                            PetMotion.SMALL_JUMP
-
-                        PetLifeEvent.MOOD_COMPANY ->
-                            PetMotion.HEAD_TILT
-
-                        PetLifeEvent.SILENT_ACTION ->
-                            listOf(
-                                PetMotion.LOOK_AROUND,
-                                PetMotion.STRETCH,
-                                PetMotion.HEAD_TILT
-                            )
-                                .random()
-
-                        else ->
-                            PetMotion.LOOK_UP
-                    }
-
-                pet.playMotion(
-                    first,
-                    MotionModifier(
-                        intensity = 1.08f,
-                        direction =
-                            if (
-                                kotlin.random.Random
-                                    .nextBoolean()
-                            ) {
-                                1f
-                            } else {
-                                -1f
-                            }
-                    )
+        playBehaviorSequence(
+            sequence =
+                sequence,
+            requireNoPanel =
+                true,
+            externalGuard = {
+                lifeChainAllowed(
+                    lifeToken
                 )
-
+            },
+            onComplete = {
                 if (
                     event ==
-                    PetLifeEvent.MISS_YOU ||
-                    event ==
-                    PetLifeEvent.WELCOME_BACK
-                ) {
-                    handler.postDelayed(
-                        {
-                            if (
-                                lifeChainAllowed(
-                                    token
-                                )
-                            ) {
-                                pet.playMotion(
-                                    PetMotion.SEEK_ATTENTION,
-                                    MotionModifier(
-                                        intensity = 1.12f,
-                                        direction = 1f
-                                    )
-                                )
-                            }
-                        },
-                        1_450L
-                    )
-                }
-            }
-
-            PetKind.YAYA -> {
-                val first =
-                    when (event) {
-                        PetLifeEvent.MISS_YOU,
-                        PetLifeEvent.WELCOME_BACK ->
-                            PetMotion.HEAD_TILT
-
-                        PetLifeEvent.MOOD_COMPANY ->
-                            PetMotion.SHY
-
-                        PetLifeEvent.AFTER_TASK,
-                        PetLifeEvent.PROUD_OF_YOU ->
-                            PetMotion.STRETCH
-
-                        PetLifeEvent.SILENT_ACTION ->
-                            listOf(
-                                PetMotion.LOOK_AROUND,
-                                PetMotion.LOOK_UP,
-                                PetMotion.DOZE_NOD
-                            )
-                                .random()
-
-                        else ->
-                            PetMotion.LOOK_AROUND
-                    }
-
-                pet.playMotion(
-                    first,
-                    MotionModifier(
-                        intensity = 0.90f,
-                        speed = 0.92f,
-                        direction =
-                            if (
-                                kotlin.random.Random
-                                    .nextBoolean()
-                            ) {
-                                1f
-                            } else {
-                                -1f
-                            }
-                    )
-                )
-
-                if (
-                    event ==
-                    PetLifeEvent.MISS_YOU
-                ) {
-                    handler.postDelayed(
-                        {
-                            if (
-                                lifeChainAllowed(
-                                    token
-                                )
-                            ) {
-                                pet.playMotion(
-                                    PetMotion.LOOK_UP,
-                                    MotionModifier(
-                                        intensity = 0.86f,
-                                        speed = 0.90f
-                                    )
-                                )
-                            }
-                        },
-                        1_650L
-                    )
-                }
-            }
-
-            PetKind.YUTUAN -> {
-                val first =
-                    when (event) {
-                        PetLifeEvent.MISS_YOU ->
-                            PetMotion.LOOK_UP
-
-                        PetLifeEvent.WELCOME_BACK ->
-                            PetMotion.HEAD_TILT
-
-                        PetLifeEvent.AFTER_TASK,
-                        PetLifeEvent.PROUD_OF_YOU ->
-                            PetMotion.STRETCH
-
-                        PetLifeEvent.MOOD_COMPANY ->
-                            PetMotion.DOZE_NOD
-
-                        PetLifeEvent.SILENT_ACTION ->
-                            listOf(
-                                PetMotion.LOOK_AROUND,
-                                PetMotion.LOOK_UP,
-                                PetMotion.SHY
-                            )
-                                .random()
-
-                        else ->
-                            PetMotion.LOOK_AROUND
-                    }
-
-                pet.playMotion(
-                    first,
-                    MotionModifier(
-                        intensity = 0.96f,
-                        speed = 0.94f,
-                        direction =
-                            if (
-                                kotlin.random.Random
-                                    .nextBoolean()
-                            ) {
-                                1f
-                            } else {
-                                -1f
-                            }
-                    )
-                )
-
-                if (
-                    event ==
-                    PetLifeEvent.MISS_YOU
-                ) {
-                    handler.postDelayed(
-                        {
-                            if (
-                                lifeChainAllowed(
-                                    token
-                                )
-                            ) {
-                                pet.playMotion(
-                                    PetMotion.SEEK_ATTENTION,
-                                    MotionModifier(
-                                        intensity = 0.94f,
-                                        speed = 0.92f
-                                    )
-                                )
-                            }
-                        },
-                        1_550L
-                    )
-                }
-            }
-        }
-
-        if (
-            event ==
-            PetLifeEvent.SILENT_ACTION
-        ) {
-            return
-        }
-
-        handler.postDelayed(
-            {
-                if (
+                    PetLifeEvent.SILENT_ACTION ||
                     !lifeChainAllowed(
-                        token
+                        lifeToken
                     ) ||
                     speechBubble !=
                     null
                 ) {
-                    return@postDelayed
+                    return@playBehaviorSequence
                 }
 
                 if (
@@ -4042,7 +4099,7 @@ class PetOverlayService : Service() {
                     showInteractiveLifeBubble(
                         context,
                         event,
-                        token
+                        lifeToken
                     )
                 } else {
                     showPetBubble(
@@ -4068,13 +4125,6 @@ class PetOverlayService : Service() {
                             4_700L
                     )
                 }
-            },
-            when (
-                context.petKind
-            ) {
-                PetKind.ORANGE -> 2_950L
-                PetKind.YAYA -> 3_050L
-                PetKind.YUTUAN -> 3_000L
             }
         )
     }
@@ -4171,9 +4221,6 @@ class PetOverlayService : Service() {
                 affectionPoints = 3
             )
 
-            petView
-                ?.playPetted()
-
             val response =
                 when (
                     selectedPetKind()
@@ -4196,31 +4243,24 @@ class PetOverlayService : Service() {
                         "收到啦，雨声都好像轻了一点。"
                 }
 
-            handler.postDelayed(
-                {
+            val sequence =
+                PetBehaviorLibrary
+                    .forPositiveResponse(
+                        selectedPetKind()
+                    )
+
+            playBehaviorSequence(
+                sequence =
+                    sequence,
+                requireNoPanel =
+                    true,
+                onComplete = {
                     if (
                         speechBubble ==
                         null &&
                         panelView ==
                         null
                     ) {
-                        petView
-                            ?.startIdle()
-
-                        petView
-                            ?.playMotion(
-                                when (
-                                    selectedPetKind()
-                                ) {
-                                    PetKind.ORANGE ->
-                                        PetMotion.SMALL_JUMP
-                                    PetKind.YAYA ->
-                                        PetMotion.HEAD_TILT
-                                    PetKind.YUTUAN ->
-                                        PetMotion.STRETCH
-                                }
-                            )
-
                         showPetBubble(
                             title =
                                 petName() +
@@ -4236,8 +4276,7 @@ class PetOverlayService : Service() {
                                 3_400L
                         )
                     }
-                },
-                850L
+                }
             )
         } else {
             val quietFor =
@@ -4263,10 +4302,18 @@ class PetOverlayService : Service() {
                     quietFor
             )
 
-            petView
-                ?.playBlink()
-
-            scheduleContextBubble()
+            playBehaviorSequence(
+                sequence =
+                    PetBehaviorLibrary
+                        .forBusyResponse(
+                            selectedPetKind()
+                        ),
+                requireNoPanel =
+                    true,
+                onComplete = {
+                    scheduleContextBubble()
+                }
+            )
         }
     }
 
@@ -4594,6 +4641,8 @@ class PetOverlayService : Service() {
             "com.shiguangbox.app.pet.TEST_MOTION"
         const val ACTION_TEST_MOTION_SHOWCASE =
             "com.shiguangbox.app.pet.TEST_MOTION_SHOWCASE"
+        const val ACTION_TEST_BEHAVIOR_SEQUENCE =
+            "com.shiguangbox.app.pet.TEST_BEHAVIOR_SEQUENCE"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
         const val ACTION_TEST_PETTING =

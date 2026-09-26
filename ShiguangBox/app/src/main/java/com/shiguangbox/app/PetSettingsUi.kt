@@ -366,7 +366,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.9.2 动作引擎 2.0 · 橘团 / 芽芽 / 雨团",
+                        "V1.9.3 行为编排系统 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -797,7 +797,7 @@ fun PetSettingsScreen(
                         .padding(18.dp)
                 ) {
                     Text(
-                        "动作实验室 2.0",
+                        "动作与行为实验室",
                         fontWeight =
                             FontWeight.Bold,
                         fontSize = 18.sp
@@ -808,7 +808,7 @@ fun PetSettingsScreen(
                     )
 
                     Text(
-                        "第一批 8 个新动作都可以单独播放；三只宠物会使用不同的幅度、速度和身体语言。",
+                        "8 个新动作可单独播放，也可以直接演示 V1.9.3 的完整行为链；三只宠物会使用不同节奏和动作组合。",
                         color =
                             MaterialTheme
                                 .colorScheme
@@ -1024,6 +1024,70 @@ fun PetSettingsScreen(
                             "连续演示 8 个新动作"
                         )
                     }
+
+                    Spacer(
+                        Modifier.height(8.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            if (
+                                enabled &&
+                                overlayGranted
+                            ) {
+                                ContextCompat
+                                    .startForegroundService(
+                                        context,
+                                        Intent(
+                                            context,
+                                            PetOverlayService::class.java
+                                        ).setAction(
+                                            PetOverlayService
+                                                .ACTION_TEST_BEHAVIOR_SEQUENCE
+                                        )
+                                    )
+
+                                message =
+                                    "正在演示 " +
+                                        selectedPet.displayName +
+                                        " 的 V1.9.3 行为链"
+                            } else {
+                                message =
+                                    "先开启悬浮桌宠，再测试行为链"
+                            }
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "演示 V1.9.3 完整行为链"
+                        )
+                    }
+
+                    Text(
+                        when (
+                            selectedPet
+                        ) {
+                            PetKind.ORANGE ->
+                                "橘团：左右观察 → 主动求关注 → 歪头 → 再给反馈。"
+
+                            PetKind.YAYA ->
+                                "芽芽：抬头 → 歪头 → 轻轻害羞，节奏更慢、更克制。"
+
+                            PetKind.YUTUAN ->
+                                "雨团：抬头 → 歪头 → 轻轻求关注，整体节奏更柔和。"
+                        },
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier =
+                            Modifier.padding(
+                                top = 8.dp
+                            )
+                    )
                 }
             }
         }
@@ -1458,7 +1522,10 @@ fun PetSettingsScreen(
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
                     Text("• 主动陪伴会根据粘人度自行决定：只做小动作、主动说话、来找你、轻提醒或安静陪伴")
                     Text("• 动作引擎 2.0 新增左右观察、歪头、抬头、伸懒腰、小跳、困倦点头、害羞、主动求关注 8 个独立动作")
-                    Text("• 新增连续行为链：先动作、再观察、再气泡；部分事件可以直接回应“摸摸你 / 我先忙”")
+                    Text("• V1.9.3 行为编排系统：动作按顺序完整播放，加入自然停顿和回中，不再用固定延时互相覆盖")
+                    Text("• 单击、双击、连续点击、长按摸摸都接入不同的三宠专属动作链")
+                    Text("• 用户拖动、正式提醒、睡眠等高优先级状态会安全中断普通行为链")
+                    Text("• 连续行为链：先动作、再观察、再气泡；部分事件可以直接回应“摸摸你 / 我先忙”")
                     Text("• 新增短期记忆：同一种生活事件不会短时间重复；刚完成的任务过一会儿也可能被宠物重新提起")
                     Text("• 长时间没互动后，橘团 / 芽芽 / 雨团会用各自性格来找你；亲密感会在后台慢慢积累，不显示游戏数值")
                     Text("• 夜间安静模式默认 23:30–08:00，只保留很轻的小动作")

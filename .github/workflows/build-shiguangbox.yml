@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - shiguangbox-v1
+      - feature-v2.1.0-3d-home-demo
     paths:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
@@ -112,6 +113,7 @@ jobs:
           path: ShiguangBox/app/build/outputs/apk/release/${{ env.OUTPUT_NAME }}
 
       - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/shiguangbox-v1'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
@@ -121,7 +123,23 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.1" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.2" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.2 · 3D 镜头交互修正版"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.2 · 3D 镜头交互修正版
+
+          - versionCode: $VERSION_CODE
+          - 不再依赖 GLSurfaceView 自己接收拖动手势
+          - 新增 Compose 全屏透明手势层，直接接管 3D 镜头拖动与双指缩放
+          - 单指拖动直接修改轨道相机 yaw / pitch，解决部分实机“镜头完全不转”
+          - 双指缩放直接修改 camera distance
+          - 顶部 / 底部操作按钮保持在手势层上方，不影响点击
+          - 保留 V2.1.1 的 360° 轨道相机、暖色 3D 小窝、5 个空间锚点和自动巡游
+          - 当前仍为 3D 技术预览，不替换正式 Latest Release
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.1" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.1 · 3D 小窝预览 2"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.1 · 3D 小窝预览 2

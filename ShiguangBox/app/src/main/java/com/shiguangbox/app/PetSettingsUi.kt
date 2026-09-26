@@ -229,13 +229,36 @@ fun PetSettingsScreen(
             selectedPetId
         ) {
             PetWorldStore
-                .recentMemories(
-                    prefs,
-                    5
+                .recentMemoriesForPet(
+                    prefs =
+                        prefs,
+                    petKind =
+                        selectedPet,
+                    limit =
+                        8
+                )
+        }
+
+    val todayWorldHistory =
+        remember(
+            memoryRefresh,
+            selectedPetId
+        ) {
+            PetWorldStore
+                .todayEventHistory(
+                    prefs
                 )
                 .filter {
-                    it.petId ==
-                        selectedPet.id
+                    it.eventId
+                        .startsWith(
+                            selectedPet.id +
+                                "_"
+                        ) ||
+                        it.eventId
+                            .startsWith(
+                                "discovery_" +
+                                    selectedPet.id
+                            )
                 }
         }
 
@@ -458,7 +481,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.0 宠物生活与回忆系统 · 橘团 / 芽芽 / 雨团",
+                        "V2.0.1 宠物世界闭环版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -941,6 +964,23 @@ fun PetSettingsScreen(
                             )
                     )
 
+                    Text(
+                        "今天已经发生 " +
+                            todayWorldHistory.size +
+                            " 个生活事件",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize =
+                            12.sp,
+                        modifier =
+                            Modifier.padding(
+                                top =
+                                    3.dp
+                            )
+                    )
+
                     Spacer(
                         Modifier.height(
                             12.dp
@@ -1064,7 +1104,7 @@ fun PetSettingsScreen(
                             .isEmpty()
                     ) {
                         Text(
-                            "还没有明显的共同回忆。完成待办、记录心情、回应宠物或遇见稀有事件后，会慢慢出现在这里。",
+                            "还没有明显的共同回忆。完成待办、写记录、记录心情、回应宠物或收下稀有发现后，会慢慢出现在这里。",
                             color =
                                 MaterialTheme
                                     .colorScheme
@@ -1956,6 +1996,8 @@ fun PetSettingsScreen(
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
                     Text("• 主动陪伴会根据粘人度自行决定：只做小动作、主动说话、来找你、轻提醒或安静陪伴")
                     Text("• 动作引擎 2.0 新增左右观察、歪头、抬头、伸懒腰、小跳、困倦点头、害羞、主动求关注 8 个独立动作")
+                    Text("• V2.0.1 回忆系统不再依赖悬浮桌宠是否开启；完成待办、写记录和记录心情都会留下真实本地记忆")
+                    Text("• AI 对话只共享任务 / 心情 / 记录等用户事实；宠物专属互动与发现物不会串到其他宠物")
                     Text("• V2.0 生活事件系统会综合时间、待办、心情、粘人度、关系阶段、每日历史和冷却决定下一次行为")
                     Text("• 普通生活事件可以只做动作不弹气泡；调度器也会主动选择“这次什么都不发生”")
                     Text("• 稀有发现物可以收进回忆盒，每只宠物有自己的偶遇 / 稀有 / 非常稀有收藏")

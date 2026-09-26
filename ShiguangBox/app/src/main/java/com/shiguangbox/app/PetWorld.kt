@@ -139,6 +139,12 @@ data class PetMemory(
     val createdAt: Long
 )
 
+data class PetWorldHistoryEntry(
+    val eventId: String,
+    val eventType: String,
+    val createdAt: Long
+)
+
 data class PetWorldContext(
     val petKind: PetKind,
     val clinginessLevel: Int,
@@ -146,6 +152,7 @@ data class PetWorldContext(
     val pendingTasks: Int,
     val completedTasks: Int,
     val mood: String,
+    val hasMoodToday: Boolean,
     val affection: Int,
     val idleMs: Long,
     val quietNight: Boolean
@@ -178,6 +185,9 @@ object PetWorldStore {
         "pet_world_discoveries"
 
     private const val MAX_MEMORIES =
+        120
+
+    private const val MAX_DAILY_HISTORY =
         40
 
     fun prefs(
@@ -269,6 +279,156 @@ object PetWorldStore {
             .getOrDefault(
                 emptyList()
             )
+    }
+
+    fun recentMemoriesForPet(
+        prefs: SharedPreferences,
+        petKind: PetKind,
+        limit: Int = 8
+    ): List<PetMemory> =
+        recentMemories(
+            prefs,
+            MAX_MEMORIES
+        )
+            .filter {
+                it.petId ==
+                    petKind.id
+            }
+            .take(
+                limit
+            )
+
+    fun conversationMemories(
+        prefs: SharedPreferences,
+        petKind: PetKind,
+        limit: Int = 12
+    ): List<PetMemory> {
+        val sharedTypes =
+            setOf(
+                "task_completed",
+                "mood",
+                "note"
+            )
+
+        return recentMemories(
+            prefs,
+            MAX_MEMORIES
+        )
+            .filter {
+                it.petId ==
+                    petKind.id ||
+                    it.type in
+                    sharedTypes
+            }
+            .take(
+                limit
+            )
+    }
+
+    fun recordTaskCompletion(
+        prefs: SharedPreferences,
+        petKind: PetKind,
+        title: String,
+        occurredAt: Long =
+            System.currentTimeMillis()
+    ) {
+        addMemory(
+            prefs,
+            PetMemory(
+                id =
+                    "task_" +
+                        occurredAt,
+                type =
+                    "task_completed",
+                petId =
+                    petKind.id,
+                title =
+                    "完成了「" +
+                        title +
+                        "」",
+                detail =
+                    petKind
+                        .displayName +
+                        "记住了这件完成的小事。",
+                createdAt =
+                    occurredAt
+            )
+        )
+    }
+
+    fun recordMood(
+        prefs: SharedPreferences,
+        petKind: PetKind,
+        moodId: String,
+        occurredAt: Long =
+            System.currentTimeMillis()
+    ) {
+        addMemory(
+            prefs,
+            PetMemory(
+                id =
+                    "mood_" +
+                        LocalDate.now()
+                            .toString(),
+                type =
+                    "mood",
+                petId =
+                    petKind.id,
+                title =
+                    "今天的心情：" +
+                        moodId,
+                detail =
+                    petKind
+                        .displayName +
+                        "收到并记住了今天的心情。",
+                createdAt =
+                    occurredAt
+            )
+        )
+    }
+
+    fun recordNote(
+        prefs: SharedPreferences,
+        petKind: PetKind,
+        content: String,
+        occurredAt: Long =
+            System.currentTimeMillis()
+    ) {
+        val preview =
+            content
+                .trim()
+                .replace(
+                    "\n",
+                    " "
+                )
+                .take(
+                    180
+                )
+
+        if (
+            preview.isBlank()
+        ) {
+            return
+        }
+
+        addMemory(
+            prefs,
+            PetMemory(
+                id =
+                    "note_" +
+                        occurredAt,
+                type =
+                    "note",
+                petId =
+                    petKind.id,
+                title =
+                    "留下了一条记录",
+                detail =
+                    preview,
+                createdAt =
+                    occurredAt
+            )
+        )
     }
 
     fun addMemory(
@@ -416,6 +576,113 @@ object PetWorldStore {
         return true
     }
 
+    fun todayEventHistory(
+        prefs: SharedPreferences
+    ): List<PetWorldHistoryEntry> {
+        val raw =
+            prefs.getString(
+                historyDayKey(),
+                "[]"
+            ) ?: "[]"
+
+        return runCatching {
+            val array =
+                JSONArray(
+                    raw
+                )
+
+            buildList {
+                for (
+                    i in
+                    0 until
+                    array.length()
+                ) {
+                    val item =
+                        array.optJSONObject(
+                            i
+                        ) ?: continue
+
+                    add(
+                        PetWorldHistoryEntry(
+                            eventId =
+                                item.optString(
+                                    "eventId"
+                                ),
+                            eventType =
+                                item.optString(
+                                    "eventType"
+                                ),
+                            createdAt =
+                                item.optLong(
+                                    "createdAt"
+                                )
+                        )
+                    )
+                }
+            }
+                .sortedByDescending {
+                    it.createdAt
+                }
+        }
+            .getOrDefault(
+                emptyList()
+            )
+    }
+
+    private fun appendTodayHistory(
+        prefs: SharedPreferences,
+        event: PetWorldEvent,
+        createdAt: Long
+    ) {
+        val history =
+            (
+                listOf(
+                    PetWorldHistoryEntry(
+                        eventId =
+                            event.id,
+                        eventType =
+                            event.type.name,
+                        createdAt =
+                            createdAt
+                    )
+                ) +
+                    todayEventHistory(
+                        prefs
+                    )
+                )
+                .take(
+                    MAX_DAILY_HISTORY
+                )
+
+        val array =
+            JSONArray()
+
+        history.forEach {
+            array.put(
+                JSONObject()
+                    .put(
+                        "eventId",
+                        it.eventId
+                    )
+                    .put(
+                        "eventType",
+                        it.eventType
+                    )
+                    .put(
+                        "createdAt",
+                        it.createdAt
+                    )
+            )
+        }
+
+        prefs.edit()
+            .putString(
+                historyDayKey(),
+                array.toString()
+            )
+            .apply()
+    }
+
     fun eventCountToday(
         prefs: SharedPreferences,
         eventId: String
@@ -441,6 +708,9 @@ object PetWorldStore {
         prefs: SharedPreferences,
         event: PetWorldEvent
     ) {
+        val now =
+            System.currentTimeMillis()
+
         val dayKey =
             eventDayKey(
                 event.id
@@ -458,7 +728,7 @@ object PetWorldStore {
             .putLong(
                 "pet_world_event_at_" +
                     event.id,
-                System.currentTimeMillis()
+                now
             )
             .putString(
                 "pet_world_last_event",
@@ -466,9 +736,15 @@ object PetWorldStore {
             )
             .putLong(
                 "pet_world_last_event_at",
-                System.currentTimeMillis()
+                now
             )
             .apply()
+
+        appendTodayHistory(
+            prefs,
+            event,
+            now
+        )
 
         if (
             event.type in
@@ -478,8 +754,7 @@ object PetWorldStore {
                 PetWorldEventType.INVITE_NOTE,
                 PetWorldEventType.INVITE_MOOD,
                 PetWorldEventType.TASK_MEMORY,
-                PetWorldEventType.MOOD_COMPANY,
-                PetWorldEventType.RARE_DISCOVERY
+                PetWorldEventType.MOOD_COMPANY
             )
         ) {
             addMemory(
@@ -489,28 +764,22 @@ object PetWorldStore {
                         "event_" +
                             event.id +
                             "_" +
-                            System.currentTimeMillis(),
+                            now,
                     type =
                         event.type.name
                             .lowercase(),
                     petId =
-                        when {
-                            event.discovery !=
-                                null ->
-                                event.discovery.owner.id
-                            else ->
-                                prefs.getString(
-                                    "pet_selected_id",
-                                    PetKind.ORANGE.id
-                                ) ?:
-                                    PetKind.ORANGE.id
-                        },
+                        prefs.getString(
+                            "pet_selected_id",
+                            PetKind.ORANGE.id
+                        ) ?:
+                            PetKind.ORANGE.id,
                     title =
                         event.title,
                     detail =
                         event.message,
                     createdAt =
-                        System.currentTimeMillis()
+                        now
                 )
             )
         }
@@ -537,6 +806,12 @@ object PetWorldStore {
         ) <
             event.dailyLimit
 
+    private fun historyDayKey():
+        String =
+        "pet_world_history_" +
+            LocalDate.now()
+                .toString()
+
     private fun eventDayKey(
         eventId: String
     ): String =
@@ -556,18 +831,33 @@ object PetWorldEngine {
         if (
             context.quietNight
         ) {
-            return if (
+            if (
                 Random.nextInt(
                     100
-                ) <
+                ) >=
                 55
             ) {
+                return null
+            }
+
+            val quiet =
                 quietEvent(
                     context
                 )
-            } else {
-                null
-            }
+
+            return quiet
+                .takeIf {
+                    PetWorldStore
+                        .canRunToday(
+                            prefs,
+                            it
+                        ) &&
+                        !PetWorldStore
+                            .wasEventRecent(
+                                prefs,
+                                it
+                            )
+                }
         }
 
         // 约 20% 的调度轮次刻意什么都不发生。
@@ -605,11 +895,31 @@ object PetWorldEngine {
                     )
                 }
 
+                val seekAfterMs =
+                    when (
+                        context.clinginessLevel
+                    ) {
+                        3 ->
+                            10L *
+                                60L *
+                                1000L
+                        2 ->
+                            18L *
+                                60L *
+                                1000L
+                        0 ->
+                            55L *
+                                60L *
+                                1000L
+                        else ->
+                            32L *
+                                60L *
+                                1000L
+                    }
+
                 if (
                     context.idleMs >
-                    18L *
-                        60L *
-                        1000L
+                    seekAfterMs
                 ) {
                     add(
                         seekTouchEvent(
@@ -669,6 +979,7 @@ object PetWorldEngine {
                 }
 
                 if (
+                    !context.hasMoodToday &&
                     context.hour in
                     9..22
                 ) {

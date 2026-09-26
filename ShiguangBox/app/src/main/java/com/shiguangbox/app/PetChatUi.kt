@@ -538,9 +538,13 @@ fun PetChatScreen(
 
                         val memories =
                             PetWorldStore
-                                .recentMemories(
-                                    prefs,
-                                    12
+                                .conversationMemories(
+                                    prefs =
+                                        prefs,
+                                    petKind =
+                                        petKind,
+                                    limit =
+                                        12
                                 )
 
                         val result =

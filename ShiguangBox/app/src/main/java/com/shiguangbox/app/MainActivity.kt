@@ -94,7 +94,8 @@ private fun sendPetEvent(
 
 private fun notifyPetTaskCompleted(
     context: Context,
-    title: String
+    title: String,
+    occurredAt: Long
 ) {
     sendPetEvent(
         context,
@@ -105,6 +106,11 @@ private fun notifyPetTaskCompleted(
             PetOverlayService
                 .EXTRA_TASK_TITLE,
             title
+        )
+        putExtra(
+            PetOverlayService
+                .EXTRA_EVENT_AT,
+            occurredAt
         )
     }
 }
@@ -328,6 +334,21 @@ fun ShiguangBoxApp(
                     .toString()
             )
             .apply()
+
+        PetWorldStore
+            .recordMood(
+                prefs =
+                    prefs,
+                petKind =
+                    PetProfiles.fromId(
+                        prefs.getString(
+                            "pet_selected_id",
+                            PetKind.ORANGE.id
+                        )
+                    ),
+                moodId =
+                    moodId
+            )
 
         notifyPetMoodChanged(
             context,
@@ -1533,6 +1554,17 @@ private fun NoteEditorScreen(
     noteId: Long?,
     onBack: () -> Unit
 ) {
+    val context =
+        LocalContext.current
+
+    val petPrefs =
+        remember {
+            PetWorldStore
+                .prefs(
+                    context
+                )
+        }
+
     val scope = rememberCoroutineScope()
 
     val existing: NoteEntity? = if (noteId != null) {
@@ -1587,9 +1619,36 @@ private fun NoteEditorScreen(
                 if (text.isNotBlank()) {
                     scope.launch {
                         if (existing == null) {
+                            val createdAt =
+                                System.currentTimeMillis()
+
                             db.noteDao().insert(
-                                NoteEntity(content = text.trim(), category = category)
+                                NoteEntity(
+                                    content =
+                                        text.trim(),
+                                    category =
+                                        category,
+                                    createdAt =
+                                        createdAt
+                                )
                             )
+
+                            PetWorldStore
+                                .recordNote(
+                                    prefs =
+                                        petPrefs,
+                                    petKind =
+                                        PetProfiles.fromId(
+                                            petPrefs.getString(
+                                                "pet_selected_id",
+                                                PetKind.ORANGE.id
+                                            )
+                                        ),
+                                    content =
+                                        text.trim(),
+                                    occurredAt =
+                                        createdAt
+                                )
                         } else {
                             db.noteDao().update(
                                 existing.copy(
@@ -1697,13 +1756,41 @@ private fun TasksScreen(
                             onCheckedChange = { checked ->
                                 scope.launch {
                                     if (checked) {
+                                        val completedAt =
+                                            System.currentTimeMillis()
+
                                         ReminderScheduler.cancel(context, task.id)
                                         db.taskDao().update(
                                             task.copy(
                                                 completed = true,
-                                                completedAt = System.currentTimeMillis()
+                                                completedAt =
+                                                    completedAt
                                             )
                                         )
+
+                                        PetWorldStore
+                                            .recordTaskCompletion(
+                                                prefs =
+                                                    PetWorldStore
+                                                        .prefs(
+                                                            context
+                                                        ),
+                                                petKind =
+                                                    PetProfiles.fromId(
+                                                        PetWorldStore
+                                                            .prefs(
+                                                                context
+                                                            )
+                                                            .getString(
+                                                                "pet_selected_id",
+                                                                PetKind.ORANGE.id
+                                                            )
+                                                    ),
+                                                title =
+                                                    task.title,
+                                                occurredAt =
+                                                    completedAt
+                                            )
 
                                         if (task.repeatType != "不重复") {
                                             val next = nextRecurringTask(task)
@@ -1715,8 +1802,12 @@ private fun TasksScreen(
                                         }
 
                                         notifyPetTaskCompleted(
-                                            context,
-                                            task.title
+                                            context =
+                                                context,
+                                            title =
+                                                task.title,
+                                            occurredAt =
+                                                completedAt
                                         )
                                     } else {
                                         val restored = task.copy(

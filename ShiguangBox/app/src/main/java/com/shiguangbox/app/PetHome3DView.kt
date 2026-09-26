@@ -4,6 +4,7 @@ import android.content.Context
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import java.nio.ByteBuffer
@@ -23,9 +24,6 @@ class PetHome3DView(
     private val homeRenderer =
         PetHome3DRenderer()
 
-    private var lastX = 0f
-    private var lastY = 0f
-
     private val scaleDetector =
         ScaleGestureDetector(
             context,
@@ -44,6 +42,49 @@ class PetHome3DView(
             }
         )
 
+    private val gestureDetector =
+        GestureDetector(
+            context,
+            object :
+                GestureDetector
+                    .SimpleOnGestureListener() {
+                override fun onDown(
+                    event:
+                        MotionEvent
+                ): Boolean =
+                    true
+
+                override fun onScroll(
+                    e1: MotionEvent?,
+                    e2: MotionEvent,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    if (
+                        !scaleDetector
+                            .isInProgress
+                    ) {
+                        homeRenderer
+                            .rotateCamera(
+                                -distanceX,
+                                -distanceY
+                            )
+                    }
+
+                    return true
+                }
+
+                override fun onDoubleTap(
+                    event:
+                        MotionEvent
+                ): Boolean {
+                    homeRenderer
+                        .resetCamera()
+                    return true
+                }
+            }
+        )
+
     init {
         setEGLContextClientVersion(
             2
@@ -54,6 +95,13 @@ class PetHome3DView(
         renderMode =
             RENDERMODE_CONTINUOUSLY
         preserveEGLContextOnPause =
+            true
+
+        isClickable =
+            true
+        isFocusable =
+            true
+        isFocusableInTouchMode =
             true
     }
 
@@ -83,6 +131,13 @@ class PetHome3DView(
             )
     }
 
+    fun goToToy() {
+        homeRenderer
+            .goToAnchor(
+                Home3DAnchor.TOY
+            )
+    }
+
     fun setAutoTour(
         enabled: Boolean
     ) {
@@ -95,49 +150,50 @@ class PetHome3DView(
     override fun onTouchEvent(
         event: MotionEvent
     ): Boolean {
+        when (
+            event.actionMasked
+        ) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_POINTER_DOWN ->
+                parent
+                    ?.requestDisallowInterceptTouchEvent(
+                        true
+                    )
+
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL ->
+                parent
+                    ?.requestDisallowInterceptTouchEvent(
+                        false
+                    )
+        }
+
         scaleDetector
             .onTouchEvent(
                 event
             )
 
-        when (
-            event.actionMasked
+        gestureDetector
+            .onTouchEvent(
+                event
+            )
+
+        if (
+            event.actionMasked ==
+            MotionEvent.ACTION_UP
         ) {
-            MotionEvent.ACTION_DOWN -> {
-                lastX =
-                    event.x
-                lastY =
-                    event.y
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                if (
-                    !scaleDetector
-                        .isInProgress
-                ) {
-                    val dx =
-                        event.x -
-                            lastX
-                    val dy =
-                        event.y -
-                            lastY
-
-                    homeRenderer
-                        .rotateCamera(
-                            dx,
-                            dy
-                        )
-
-                    lastX =
-                        event.x
-                    lastY =
-                        event.y
-                }
-            }
+            performClick()
         }
 
         return true
     }
+
+    override fun performClick():
+        Boolean {
+        super.performClick()
+        return true
+    }
+
 }
 
 enum class Home3DAnchor(
@@ -146,19 +202,29 @@ enum class Home3DAnchor(
     val label: String
 ) {
     BED(
-        x = -2.05f,
-        z = -1.32f,
+        x = -2.10f,
+        z = -1.35f,
         label = "床边"
     ),
     WINDOW(
         x = 1.95f,
-        z = -1.55f,
+        z = -1.52f,
         label = "窗边"
     ),
     RUG(
-        x = 0.25f,
-        z = 1.12f,
+        x = 0.15f,
+        z = 0.95f,
         label = "地毯"
+    ),
+    TOY(
+        x = 1.55f,
+        z = 1.38f,
+        label = "玩具区"
+    ),
+    QUIET_CORNER(
+        x = -1.75f,
+        z = 1.48f,
+        label = "安静角落"
     )
 }
 
@@ -272,7 +338,9 @@ private class PetHome3DRenderer :
     private val tour =
         arrayOf(
             Home3DAnchor.RUG,
+            Home3DAnchor.TOY,
             Home3DAnchor.WINDOW,
+            Home3DAnchor.QUIET_CORNER,
             Home3DAnchor.BED,
             Home3DAnchor.RUG
         )
@@ -452,22 +520,29 @@ private class PetHome3DRenderer :
             (
                 yaw +
                     dx *
-                    0.22f
+                    0.34f
                 )
-                .coerceIn(
-                    -65f,
-                    80f
-                )
+                .let {
+                    angle ->
+                    (
+                        (
+                            angle %
+                                360f
+                            ) +
+                            360f
+                        ) %
+                        360f
+                }
 
         pitch =
             (
                 pitch -
                     dy *
-                    0.15f
+                    0.22f
                 )
                 .coerceIn(
-                    13f,
-                    48f
+                    10f,
+                    58f
                 )
     }
 
@@ -487,8 +562,8 @@ private class PetHome3DRenderer :
                     scaleFactor
                 )
                 .coerceIn(
-                    6.4f,
-                    12.5f
+                    5.6f,
+                    13.8f
                 )
     }
 
@@ -498,7 +573,7 @@ private class PetHome3DRenderer :
         pitch =
             25f
         distance =
-            8.8f
+            9.2f
     }
 
     fun setAutoTour(
@@ -529,7 +604,7 @@ private class PetHome3DRenderer :
             autoTour &&
             now -
                 arrivedAtNanos >
-            2_700_000_000L
+            3_600_000_000L
         ) {
             tourIndex =
                 (
@@ -1042,6 +1117,29 @@ private class PetHome3DRenderer :
                 0.07f,
                 1f
             )
+
+        // Soft contact shadow under the pet.
+        drawSphere(
+            x =
+                petX,
+            y =
+                0.012f,
+            z =
+                petZ,
+            sx =
+                0.78f,
+            sy =
+                0.035f,
+            sz =
+                0.56f,
+            color =
+                floatArrayOf(
+                    0.28f,
+                    0.22f,
+                    0.18f,
+                    1f
+                )
+        )
 
         // Body.
         drawChildSphere(

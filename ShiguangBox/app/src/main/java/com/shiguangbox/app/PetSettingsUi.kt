@@ -344,7 +344,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.9.0 宠物生命系统 · 橘团 / 芽芽 / 雨团",
+                        "V1.9.1 生活事件与连续行为链 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -1183,6 +1183,8 @@ fun PetSettingsScreen(
                     )
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
                     Text("• 主动陪伴会根据粘人度自行决定：只做小动作、主动说话、来找你、轻提醒或安静陪伴")
+                    Text("• 新增连续行为链：先动作、再观察、再气泡；部分事件可以直接回应“摸摸你 / 我先忙”")
+                    Text("• 新增短期记忆：同一种生活事件不会短时间重复；刚完成的任务过一会儿也可能被宠物重新提起")
                     Text("• 长时间没互动后，橘团 / 芽芽 / 雨团会用各自性格来找你；亲密感会在后台慢慢积累，不显示游戏数值")
                     Text("• 夜间安静模式默认 23:30–08:00，只保留很轻的小动作")
                     Text(

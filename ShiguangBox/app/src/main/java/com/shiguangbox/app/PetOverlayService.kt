@@ -2376,9 +2376,6 @@ class PetOverlayService : Service() {
                 dp(8)
         val safeTop =
             dp(20)
-        val safeBottom =
-            screenH -
-                dp(28)
 
         val petCenterX =
             pet.x +
@@ -2396,15 +2393,13 @@ class PetOverlayService : Service() {
             petCenterX -
                 tailEdgeOffset
 
+        // 气泡始终位于宠物头顶附近。
+        // 这里故意让气泡底部轻微贴近宠物顶部，
+        // 避免视觉上显得悬得太高。
         val aboveY =
             pet.y -
                 bubbleHeight +
                 dp(12)
-
-        val belowY =
-            pet.y +
-                pet.height -
-                dp(4)
 
         val candidates =
             listOf(
@@ -2418,18 +2413,6 @@ class PetOverlayService : Service() {
                     x = rightX,
                     y = aboveY,
                     placeAbove = true,
-                    score = 0
-                ),
-                BubblePlacement(
-                    x = leftX,
-                    y = belowY,
-                    placeAbove = false,
-                    score = 0
-                ),
-                BubblePlacement(
-                    x = rightX,
-                    y = belowY,
-                    placeAbove = false,
                     score = 0
                 )
             )
@@ -2497,19 +2480,11 @@ class PetOverlayService : Service() {
                     )
                     .coerceAtLeast(0)
 
-            val overflowBottom =
-                (
-                    rect.bottom -
-                        safeBottom
-                    )
-                    .coerceAtLeast(0)
-
             score -=
                 (
                     overflowLeft +
                         overflowRight +
-                        overflowTop +
-                        overflowBottom
+                        overflowTop
                     ) *
                     24
 
@@ -2576,45 +2551,6 @@ class PetOverlayService : Service() {
                     620
             }
 
-            if (
-                preferBelow &&
-                !candidate
-                    .placeAbove
-            ) {
-                score +=
-                    240
-            }
-
-            if (
-                expandedRainbow != null &&
-                !candidate.placeAbove
-            ) {
-                score +=
-                    180
-            }
-
-            val verticalGap =
-                if (
-                    candidate.placeAbove
-                ) {
-                    kotlin.math.abs(
-                        pet.y -
-                            rect.bottom
-                    )
-                } else {
-                    kotlin.math.abs(
-                        rect.top -
-                            (
-                                pet.y +
-                                    pet.height
-                                )
-                    )
-                }
-
-            score -=
-                verticalGap *
-                    3
-
             return score
         }
 
@@ -2648,20 +2584,14 @@ class PetOverlayService : Service() {
 
         val finalY =
             best.y
-                .coerceIn(
-                    safeTop,
-                    (
-                        safeBottom -
-                            bubbleHeight
-                        )
-                        .coerceAtLeast(
-                            safeTop
-                        )
+                .coerceAtLeast(
+                    safeTop
                 )
 
         return best.copy(
             x = finalX,
-            y = finalY
+            y = finalY,
+            placeAbove = true
         )
     }
 

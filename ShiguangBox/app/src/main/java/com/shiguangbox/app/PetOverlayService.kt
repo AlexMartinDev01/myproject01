@@ -3635,8 +3635,6 @@ class PetOverlayService : Service() {
                         stats.second,
                     mood =
                         currentMoodForToday(),
-                    hasMoodToday =
-                        hasMoodForToday(),
                     affection =
                         currentAffection(),
                     quietNight =
@@ -3787,6 +3785,8 @@ class PetOverlayService : Service() {
                         stats.second,
                     mood =
                         currentMoodForToday(),
+                    hasMoodToday =
+                        hasMoodForToday(),
                     affection =
                         currentAffection(),
                     idleMs =

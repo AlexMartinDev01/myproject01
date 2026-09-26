@@ -204,6 +204,10 @@ class PetOverlayService : Service() {
                     durationMs = 4_800L
                 )
             }
+            ACTION_TEST_COMPANION -> {
+                ensurePetView()
+                showCompanionPreview()
+            }
             ACTION_TEST_WAVE -> {
                 ensurePetView()
                 petView?.playWave()
@@ -3161,6 +3165,79 @@ class PetOverlayService : Service() {
         )
     }
 
+    private fun showCompanionPreview() {
+        scope.launch {
+            val stats =
+                todayTaskStats()
+
+            val context =
+                PetLifeContext(
+                    petKind =
+                        selectedPetKind(),
+                    clinginess =
+                        PetLifeEngine
+                            .clinginess(
+                                clinginessLevel()
+                            ),
+                    idleMs =
+                        PetLifeEngine
+                            .clinginess(
+                                clinginessLevel()
+                            )
+                            .missThresholdMs,
+                    hour =
+                        LocalTime.now()
+                            .hour,
+                    pendingTasks =
+                        stats.first,
+                    completedTasks =
+                        stats.second,
+                    mood =
+                        currentMoodForToday(),
+                    affection =
+                        currentAffection(),
+                    quietNight =
+                        false
+                )
+
+            val event =
+                PetLifeEvent
+                    .CHECK_IN
+
+            playCompanionAction(
+                event
+            )
+
+            handler.postDelayed(
+                {
+                    showPetBubble(
+                        title =
+                            petName() +
+                                " · " +
+                                PetLifeEngine
+                                    .titleSuffix(
+                                        event
+                                    ),
+                        message =
+                            PetLifeEngine
+                                .message(
+                                    context,
+                                    event
+                                ),
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD,
+                        priority =
+                            PRIORITY_INTERACTION,
+                        durationMs =
+                            4_800L
+                    )
+                },
+                300L
+            )
+        }
+    }
+
     private fun scheduleContextBubble() {
         contextBubbleRunnable
             ?.let {
@@ -3746,6 +3823,8 @@ class PetOverlayService : Service() {
             "com.shiguangbox.app.pet.MOOD_CHANGED"
         const val ACTION_TEST_BUBBLE =
             "com.shiguangbox.app.pet.TEST_BUBBLE"
+        const val ACTION_TEST_COMPANION =
+            "com.shiguangbox.app.pet.TEST_COMPANION"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
         const val ACTION_TEST_PETTING =

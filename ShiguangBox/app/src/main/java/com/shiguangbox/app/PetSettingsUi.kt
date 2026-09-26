@@ -39,7 +39,8 @@ import androidx.core.content.ContextCompat
 @Composable
 fun PetSettingsScreen(
     onBack: () -> Unit,
-    onPetChat: () -> Unit
+    onPetChat: () -> Unit,
+    onPetHome3D: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember {
@@ -517,6 +518,79 @@ fun PetSettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors =
+                    CardDefaults
+                        .cardColors(
+                            containerColor =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primaryContainer
+                                    .copy(
+                                        alpha =
+                                            0.62f
+                                    )
+                        ),
+                shape =
+                    RoundedCornerShape(
+                        22.dp
+                    )
+            ) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                18.dp
+                            )
+                ) {
+                    Text(
+                        "3D 小窝技术 Demo",
+                        fontWeight =
+                            FontWeight.Bold,
+                        fontSize =
+                            18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(
+                            6.dp
+                        )
+                    )
+
+                    Text(
+                        "先用橘团验证真正 3D 路线：可旋转镜头、双指缩放、床 / 窗 / 地毯三个空间锚点，以及自动巡游。当前角色是低多边形占位模型，后续再做正式三宠 3D 精模。",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize =
+                            12.sp,
+                        lineHeight =
+                            18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(
+                            12.dp
+                        )
+                    )
+
+                    Button(
+                        onClick =
+                            onPetHome3D,
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "进入橘团 3D 小窝"
+                        )
+                    }
                 }
             }
         }

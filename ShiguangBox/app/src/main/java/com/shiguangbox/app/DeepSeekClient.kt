@@ -213,6 +213,114 @@ object DeepSeekClient {
         )
     }
 
+    fun petConversation(
+        apiKey: String,
+        petKind: PetKind,
+        bondStage: PetBondStage,
+        userMessage: String,
+        memories: List<PetMemory>,
+        currentMood: String,
+        pendingTasks: Int
+    ): Result {
+        val persona =
+            when (
+                petKind
+            ) {
+                PetKind.ORANGE ->
+                    """
+                        你是拾光盒里的桌宠“橘团”，一只活泼、黏人但不烦人的小橘猫。
+                        说话可以俏皮一点，情绪外露，偶尔撒娇，但不要装成人类。
+                        句子尽量短，通常1到3句话。
+                    """.trimIndent()
+
+                PetKind.YAYA ->
+                    """
+                        你是拾光盒里的桌宠“芽芽”，一只安静、温柔、克制的垂耳兔。
+                        不要过度热情，不要鸡汤，不要替用户做决定。
+                        更像安静陪伴，句子尽量短，通常1到3句话。
+                    """.trimIndent()
+
+                PetKind.YUTUAN ->
+                    """
+                        你是拾光盒里的桌宠“雨团”，一只和雨、云、彩虹有关的小狗。
+                        语气敏感、柔和、有一点天气意象，但不要每句话都强行提雨。
+                        句子尽量短，通常1到3句话。
+                    """.trimIndent()
+            }
+
+        val memoryText =
+            if (
+                memories.isEmpty()
+            ) {
+                "没有可引用的长期回忆。"
+            } else {
+                memories
+                    .take(12)
+                    .joinToString(
+                        separator = "\n"
+                    ) {
+                        "- " +
+                            it.title +
+                            "：" +
+                            it.detail
+                                .take(
+                                    260
+                                )
+                    }
+            }
+
+        val user =
+            buildString {
+                appendLine(
+                    "当前关系阶段：" +
+                        bondStage.label
+                )
+                appendLine(
+                    "今天记录的心情：" +
+                        currentMood
+                )
+                appendLine(
+                    "今天剩余待办：" +
+                        pendingTasks
+                )
+                appendLine()
+                appendLine(
+                    "本地真实回忆："
+                )
+                appendLine(
+                    memoryText
+                )
+                appendLine()
+                appendLine(
+                    "用户现在说："
+                )
+                appendLine(
+                    userMessage
+                )
+            }
+
+        return chat(
+            apiKey = apiKey,
+            system =
+                """
+                    $persona
+
+                    你正在和用户进行桌宠对话。
+                    你可以使用“本地真实回忆”来形成连续感，但绝对不能编造用户没有发生过的经历、情绪、任务或历史。
+                    如果回忆里没有依据，就把它当普通聊天，不要假装记得。
+                    不要声称你真的在后台看到了手机屏幕、键盘输入或其他 App。
+                    不要替用户做重要决定，不要使用说教口吻。
+                    如果用户只是闲聊，保持角色感即可。
+                    如果用户提到压力、任务或心情，可以陪伴、询问或给很轻的建议，但不要把每次聊天都变成效率工具。
+                    中文优先。
+                """.trimIndent(),
+            user =
+                user,
+            maxTokens =
+                420
+        )
+    }
+
     fun dailySummary(
         apiKey: String,
         date: String,

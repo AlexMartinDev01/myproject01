@@ -121,7 +121,28 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.9.2" ]]; then
+          if [[ "$VERSION_NAME" == "1.9.3" ]]; then
+            RELEASE_TITLE="拾光盒 V1.9.3 · 行为编排系统"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.9.3 · 行为编排系统
+
+          - versionCode: $VERSION_CODE
+          - 新增独立 BehaviorSequence 行为编排层，将动作从“单个播放”升级为完整动作链
+          - 每个动作会完整播放并自然回中，再进入下一动作，修复固定延时导致动作互相覆盖的问题
+          - 行为链支持每步强度、速度、方向和动作间停顿
+          - 橘团 / 芽芽 / 雨团拥有不同的专属行为组合与节奏
+          - 想你、欢迎回来、任务回味、情绪陪伴、任务轻提醒等生活事件正式接入行为编排
+          - 单击、双击、连续点击、长按摸摸分别接入不同的三宠动作链
+          - “摸摸你 / 陪你一下”积极回应会进入二段行为链后再反馈
+          - “我先忙”会播放克制收尾动作并进入安静期
+          - 用户拖动、正式提醒、任务完成、心情反馈等高优先级交互会安全中断普通行为链
+          - Motion 2.0 增加防重叠保护，当前动作未结束时不会被普通新动作强行覆盖
+          - 新增“演示 V1.9.3 完整行为链”测试入口，可直接比较三只宠物的身体语言
+          - 保留 V1.9.2 八个新动作、头顶气泡、粘人度、短期记忆、雨团天气、睡眠和彩虹系统
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.9.2" ]]; then
             RELEASE_TITLE="拾光盒 V1.9.2 · 动作引擎 2.0"
             cat > release-notes.md <<EOF
           拾光盒 V1.9.2 · 动作引擎 2.0

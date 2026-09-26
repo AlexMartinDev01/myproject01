@@ -309,6 +309,12 @@ private class PetHome3DRenderer :
     private var autoTour =
         true
 
+    private var cameraEyeX =
+        0f
+
+    private var cameraEyeZ =
+        0f
+
     private var petX =
         Home3DAnchor
             .RUG
@@ -736,6 +742,11 @@ private class PetHome3DRenderer :
                 ) +
                 1.7f
 
+        cameraEyeX =
+            eyeX
+        cameraEyeZ =
+            eyeZ
+
         Matrix.setLookAtM(
             view,
             0,
@@ -907,71 +918,89 @@ private class PetHome3DRenderer :
                 1
         }
 
-        // Doll-house style open corner walls.
-        drawBox(
-            x = 0f,
-            y = 2.0f,
-            z = -2.60f,
-            sx = 6.35f,
-            sy = 4.15f,
-            sz = 0.12f,
-            color =
-                wallBack
-        )
+        // Doll-house style open corner walls. A wall disappears when the
+        // orbit camera moves behind it so the room remains readable.
+        val showBackWall =
+            cameraEyeZ >
+                -2.35f
 
-        drawBox(
-            x = -3.12f,
-            y = 2.0f,
-            z = 0f,
-            sx = 0.12f,
-            sy = 4.15f,
-            sz = 5.35f,
-            color =
-                wallLeft
-        )
+        val showLeftWall =
+            cameraEyeX >
+                -2.90f
 
-        // Baseboards.
-        drawBox(
-            0f,
-            0.12f,
-            -2.49f,
-            6.18f,
-            0.20f,
-            0.10f,
-            trim
-        )
+        if (
+            showBackWall
+        ) {
+            drawBox(
+                x = 0f,
+                y = 2.0f,
+                z = -2.60f,
+                sx = 6.35f,
+                sy = 4.15f,
+                sz = 0.12f,
+                color =
+                    wallBack
+            )
 
-        drawBox(
-            -3.01f,
-            0.12f,
-            0f,
-            0.10f,
-            0.20f,
-            5.16f,
-            trim
-        )
+            drawBox(
+                0f,
+                0.12f,
+                -2.49f,
+                6.18f,
+                0.20f,
+                0.10f,
+                trim
+            )
 
-        // Simple ceiling beam to frame the room.
-        drawBox(
-            0f,
-            3.76f,
-            -2.43f,
-            6.20f,
-            0.16f,
-            0.18f,
-            trim
-        )
+            drawBox(
+                0f,
+                3.76f,
+                -2.43f,
+                6.20f,
+                0.16f,
+                0.18f,
+                trim
+            )
+        }
 
-        drawBox(
-            -2.95f,
-            3.76f,
-            0f,
-            0.18f,
-            0.16f,
-            5.0f,
-            trim
-        )
+        if (
+            showLeftWall
+        ) {
+            drawBox(
+                x = -3.12f,
+                y = 2.0f,
+                z = 0f,
+                sx = 0.12f,
+                sy = 4.15f,
+                sz = 5.35f,
+                color =
+                    wallLeft
+            )
 
+            drawBox(
+                -3.01f,
+                0.12f,
+                0f,
+                0.10f,
+                0.20f,
+                5.16f,
+                trim
+            )
+
+            drawBox(
+                -2.95f,
+                3.76f,
+                0f,
+                0.18f,
+                0.16f,
+                5.0f,
+                trim
+            )
+        }
+
+        if (
+            showBackWall
+        ) {
         // Window outside sky panel.
         drawBox(
             x = 1.87f,
@@ -1096,6 +1125,8 @@ private class PetHome3DRenderer :
             curtain
         )
 
+        }
+
         // Wall art on left/back walls.
         val artFrame =
             floatArrayOf(
@@ -1105,55 +1136,63 @@ private class PetHome3DRenderer :
                 1f
             )
 
-        drawBox(
-            -1.05f,
-            2.46f,
-            -2.42f,
-            0.92f,
-            0.72f,
-            0.08f,
-            artFrame
-        )
-
-        drawBox(
-            -1.05f,
-            2.46f,
-            -2.34f,
-            0.72f,
-            0.52f,
-            0.045f,
-            floatArrayOf(
-                0.63f,
-                0.75f,
-                0.59f,
-                1f
+        if (
+            showBackWall
+        ) {
+            drawBox(
+                -1.05f,
+                2.46f,
+                -2.42f,
+                0.92f,
+                0.72f,
+                0.08f,
+                artFrame
             )
-        )
 
-        drawBox(
-            -2.98f,
-            2.34f,
-            0.62f,
-            0.08f,
-            0.88f,
-            0.78f,
-            artFrame
-        )
+            drawBox(
+                -1.05f,
+                2.46f,
+                -2.34f,
+                0.72f,
+                0.52f,
+                0.045f,
+                floatArrayOf(
+                    0.63f,
+                    0.75f,
+                    0.59f,
+                    1f
+                )
+            )
+        }
 
-        drawBox(
-            -2.90f,
-            2.34f,
-            0.62f,
-            0.045f,
-            0.68f,
-            0.58f,
-            floatArrayOf(
-                0.80f,
+        if (
+            showLeftWall
+        ) {
+            drawBox(
+                -2.98f,
+                2.34f,
                 0.62f,
-                0.45f,
-                1f
+                0.08f,
+                0.88f,
+                0.78f,
+                artFrame
             )
-        )
+
+            drawBox(
+                -2.90f,
+                2.34f,
+                0.62f,
+                0.045f,
+                0.68f,
+                0.58f,
+                floatArrayOf(
+                    0.80f,
+                    0.62f,
+                    0.45f,
+                    1f
+                )
+            )
+        }
     }
 
 

@@ -476,8 +476,24 @@ class PetHome3DView(
         rendering =
             false
 
-        renderThread
+        val thread =
+            renderThread
+
+        thread
             ?.interrupt()
+
+        if (
+            thread !=
+            null &&
+            thread !==
+            Thread.currentThread()
+        ) {
+            runCatching {
+                thread.join(
+                    500L
+                )
+            }
+        }
 
         renderThread =
             null

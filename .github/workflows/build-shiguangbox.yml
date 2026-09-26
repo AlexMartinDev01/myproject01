@@ -121,7 +121,23 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.8.2" ]]; then
+          if [[ "$VERSION_NAME" == "1.8.3" ]]; then
+            RELEASE_TITLE="拾光盒 V1.8.3 · 气泡固定头顶修复"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.8.3 · 气泡固定头顶修复
+
+          - versionCode: $VERSION_CODE
+          - 气泡始终位于宠物头顶附近，不再允许出现在宠物下方
+          - 只保留左上 / 右上两种智能布局
+          - 宠物左右移动时，气泡会在头顶左右两侧自动切换
+          - 气泡尾巴方向仍会自动朝向宠物
+          - 彩虹场景继续自动避让，并保持头顶布局
+          - 保留 V1.8.2 的动态跟随能力
+          - 其他宠物动作、天气、在线更新和业务功能保持不变
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.8.2" ]]; then
             RELEASE_TITLE="拾光盒 V1.8.2 · 气泡动态跟随"
             cat > release-notes.md <<EOF
           拾光盒 V1.8.2 · 气泡动态跟随

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - shiguangbox-v1
+      - feature-v2.1.0-3d-home-demo
     paths:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
@@ -112,6 +113,7 @@ jobs:
           path: ShiguangBox/app/build/outputs/apk/release/${{ env.OUTPUT_NAME }}
 
       - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/shiguangbox-v1'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
@@ -121,7 +123,28 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.0" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.1" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.1 · 3D 小窝预览 2"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.1 · 3D 小窝预览 2
+
+          - versionCode: $VERSION_CODE
+          - 修复 3D 小窝镜头拖动体验：GestureDetector + ScaleGestureDetector 双手势
+          - 单指可自由旋转镜头，横向支持 360° 轨道环绕，俯仰范围扩大
+          - 双指缩放范围扩大，双击场景可立即重置视角
+          - 触摸按下时禁止父层抢事件，解决“镜头拖不动 / 拖动无反应”
+          - 底部大控制卡缩成紧凑控制条，释放主要 3D 触摸区域
+          - 场景重建为暖色小窝：木地板分缝、踢脚线、窗框、窗台、窗帘、墙饰
+          - 床升级为床架 / 床头 / 床垫 / 被子 / 枕头 / 床头柜 / 暖灯
+          - 新增阅读桌、开放式收藏架、书本、发现物、绿植、落地灯、玩具篮、食盆和安静坐垫
+          - 新增更暖的双向光照与局部灯光层次，并补宠物接触阴影
+          - 自动巡游扩展为床 / 窗 / 地毯 / 玩具区 / 安静角落 5 个空间区域
+          - 360° 环绕时，遮挡视线的墙会按镜头位置自动隐藏，保持玩偶屋可视性
+          - 当前橘团仍为低多边形技术占位模型，重点继续验证 3D 场景和交互方向
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.0" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.0 · 3D 小窝技术预览"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.0 · 3D 小窝技术预览

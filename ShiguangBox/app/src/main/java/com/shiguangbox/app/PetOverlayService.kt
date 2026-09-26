@@ -251,6 +251,20 @@ class PetOverlayService : Service() {
                 ensurePetView()
                 showBehaviorSequencePreview()
             }
+            ACTION_TEST_WORLD_EVENT -> {
+                ensurePetView()
+                showWorldEventPreview(
+                    rare =
+                        false
+                )
+            }
+            ACTION_TEST_RARE_EVENT -> {
+                ensurePetView()
+                showWorldEventPreview(
+                    rare =
+                        true
+                )
+            }
             ACTION_TEST_WAVE -> {
                 ensurePetView()
                 petView?.playWave()
@@ -3698,9 +3712,6 @@ class PetOverlayService : Service() {
                     clinginessLevel()
                 )
 
-        val quietNight =
-            isCompanionQuietNight()
-
         val lastInteractionAt =
             prefs.getLong(
                 "pet_last_interaction_at",
@@ -3729,13 +3740,11 @@ class PetOverlayService : Service() {
                 todayTaskStats()
 
             val context =
-                PetLifeContext(
+                PetWorldContext(
                     petKind =
                         selectedPetKind(),
-                    clinginess =
-                        config,
-                    idleMs =
-                        idleMs,
+                    clinginessLevel =
+                        clinginessLevel(),
                     hour =
                         LocalTime.now()
                             .hour,
@@ -3747,85 +3756,635 @@ class PetOverlayService : Service() {
                         currentMoodForToday(),
                     affection =
                         currentAffection(),
+                    idleMs =
+                        idleMs,
                     quietNight =
-                        quietNight
+                        isCompanionQuietNight()
                 )
 
-            var event =
-                PetLifeEngine
-                    .chooseEvent(
+            val event =
+                PetWorldEngine
+                    .choose(
+                        prefs,
                         context
                     )
 
             if (
-                recentTaskMemoryAvailable() &&
-                !wasLifeEventRecent(
-                    PetLifeEvent
-                        .AFTER_TASK,
-                    withinMs =
-                        75L *
-                            60L *
-                            1000L
-                ) &&
-                kotlin.random.Random
-                    .nextFloat() <
-                0.42f
-            ) {
-                event =
-                    PetLifeEvent
-                        .AFTER_TASK
-            }
-
-            if (
                 event !=
-                PetLifeEvent
-                    .SILENT_ACTION &&
-                (
-                    now -
-                        lastAmbientBubbleAt <
-                    config
-                        .bubbleCooldownMs ||
-                    wasLifeEventRecent(
-                        event
-                    )
-                    )
+                null
             ) {
-                event =
-                    PetLifeEvent
-                        .SILENT_ACTION
-            }
-
-            runLifeEventChain(
-                context =
-                    context,
-                event =
-                    event,
-                interactive =
-                    event ==
-                        PetLifeEvent
-                            .MISS_YOU ||
-                        event ==
-                            PetLifeEvent
-                                .MOOD_COMPANY ||
-                        event ==
-                            PetLifeEvent
-                                .WELCOME_BACK
-            )
-
-            if (
-                event !=
-                PetLifeEvent
-                    .SILENT_ACTION
-            ) {
-                lastAmbientBubbleAt =
-                    now
-                rememberLifeEvent(
+                runPetWorldEvent(
                     event
                 )
             }
 
             scheduleContextBubble()
         }
+    }
+
+    private fun showWorldEventPreview(
+        rare: Boolean
+    ) {
+        scope.launch {
+            val stats =
+                todayTaskStats()
+
+            val context =
+                currentWorldContext(
+                    stats =
+                        stats,
+                    quietNight =
+                        false,
+                    forceIdle =
+                        true
+                )
+
+            val event =
+                if (
+                    rare
+                ) {
+                    PetWorldEngine
+                        .forceRare(
+                            prefs,
+                            context
+                        )
+                } else {
+                    PetWorldEngine
+                        .choose(
+                            prefs,
+                            context
+                        )
+                }
+
+            if (
+                event !=
+                null
+            ) {
+                runPetWorldEvent(
+                    event,
+                    preview =
+                        true
+                )
+            } else {
+                showPetBubble(
+                    title =
+                        petName() +
+                            " · 这次没有事件",
+                    message =
+                        if (
+                            rare
+                        ) {
+                            "这只宠物的稀有发现已经全部收进回忆盒啦。"
+                        } else {
+                            "生活系统这一次选择了“什么都不发生”，这也是自然随机的一部分。"
+                        },
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.NORMAL,
+                    priority =
+                        PRIORITY_INTERACTION,
+                    durationMs =
+                        4_200L
+                )
+            }
+        }
+    }
+
+    private fun currentWorldContext(
+        stats: Pair<Int, Int>,
+        quietNight: Boolean,
+        forceIdle: Boolean = false
+    ): PetWorldContext {
+        val config =
+            PetLifeEngine
+                .clinginess(
+                    clinginessLevel()
+                )
+
+        val lastInteractionAt =
+            prefs.getLong(
+                "pet_last_interaction_at",
+                0L
+            )
+
+        val idleMs =
+            if (
+                forceIdle ||
+                lastInteractionAt <=
+                0L
+            ) {
+                config
+                    .missThresholdMs +
+                    1L
+            } else {
+                (
+                    System.currentTimeMillis() -
+                        lastInteractionAt
+                    )
+                    .coerceAtLeast(
+                        0L
+                    )
+            }
+
+        return PetWorldContext(
+            petKind =
+                selectedPetKind(),
+            clinginessLevel =
+                clinginessLevel(),
+            hour =
+                LocalTime.now()
+                    .hour,
+            pendingTasks =
+                stats.first,
+            completedTasks =
+                stats.second,
+            mood =
+                currentMoodForToday(),
+            affection =
+                currentAffection(),
+            idleMs =
+                idleMs,
+            quietNight =
+                quietNight
+        )
+    }
+
+    private fun runPetWorldEvent(
+        event: PetWorldEvent,
+        preview: Boolean = false
+    ) {
+        cancelLifeChain()
+
+        val lifeToken =
+            lifeChainToken
+
+        lifeChainActiveUntil =
+            System.currentTimeMillis() +
+                event.sequence
+                    .estimatedDurationMs() +
+                if (
+                    event.interactive
+                ) {
+                    8_500L
+                } else {
+                    1_000L
+                }
+
+        if (
+            !preview
+        ) {
+            PetWorldStore
+                .markEvent(
+                    prefs,
+                    event
+                )
+        }
+
+        playBehaviorSequence(
+            sequence =
+                event.sequence,
+            requireNoPanel =
+                true,
+            externalGuard = {
+                lifeChainAllowed(
+                    lifeToken
+                )
+            },
+            onComplete = {
+                if (
+                    !lifeChainAllowed(
+                        lifeToken
+                    )
+                ) {
+                    return@playBehaviorSequence
+                }
+
+                when (
+                    event.type
+                ) {
+                    PetWorldEventType.QUIET_OBSERVE,
+                    PetWorldEventType.STRETCH_BREAK,
+                    PetWorldEventType.DAYDREAM -> {
+                        // 纯生活动作，不强制弹气泡。
+                    }
+
+                    else -> {
+                        showPetWorldBubble(
+                            event
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    private fun showPetWorldBubble(
+        event: PetWorldEvent
+    ) {
+        val discovery =
+            event.discovery
+
+        if (
+            discovery !=
+            null
+        ) {
+            val bubble =
+                PetSpeechBubbleView(
+                    this,
+                    selectedPetKind()
+                ).apply {
+                    bind(
+                        title =
+                            event.title,
+                        message =
+                            event.message,
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD
+                    )
+
+                    addAction(
+                        label =
+                            event.actionLabel
+                                ?: "收下",
+                        primary =
+                            true
+                    ) {
+                        hideSpeechBubble(
+                            immediate =
+                                false
+                        )
+
+                        val isNew =
+                            PetWorldStore
+                                .collectDiscovery(
+                                    prefs,
+                                    discovery
+                                )
+
+                        recordPetInteraction(
+                            affectionPoints =
+                                if (
+                                    isNew
+                                ) {
+                                    5
+                                } else {
+                                    1
+                                }
+                        )
+
+                        val sequence =
+                            PetBehaviorLibrary
+                                .forPositiveResponse(
+                                    selectedPetKind()
+                                )
+
+                        playBehaviorSequence(
+                            sequence =
+                                sequence,
+                            requireNoPanel =
+                                true,
+                            onComplete = {
+                                showPetBubble(
+                                    title =
+                                        discovery.emoji +
+                                            " 已经收好",
+                                    message =
+                                        if (
+                                            isNew
+                                        ) {
+                                            "它已经进入回忆盒。以后再遇到新的小东西，还会继续留在这里。"
+                                        } else {
+                                            "这个小发现已经在回忆盒里啦。"
+                                        },
+                                    tone =
+                                        PetSpeechBubbleView
+                                            .Tone.SUCCESS,
+                                    priority =
+                                        PRIORITY_INTERACTION,
+                                    durationMs =
+                                        4_000L
+                                )
+                            }
+                        )
+                    }
+
+                    addAction(
+                        label =
+                            "先看看"
+                    ) {
+                        hideSpeechBubble(
+                            immediate =
+                                false
+                        )
+                    }
+                }
+
+            showSpeechBubbleView(
+                view =
+                    bubble,
+                priority =
+                    PRIORITY_AMBIENT,
+                durationMs =
+                    9_000L
+            )
+
+            return
+        }
+
+        val targetRoute =
+            event.targetRoute
+
+        if (
+            targetRoute !=
+            null
+        ) {
+            val bubble =
+                PetSpeechBubbleView(
+                    this,
+                    selectedPetKind()
+                ).apply {
+                    bind(
+                        title =
+                            event.title,
+                        message =
+                            event.message,
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD
+                    )
+
+                    addAction(
+                        label =
+                            event.actionLabel
+                                ?: "去看看",
+                        primary =
+                            true
+                    ) {
+                        recordPetInteraction(
+                            affectionPoints =
+                                1
+                        )
+
+                        hideSpeechBubble(
+                            immediate =
+                                true
+                        )
+
+                        openAppRoute(
+                            targetRoute
+                        )
+                    }
+
+                    addAction(
+                        label =
+                            "先不了"
+                    ) {
+                        hideSpeechBubble(
+                            immediate =
+                                false
+                        )
+
+                        cancelLifeChain(
+                            snoozeMs =
+                                35L *
+                                    60L *
+                                    1000L
+                        )
+                    }
+                }
+
+            showSpeechBubbleView(
+                view =
+                    bubble,
+                priority =
+                    PRIORITY_AMBIENT,
+                durationMs =
+                    8_500L
+            )
+
+            return
+        }
+
+        if (
+            event.type in
+            setOf(
+                PetWorldEventType.SEEK_TOUCH,
+                PetWorldEventType.MOOD_COMPANY
+            )
+        ) {
+            val bubble =
+                PetSpeechBubbleView(
+                    this,
+                    selectedPetKind()
+                ).apply {
+                    bind(
+                        title =
+                            event.title,
+                        message =
+                            event.message,
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD
+                    )
+
+                    addAction(
+                        label =
+                            when (
+                                selectedPetKind()
+                            ) {
+                                PetKind.YAYA ->
+                                    "陪你一下"
+                                else ->
+                                    "摸摸你"
+                            },
+                        primary =
+                            true
+                    ) {
+                        handleWorldPositive(
+                            event
+                        )
+                    }
+
+                    addAction(
+                        label =
+                            "我先忙"
+                    ) {
+                        handleWorldBusy()
+                    }
+                }
+
+            showSpeechBubbleView(
+                view =
+                    bubble,
+                priority =
+                    PRIORITY_AMBIENT,
+                durationMs =
+                    8_000L
+            )
+
+            return
+        }
+
+        showPetBubble(
+            title =
+                event.title,
+            message =
+                event.message,
+            tone =
+                PetSpeechBubbleView
+                    .Tone.MOOD,
+            priority =
+                PRIORITY_AMBIENT,
+            durationMs =
+                4_800L
+        )
+    }
+
+    private fun handleWorldPositive(
+        event: PetWorldEvent
+    ) {
+        hideSpeechBubble(
+            immediate =
+                false
+        )
+
+        recordPetInteraction(
+            affectionPoints =
+                3
+        )
+
+        val sequence =
+            PetBehaviorLibrary
+                .forPositiveResponse(
+                    selectedPetKind()
+                )
+
+        playBehaviorSequence(
+            sequence =
+                sequence,
+            requireNoPanel =
+                true,
+            onComplete = {
+                showPetBubble(
+                    title =
+                        petName() +
+                            " · 收到啦",
+                    message =
+                        when (
+                            selectedPetKind()
+                        ) {
+                            PetKind.ORANGE ->
+                                "嘿嘿，这下满意啦～"
+                            PetKind.YAYA ->
+                                "嗯，就这样安静陪一下。"
+                            PetKind.YUTUAN ->
+                                "收到啦，周围好像都轻了一点。"
+                        },
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.MOOD,
+                    priority =
+                        PRIORITY_INTERACTION,
+                    durationMs =
+                        3_600L
+                )
+            }
+        )
+
+        PetWorldStore
+            .addMemory(
+                prefs,
+                PetMemory(
+                    id =
+                        "response_" +
+                            System
+                                .currentTimeMillis(),
+                    type =
+                        "interaction",
+                    petId =
+                        selectedPetKind()
+                            .id,
+                    title =
+                        "你回应了" +
+                            petName(),
+                    detail =
+                        event.message,
+                    createdAt =
+                        System
+                            .currentTimeMillis()
+                )
+            )
+    }
+
+    private fun handleWorldBusy() {
+        hideSpeechBubble(
+            immediate =
+                false
+        )
+
+        val quietFor =
+            when (
+                clinginessLevel()
+            ) {
+                3 ->
+                    18L *
+                        60L *
+                        1000L
+                2 ->
+                    25L *
+                        60L *
+                        1000L
+                else ->
+                    40L *
+                        60L *
+                        1000L
+            }
+
+        cancelLifeChain(
+            snoozeMs =
+                quietFor
+        )
+
+        playBehaviorSequence(
+            sequence =
+                PetBehaviorLibrary
+                    .forBusyResponse(
+                        selectedPetKind()
+                    ),
+            requireNoPanel =
+                true,
+            onComplete = {
+                scheduleContextBubble()
+            }
+        )
+    }
+
+    private fun openAppRoute(
+        route: String
+    ) {
+        val intent =
+            Intent(
+                this,
+                MainActivity::class.java
+            )
+                .putExtra(
+                    MainActivity
+                        .EXTRA_OPEN_ROUTE,
+                    route
+                )
+                .addFlags(
+                    Intent
+                        .FLAG_ACTIVITY_NEW_TASK or
+                        Intent
+                            .FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent
+                            .FLAG_ACTIVITY_CLEAR_TOP
+                )
+
+        startActivity(
+            intent
+        )
     }
 
     private fun playMotionPreview(
@@ -4322,6 +4881,32 @@ class PetOverlayService : Service() {
     ) {
         cancelLifeChain()
 
+        PetWorldStore
+            .addMemory(
+                prefs,
+                PetMemory(
+                    id =
+                        "task_" +
+                            System
+                                .currentTimeMillis(),
+                    type =
+                        "task_completed",
+                    petId =
+                        selectedPetKind()
+                            .id,
+                    title =
+                        "完成了「" +
+                            title +
+                            "」",
+                    detail =
+                        petName() +
+                            "记住了这件完成的小事。",
+                    createdAt =
+                        System
+                            .currentTimeMillis()
+                )
+            )
+
         prefs.edit()
             .putString(
                 "pet_last_completed_task_title",
@@ -4382,6 +4967,31 @@ class PetOverlayService : Service() {
         mood: String
     ) {
         cancelLifeChain()
+
+        PetWorldStore
+            .addMemory(
+                prefs,
+                PetMemory(
+                    id =
+                        "mood_" +
+                            LocalDate.now()
+                                .toString(),
+                    type =
+                        "mood",
+                    petId =
+                        selectedPetKind()
+                            .id,
+                    title =
+                        "今天的心情：" +
+                            mood,
+                    detail =
+                        petName() +
+                            "收到并记住了今天的心情。",
+                    createdAt =
+                        System
+                            .currentTimeMillis()
+                )
+            )
 
         val message =
             moodSentence(mood)
@@ -4643,6 +5253,10 @@ class PetOverlayService : Service() {
             "com.shiguangbox.app.pet.TEST_MOTION_SHOWCASE"
         const val ACTION_TEST_BEHAVIOR_SEQUENCE =
             "com.shiguangbox.app.pet.TEST_BEHAVIOR_SEQUENCE"
+        const val ACTION_TEST_WORLD_EVENT =
+            "com.shiguangbox.app.pet.TEST_WORLD_EVENT"
+        const val ACTION_TEST_RARE_EVENT =
+            "com.shiguangbox.app.pet.TEST_RARE_EVENT"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
         const val ACTION_TEST_PETTING =

@@ -121,7 +121,27 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.9.1" ]]; then
+          if [[ "$VERSION_NAME" == "1.9.2" ]]; then
+            RELEASE_TITLE="拾光盒 V1.9.2 · 动作引擎 2.0"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.9.2 · 动作引擎 2.0
+
+          - versionCode: $VERSION_CODE
+          - 新增独立 PetMotion 动作层，保留原有稳定 State，不再把所有动作硬塞进状态机
+          - 第一批新增 8 个独立动作：左右看看、歪头、抬头看、伸懒腰、小跳一下、困倦点头、害羞缩一下、主动求关注
+          - 新动作直接作用于 28×28 网格，不是整张图片简单旋转或缩放
+          - 橘团 / 芽芽 / 雨团拥有不同动作幅度、速度和身体语言参数
+          - 待机随机动作池不再只有眨眼 / 挥爪 / 签名动作，并增加“什么都不做”的自然留白
+          - 最近 3 个新动作会降低重复概率，减少机械循环
+          - V1.9.1 连续行为链已经接入新动作，例如“想你了”会先观察 / 歪头 / 求关注，再弹气泡
+          - 积极回应后会根据宠物类型使用不同二段动作
+          - 新增“动作实验室 2.0”，可逐个选择 8 个动作并调节强度
+          - 新增“连续演示 8 个新动作”，方便直接实机验收
+          - 保留头顶气泡、主动陪伴、粘人度、短期记忆、雨团天气、睡眠和彩虹逻辑
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.9.1" ]]; then
             RELEASE_TITLE="拾光盒 V1.9.1 · 生活事件与连续行为链"
             cat > release-notes.md <<EOF
           拾光盒 V1.9.1 · 生活事件与连续行为链

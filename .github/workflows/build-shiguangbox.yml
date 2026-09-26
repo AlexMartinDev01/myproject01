@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - shiguangbox-v1
+      - feature-v2.1.0-3d-home-demo
     paths:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
@@ -112,6 +113,7 @@ jobs:
           path: ShiguangBox/app/build/outputs/apk/release/${{ env.OUTPUT_NAME }}
 
       - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/shiguangbox-v1'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
@@ -121,7 +123,25 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.3" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.4" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.4 · TextureView/EGL 相机修正版"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.4 · TextureView/EGL 相机修正版
+
+          - versionCode: $VERSION_CODE
+          - 彻底移除 3D 小窝 GLSurfaceView 承载方式
+          - 改为 TextureView + EGL14 + OpenGL ES 2.0 独立渲染线程
+          - 3D 画面回到普通 View 层级，避免 SurfaceView 独立图层隔离 Compose 按钮和手势
+          - 单指拖动直接在 TextureView.onTouchEvent 中修改 yaw / pitch
+          - 双指缩放直接在 TextureView.onTouchEvent 中修改 camera distance
+          - 保留 ← → ↑ ↓ + − 相机测试按钮，可直接验证相机本体
+          - EGL Surface / Context 生命周期由 TextureView.SurfaceTextureListener 管理
+          - 页面销毁时等待旧 EGL 线程退出，避免 Surface 重建残留线程
+          - 保留暖色 3D 小窝、5 个空间锚点、自动巡游和墙体自动隐藏
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.3" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.3 · 3D 相机输入重构版"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.3 · 3D 相机输入重构版

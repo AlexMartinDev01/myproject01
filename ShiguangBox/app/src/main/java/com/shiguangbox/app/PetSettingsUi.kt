@@ -59,6 +59,37 @@ fun PetSettingsScreen(
         )
     }
 
+    var companionEnabled by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean(
+                "pet_companion_enabled",
+                true
+            )
+        )
+    }
+
+    var clinginessLevel by rememberSaveable {
+        mutableStateOf(
+            prefs.getInt(
+                "pet_clinginess_level",
+                1
+            )
+                .coerceIn(
+                    0,
+                    3
+                )
+        )
+    }
+
+    var quietNight by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean(
+                "pet_quiet_night",
+                true
+            )
+        )
+    }
+
     var autoSleep by rememberSaveable {
         mutableStateOf(
             prefs.getBoolean("pet_auto_sleep", true)
@@ -241,6 +272,18 @@ fun PetSettingsScreen(
                 actionLevel.coerceIn(0, 2)
             )
             .putBoolean(
+                "pet_companion_enabled",
+                companionEnabled
+            )
+            .putInt(
+                "pet_clinginess_level",
+                clinginessLevel.coerceIn(0, 3)
+            )
+            .putBoolean(
+                "pet_quiet_night",
+                quietNight
+            )
+            .putBoolean(
                 "pet_auto_sleep",
                 autoSleep
             )
@@ -283,7 +326,7 @@ fun PetSettingsScreen(
             )
         }
 
-        message = "行为与外观设置已应用"
+        message = "陪伴、行为与外观设置已应用"
     }
 
     LazyColumn(
@@ -301,7 +344,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.7.4 三宠物原图气泡版 · 橘团 / 芽芽 / 雨团",
+                        "V1.9.0 宠物生命系统 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -688,6 +731,200 @@ fun PetSettingsScreen(
 
         item {
             Card(
+                colors =
+                    CardDefaults
+                        .cardColors(
+                            containerColor =
+                                MaterialTheme
+                                    .colorScheme
+                                    .surface
+                        ),
+                shape =
+                    RoundedCornerShape(
+                        22.dp
+                    )
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp)
+                ) {
+                    Text(
+                        "主动陪伴",
+                        fontWeight =
+                            FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(8.dp)
+                    )
+
+                    Row(
+                        verticalAlignment =
+                            Alignment
+                                .CenterVertically
+                    ) {
+                        Column(
+                            Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "让宠物主动生活",
+                                fontWeight =
+                                    FontWeight.Medium
+                            )
+                            Text(
+                                "会主动做小动作、来找你、根据待办和心情说话",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Switch(
+                            checked =
+                                companionEnabled,
+                            onCheckedChange = {
+                                companionEnabled =
+                                    it
+                            }
+                        )
+                    }
+
+                    if (
+                        companionEnabled
+                    ) {
+                        Spacer(
+                            Modifier.height(12.dp)
+                        )
+
+                        val clinginessLabel =
+                            when (
+                                clinginessLevel
+                            ) {
+                                0 -> "安静"
+                                2 -> "粘人"
+                                3 -> "超粘人"
+                                else -> "陪伴"
+                            }
+
+                        Text(
+                            "粘人度：" +
+                                clinginessLabel,
+                            fontWeight =
+                                FontWeight.Medium
+                        )
+
+                        Slider(
+                            value =
+                                clinginessLevel
+                                    .toFloat(),
+                            onValueChange = {
+                                clinginessLevel =
+                                    it.toInt()
+                                        .coerceIn(
+                                            0,
+                                            3
+                                        )
+                            },
+                            valueRange =
+                                0f..3f,
+                            steps = 2
+                        )
+
+                        Text(
+                            when (
+                                clinginessLevel
+                            ) {
+                                0 ->
+                                    "大部分时间安静待着，偶尔才主动找你"
+
+                                2 ->
+                                    "会比较主动地挥爪、撒娇、提醒和来找你"
+
+                                3 ->
+                                    "存在感很强，会更频繁地主动互动和冒气泡"
+
+                                else ->
+                                    "偶尔主动互动，保持陪伴感但不会一直打扰"
+                            },
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                            fontSize = 12.sp
+                        )
+
+                        Spacer(
+                            Modifier.height(12.dp)
+                        )
+
+                        Row(
+                            verticalAlignment =
+                                Alignment
+                                    .CenterVertically
+                        ) {
+                            Column(
+                                Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    "夜间安静",
+                                    fontWeight =
+                                        FontWeight.Medium
+                                )
+                                Text(
+                                    "23:30–08:00 主动气泡暂停，只保留很轻的小动作",
+                                    color =
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
+                            }
+
+                            Switch(
+                                checked =
+                                    quietNight,
+                                onCheckedChange = {
+                                    quietNight =
+                                        it
+                                }
+                            )
+                        }
+
+                        Spacer(
+                            Modifier.height(10.dp)
+                        )
+
+                        Text(
+                            when (
+                                selectedPet
+                            ) {
+                                PetKind.ORANGE ->
+                                    "橘团偏主动热情，同一粘人度下更容易挥爪、摇尾巴和来找你。"
+
+                                PetKind.YAYA ->
+                                    "芽芽更克制安静，同一粘人度下更多是轻动作和温柔陪伴。"
+
+                                PetKind.YUTUAN ->
+                                    "雨团偏情绪表达，会把主动互动和雨、安静状态结合起来。"
+                            },
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
                 colors = CardDefaults.cardColors(
                     containerColor =
                         MaterialTheme.colorScheme.surface
@@ -920,7 +1157,9 @@ fun PetSettingsScreen(
                             "：记一下 / 加待办 / 查看今天"
                     )
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
-                    Text("• 深夜动作自动放慢；日常陪伴气泡有冷却，不会一直弹")
+                    Text("• 主动陪伴会根据粘人度自行决定：只做小动作、主动说话、来找你、轻提醒或安静陪伴")
+                    Text("• 长时间没互动后，橘团 / 芽芽 / 雨团会用各自性格来找你；亲密感会在后台慢慢积累，不显示游戏数值")
+                    Text("• 夜间安静模式默认 23:30–08:00，只保留很轻的小动作")
                     Text(
                         "• 心情切换后" +
                             selectedPet.displayName +

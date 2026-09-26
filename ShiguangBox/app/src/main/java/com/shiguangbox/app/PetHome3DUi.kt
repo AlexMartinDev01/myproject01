@@ -397,6 +397,5 @@ fun PetHome3DScreen(
                 }
             }
         }
-        }
     }
 }

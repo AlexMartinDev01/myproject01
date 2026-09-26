@@ -3276,20 +3276,20 @@ class PetOverlayService : Service() {
             val stats =
                 todayTaskStats()
 
+            val config =
+                PetLifeEngine
+                    .clinginess(
+                        clinginessLevel()
+                    )
+
             val context =
                 PetLifeContext(
                     petKind =
                         selectedPetKind(),
                     clinginess =
-                        PetLifeEngine
-                            .clinginess(
-                                clinginessLevel()
-                            ),
+                        config,
                     idleMs =
-                        PetLifeEngine
-                            .clinginess(
-                                clinginessLevel()
-                            )
+                        config
                             .missThresholdMs,
                     hour =
                         LocalTime.now()
@@ -3306,40 +3306,14 @@ class PetOverlayService : Service() {
                         false
                 )
 
-            val event =
-                PetLifeEvent
-                    .CHECK_IN
-
-            playCompanionAction(
-                event
-            )
-
-            handler.postDelayed(
-                {
-                    showPetBubble(
-                        title =
-                            petName() +
-                                " · " +
-                                PetLifeEngine
-                                    .titleSuffix(
-                                        event
-                                    ),
-                        message =
-                            PetLifeEngine
-                                .message(
-                                    context,
-                                    event
-                                ),
-                        tone =
-                            PetSpeechBubbleView
-                                .Tone.MOOD,
-                        priority =
-                            PRIORITY_INTERACTION,
-                        durationMs =
-                            4_800L
-                    )
-                },
-                300L
+            runLifeEventChain(
+                context =
+                    context,
+                event =
+                    PetLifeEvent
+                        .MISS_YOU,
+                interactive =
+                    true
             )
         }
     }

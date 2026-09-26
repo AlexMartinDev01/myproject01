@@ -183,6 +183,7 @@ fun AiSettingsScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Text("• 整理收藏内容", color = AiDark)
                 Text("• 根据真实记录生成每日总结", color = AiDark)
+                Text("• 和桌宠自由聊天，并仅使用本机真实回忆形成连续感", color = AiDark)
                 Text("• 严格基于已有文字，不假装看过拿不到正文的视频", color = AiDark)
                 Spacer(Modifier.height(12.dp))
                 Text(

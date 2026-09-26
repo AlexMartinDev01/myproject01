@@ -482,7 +482,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.1.0 3D 小窝技术预览 · 橘团 / 芽芽 / 雨团",
+                        "V2.1.1 3D 小窝预览 2 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )

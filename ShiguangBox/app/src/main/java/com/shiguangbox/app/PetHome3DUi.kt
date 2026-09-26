@@ -1,6 +1,7 @@
 package com.shiguangbox.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,6 +106,49 @@ fun PetHome3DScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
+        )
+
+        // Compose owns camera gestures. This avoids AndroidView / GLSurfaceView
+        // touch-dispatch conflicts on real devices.
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(
+                        view
+                    ) {
+                        detectTransformGestures(
+                            panZoomLock =
+                                true
+                        ) {
+                                _,
+                                pan,
+                                zoom,
+                                _ ->
+                            if (
+                                zoom !=
+                                1f
+                            ) {
+                                view
+                                    ?.zoomCamera(
+                                        zoom
+                                    )
+                            }
+
+                            if (
+                                pan.x !=
+                                0f ||
+                                pan.y !=
+                                0f
+                            ) {
+                                view
+                                    ?.orbitCamera(
+                                        pan.x,
+                                        pan.y
+                                    )
+                            }
+                        }
+                    }
         )
 
         Row(
@@ -215,7 +260,7 @@ fun PetHome3DScreen(
                     )
         ) {
             Text(
-                "拖动旋转 · 双指缩放 · 双击复位",
+                "拖动旋转 · 双指缩放 · 右上角复位",
                 modifier =
                     Modifier.padding(
                         horizontal = 14.dp,

@@ -595,6 +595,17 @@ object PetWorldEngine {
                 )
 
                 if (
+                    context.hour in
+                    11..22
+                ) {
+                    add(
+                        daydreamEvent(
+                            context
+                        )
+                    )
+                }
+
+                if (
                     context.idleMs >
                     18L *
                         60L *
@@ -973,6 +984,62 @@ object PetWorldEngine {
                     1000L,
             dailyLimit =
                 3
+        )
+
+    private fun daydreamEvent(
+        context: PetWorldContext
+    ): PetWorldEvent =
+        PetWorldEvent(
+            id =
+                context.petKind.id +
+                    "_daydream",
+            type =
+                PetWorldEventType.DAYDREAM,
+            title =
+                context.petKind.displayName +
+                    " · 发一会儿呆",
+            message =
+                when (
+                    context.petKind
+                ) {
+                    PetKind.ORANGE ->
+                        "它盯着一个地方看了半天，也不知道脑袋里在想什么。"
+                    PetKind.YAYA ->
+                        "芽芽安静发了一会儿呆，耳朵偶尔轻轻动一下。"
+                    PetKind.YUTUAN ->
+                        "雨团看着雨点发了一会儿呆，什么都没说。"
+                },
+            sequence =
+                when (
+                    context.petKind
+                ) {
+                    PetKind.ORANGE ->
+                        sequence(
+                            "orange_daydream",
+                            PetMotion.LOOK_UP,
+                            PetMotion.HEAD_TILT
+                        )
+                    PetKind.YAYA ->
+                        sequence(
+                            "yaya_daydream",
+                            PetMotion.LOOK_UP,
+                            PetMotion.DOZE_NOD
+                        )
+                    PetKind.YUTUAN ->
+                        sequence(
+                            "yutuan_daydream",
+                            PetMotion.LOOK_UP,
+                            PetMotion.SHY
+                        )
+                },
+            cooldownMs =
+                70L *
+                    60L *
+                    1000L,
+            dailyLimit =
+                2,
+            interactive =
+                false
         )
 
     private fun seekTouchEvent(

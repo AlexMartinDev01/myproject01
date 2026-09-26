@@ -92,6 +92,8 @@ class PetOverlayService : Service() {
 
     private var lifeChainToken = 0
 
+    private var motionShowcaseToken = 0
+
     private var lifeChainActiveUntil =
         0L
 
@@ -212,6 +214,36 @@ class PetOverlayService : Service() {
             ACTION_TEST_COMPANION -> {
                 ensurePetView()
                 showCompanionPreview()
+            }
+            ACTION_TEST_MOTION -> {
+                ensurePetView()
+
+                val motion =
+                    runCatching {
+                        PetMotion.valueOf(
+                            intent.getStringExtra(
+                                EXTRA_MOTION_ID
+                            ) ?: ""
+                        )
+                    }
+                        .getOrDefault(
+                            PetMotion.HEAD_TILT
+                        )
+
+                val intensity =
+                    intent.getFloatExtra(
+                        EXTRA_MOTION_INTENSITY,
+                        1f
+                    )
+
+                playMotionPreview(
+                    motion,
+                    intensity
+                )
+            }
+            ACTION_TEST_MOTION_SHOWCASE -> {
+                ensurePetView()
+                playMotionShowcase()
             }
             ACTION_TEST_WAVE -> {
                 ensurePetView()
@@ -3538,6 +3570,144 @@ class PetOverlayService : Service() {
         }
     }
 
+    private fun playMotionPreview(
+        motion: PetMotion,
+        intensity: Float = 1f
+    ) {
+        motionShowcaseToken += 1
+
+        val pet =
+            petView ?: return
+
+        pet.startIdle()
+
+        handler.postDelayed(
+            {
+                pet.playMotion(
+                    motion,
+                    MotionModifier(
+                        intensity =
+                            intensity
+                                .coerceIn(
+                                    0.6f,
+                                    1.4f
+                                ),
+                        speed = 1f,
+                        direction =
+                            if (
+                                kotlin.random.Random
+                                    .nextBoolean()
+                            ) {
+                                1f
+                            } else {
+                                -1f
+                            }
+                    )
+                )
+            },
+            120L
+        )
+    }
+
+    private fun playMotionShowcase() {
+        val pet =
+            petView ?: return
+
+        motionShowcaseToken += 1
+
+        val token =
+            motionShowcaseToken
+
+        val motions =
+            listOf(
+                PetMotion.LOOK_AROUND,
+                PetMotion.HEAD_TILT,
+                PetMotion.LOOK_UP,
+                PetMotion.STRETCH,
+                PetMotion.SMALL_JUMP,
+                PetMotion.DOZE_NOD,
+                PetMotion.SHY,
+                PetMotion.SEEK_ATTENTION
+            )
+
+        pet.startIdle()
+
+        fun playAt(
+            index: Int
+        ) {
+            if (
+                token !=
+                motionShowcaseToken ||
+                index >=
+                motions.size
+            ) {
+                return
+            }
+
+            pet.startIdle()
+
+            handler.postDelayed(
+                {
+                    if (
+                        token !=
+                        motionShowcaseToken
+                    ) {
+                        return@postDelayed
+                    }
+
+                    pet.playMotion(
+                        motions[index],
+                        MotionModifier(
+                            intensity =
+                                when (
+                                    selectedPetKind()
+                                ) {
+                                    PetKind.ORANGE ->
+                                        1.06f
+                                    PetKind.YAYA ->
+                                        0.92f
+                                    PetKind.YUTUAN ->
+                                        0.96f
+                                },
+                            speed = 1f,
+                            direction =
+                                if (
+                                    index %
+                                        2 ==
+                                    0
+                                ) {
+                                    1f
+                                } else {
+                                    -1f
+                                }
+                        )
+                    )
+
+                    handler.postDelayed(
+                        {
+                            playAt(
+                                index +
+                                    1
+                            )
+                        },
+                        (
+                            motions[index]
+                                .durationSeconds *
+                                1000.0 +
+                                650.0
+                            )
+                            .toLong()
+                    )
+                },
+                120L
+            )
+        }
+
+        playAt(
+            0
+        )
+    }
+
     private fun playCompanionAction(
         event: PetLifeEvent
     ) {
@@ -3640,38 +3810,46 @@ class PetOverlayService : Service() {
             context.petKind
         ) {
             PetKind.ORANGE -> {
-                pet.playBlink()
+                val first =
+                    when (event) {
+                        PetLifeEvent.MISS_YOU,
+                        PetLifeEvent.WELCOME_BACK ->
+                            PetMotion.LOOK_AROUND
 
-                handler.postDelayed(
-                    {
-                        if (
-                            lifeChainAllowed(
-                                token
+                        PetLifeEvent.PROUD_OF_YOU,
+                        PetLifeEvent.AFTER_TASK ->
+                            PetMotion.SMALL_JUMP
+
+                        PetLifeEvent.MOOD_COMPANY ->
+                            PetMotion.HEAD_TILT
+
+                        PetLifeEvent.SILENT_ACTION ->
+                            listOf(
+                                PetMotion.LOOK_AROUND,
+                                PetMotion.STRETCH,
+                                PetMotion.HEAD_TILT
                             )
-                        ) {
-                            when (event) {
-                                PetLifeEvent.MISS_YOU,
-                                PetLifeEvent.WELCOME_BACK ->
-                                    pet.playWave()
+                                .random()
 
-                                PetLifeEvent.PROUD_OF_YOU,
-                                PetLifeEvent.AFTER_TASK ->
-                                    pet.playTailWag()
+                        else ->
+                            PetMotion.LOOK_UP
+                    }
 
-                                PetLifeEvent.SILENT_ACTION ->
-                                    pet.playTailWag()
-
-                                else ->
-                                    pet.playWave()
+                pet.playMotion(
+                    first,
+                    MotionModifier(
+                        intensity = 1.08f,
+                        direction =
+                            if (
+                                kotlin.random.Random
+                                    .nextBoolean()
+                            ) {
+                                1f
+                            } else {
+                                -1f
                             }
-                        }
-                    },
-                    620L
+                    )
                 )
-            }
-
-            PetKind.YAYA -> {
-                pet.playBlink()
 
                 if (
                     event ==
@@ -3686,41 +3864,156 @@ class PetOverlayService : Service() {
                                     token
                                 )
                             ) {
-                                pet.playWave()
+                                pet.playMotion(
+                                    PetMotion.SEEK_ATTENTION,
+                                    MotionModifier(
+                                        intensity = 1.12f,
+                                        direction = 1f
+                                    )
+                                )
                             }
                         },
-                        920L
+                        1_450L
+                    )
+                }
+            }
+
+            PetKind.YAYA -> {
+                val first =
+                    when (event) {
+                        PetLifeEvent.MISS_YOU,
+                        PetLifeEvent.WELCOME_BACK ->
+                            PetMotion.HEAD_TILT
+
+                        PetLifeEvent.MOOD_COMPANY ->
+                            PetMotion.SHY
+
+                        PetLifeEvent.AFTER_TASK,
+                        PetLifeEvent.PROUD_OF_YOU ->
+                            PetMotion.STRETCH
+
+                        PetLifeEvent.SILENT_ACTION ->
+                            listOf(
+                                PetMotion.LOOK_AROUND,
+                                PetMotion.LOOK_UP,
+                                PetMotion.DOZE_NOD
+                            )
+                                .random()
+
+                        else ->
+                            PetMotion.LOOK_AROUND
+                    }
+
+                pet.playMotion(
+                    first,
+                    MotionModifier(
+                        intensity = 0.90f,
+                        speed = 0.92f,
+                        direction =
+                            if (
+                                kotlin.random.Random
+                                    .nextBoolean()
+                            ) {
+                                1f
+                            } else {
+                                -1f
+                            }
+                    )
+                )
+
+                if (
+                    event ==
+                    PetLifeEvent.MISS_YOU
+                ) {
+                    handler.postDelayed(
+                        {
+                            if (
+                                lifeChainAllowed(
+                                    token
+                                )
+                            ) {
+                                pet.playMotion(
+                                    PetMotion.LOOK_UP,
+                                    MotionModifier(
+                                        intensity = 0.86f,
+                                        speed = 0.90f
+                                    )
+                                )
+                            }
+                        },
+                        1_650L
                     )
                 }
             }
 
             PetKind.YUTUAN -> {
-                pet.playBlink()
+                val first =
+                    when (event) {
+                        PetLifeEvent.MISS_YOU ->
+                            PetMotion.LOOK_UP
 
-                handler.postDelayed(
-                    {
-                        if (
-                            lifeChainAllowed(
-                                token
+                        PetLifeEvent.WELCOME_BACK ->
+                            PetMotion.HEAD_TILT
+
+                        PetLifeEvent.AFTER_TASK,
+                        PetLifeEvent.PROUD_OF_YOU ->
+                            PetMotion.STRETCH
+
+                        PetLifeEvent.MOOD_COMPANY ->
+                            PetMotion.DOZE_NOD
+
+                        PetLifeEvent.SILENT_ACTION ->
+                            listOf(
+                                PetMotion.LOOK_AROUND,
+                                PetMotion.LOOK_UP,
+                                PetMotion.SHY
                             )
-                        ) {
-                            when (event) {
-                                PetLifeEvent.MISS_YOU,
-                                PetLifeEvent.AFTER_TASK,
-                                PetLifeEvent.PROUD_OF_YOU ->
-                                    pet.playTailWag()
+                                .random()
 
-                                PetLifeEvent.WELCOME_BACK,
-                                PetLifeEvent.TASK_NUDGE ->
-                                    pet.playWave()
+                        else ->
+                            PetMotion.LOOK_AROUND
+                    }
 
-                                else ->
-                                    pet.playBlink()
+                pet.playMotion(
+                    first,
+                    MotionModifier(
+                        intensity = 0.96f,
+                        speed = 0.94f,
+                        direction =
+                            if (
+                                kotlin.random.Random
+                                    .nextBoolean()
+                            ) {
+                                1f
+                            } else {
+                                -1f
                             }
-                        }
-                    },
-                    760L
+                    )
                 )
+
+                if (
+                    event ==
+                    PetLifeEvent.MISS_YOU
+                ) {
+                    handler.postDelayed(
+                        {
+                            if (
+                                lifeChainAllowed(
+                                    token
+                                )
+                            ) {
+                                pet.playMotion(
+                                    PetMotion.SEEK_ATTENTION,
+                                    MotionModifier(
+                                        intensity = 0.94f,
+                                        speed = 0.92f
+                                    )
+                                )
+                            }
+                        },
+                        1_550L
+                    )
+                }
             }
         }
 
@@ -3779,9 +4072,9 @@ class PetOverlayService : Service() {
             when (
                 context.petKind
             ) {
-                PetKind.ORANGE -> 1_320L
-                PetKind.YAYA -> 1_560L
-                PetKind.YUTUAN -> 1_420L
+                PetKind.ORANGE -> 2_950L
+                PetKind.YAYA -> 3_050L
+                PetKind.YUTUAN -> 3_000L
             }
         )
     }
@@ -3912,7 +4205,21 @@ class PetOverlayService : Service() {
                         null
                     ) {
                         petView
-                            ?.playHappy()
+                            ?.startIdle()
+
+                        petView
+                            ?.playMotion(
+                                when (
+                                    selectedPetKind()
+                                ) {
+                                    PetKind.ORANGE ->
+                                        PetMotion.SMALL_JUMP
+                                    PetKind.YAYA ->
+                                        PetMotion.HEAD_TILT
+                                    PetKind.YUTUAN ->
+                                        PetMotion.STRETCH
+                                }
+                            )
 
                         showPetBubble(
                             title =
@@ -4283,6 +4590,10 @@ class PetOverlayService : Service() {
             "com.shiguangbox.app.pet.TEST_BUBBLE"
         const val ACTION_TEST_COMPANION =
             "com.shiguangbox.app.pet.TEST_COMPANION"
+        const val ACTION_TEST_MOTION =
+            "com.shiguangbox.app.pet.TEST_MOTION"
+        const val ACTION_TEST_MOTION_SHOWCASE =
+            "com.shiguangbox.app.pet.TEST_MOTION_SHOWCASE"
         const val ACTION_TEST_WAVE = "com.shiguangbox.app.pet.TEST_WAVE"
         const val ACTION_TEST_TAIL = "com.shiguangbox.app.pet.TEST_TAIL"
         const val ACTION_TEST_PETTING =
@@ -4298,6 +4609,10 @@ class PetOverlayService : Service() {
             "pet_task_title"
         const val EXTRA_MOOD_ID =
             "pet_mood_id"
+        const val EXTRA_MOTION_ID =
+            "pet_motion_id"
+        const val EXTRA_MOTION_INTENSITY =
+            "pet_motion_intensity"
 
         private const val PRIORITY_AMBIENT = 10
         private const val PRIORITY_INTERACTION = 30

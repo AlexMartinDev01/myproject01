@@ -121,7 +121,28 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.8.3" ]]; then
+          if [[ "$VERSION_NAME" == "1.9.0" ]]; then
+            RELEASE_TITLE="拾光盒 V1.9.0 · 宠物生命系统 1.0"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.9.0 · 宠物生命系统 1.0
+
+          - versionCode: $VERSION_CODE
+          - 新增主动陪伴系统，宠物不再只等待点击
+          - 新增 4 档粘人度：安静 / 陪伴 / 粘人 / 超粘人
+          - 新增主动陪伴总开关
+          - 新增夜间安静模式：23:30–08:00 暂停主动气泡，仅保留轻动作
+          - 主动行为会结合未互动时长、今天待办、完成数量、今日心情和隐藏亲密度
+          - 橘团 / 芽芽 / 雨团拥有不同主动频率、动作选择和专属文案
+          - 长时间未互动后会按宠物性格主动来找用户
+          - 完成任务和心情互动会在后台积累隐藏亲密度，不显示游戏化数值
+          - 服务重新出现且用户离开较久时支持“欢迎回来”反应
+          - 新增“测试主动陪伴”入口，方便立即查看当前宠物表现
+          - 保留 V1.8.3 气泡始终在宠物头顶、左右智能换边和动态跟随
+          - 雨团睡眠天气、彩虹避让、在线更新和其他业务功能保持不变
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.8.3" ]]; then
             RELEASE_TITLE="拾光盒 V1.8.3 · 气泡固定头顶修复"
             cat > release-notes.md <<EOF
           拾光盒 V1.8.3 · 气泡固定头顶修复

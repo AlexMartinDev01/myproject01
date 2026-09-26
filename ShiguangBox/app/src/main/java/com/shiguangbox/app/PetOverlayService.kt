@@ -182,7 +182,13 @@ class PetOverlayService : Service() {
                         EXTRA_TASK_TITLE
                     ) ?: "这件事"
                 showTaskCompletionCelebration(
-                    title
+                    title =
+                        title,
+                    occurredAt =
+                        intent.getLongExtra(
+                            EXTRA_EVENT_AT,
+                            System.currentTimeMillis()
+                        )
                 )
             }
 
@@ -2061,16 +2067,34 @@ class PetOverlayService : Service() {
 
     private fun saveQuickNote(text: String) {
         scope.launch {
+            val createdAt =
+                System.currentTimeMillis()
+
             withContext(Dispatchers.IO) {
                 AppDatabase.get(this@PetOverlayService)
                     .noteDao()
                     .insert(
                         NoteEntity(
                             content = text,
-                            category = "临时"
+                            category = "临时",
+                            createdAt =
+                                createdAt
                         )
                     )
             }
+
+            PetWorldStore
+                .recordNote(
+                    prefs =
+                        prefs,
+                    petKind =
+                        selectedPetKind(),
+                    content =
+                        text,
+                    occurredAt =
+                        createdAt
+                )
+
             showSuccess("记好啦，已经放进拾光盒 ✨")
         }
     }
@@ -2188,10 +2212,14 @@ class PetOverlayService : Service() {
                 db.taskDao().getAllOnce().firstOrNull { it.id == taskId }
             }
 
+            val completedAt =
+                System.currentTimeMillis()
+
             if (task != null && !task.completed) {
                 val completed = task.copy(
                     completed = true,
-                    completedAt = System.currentTimeMillis()
+                    completedAt =
+                        completedAt
                 )
 
                 withContext(Dispatchers.IO) {
@@ -2211,7 +2239,10 @@ class PetOverlayService : Service() {
             reminderTaskId = 0L
 
             showTaskCompletionCelebration(
-                task?.title ?: "这件事"
+                title =
+                    task?.title ?: "这件事",
+                occurredAt =
+                    completedAt
             )
         }
     }
@@ -3604,6 +3635,8 @@ class PetOverlayService : Service() {
                         stats.second,
                     mood =
                         currentMoodForToday(),
+                    hasMoodToday =
+                        hasMoodForToday(),
                     affection =
                         currentAffection(),
                     quietNight =
@@ -3916,6 +3949,8 @@ class PetOverlayService : Service() {
                 stats.second,
             mood =
                 currentMoodForToday(),
+            hasMoodToday =
+                hasMoodForToday(),
             affection =
                 currentAffection(),
             idleMs =
@@ -4893,34 +4928,22 @@ class PetOverlayService : Service() {
     }
 
     private fun showTaskCompletionCelebration(
-        title: String
+        title: String,
+        occurredAt: Long =
+            System.currentTimeMillis()
     ) {
         cancelLifeChain()
 
         PetWorldStore
-            .addMemory(
-                prefs,
-                PetMemory(
-                    id =
-                        "task_" +
-                            System
-                                .currentTimeMillis(),
-                    type =
-                        "task_completed",
-                    petId =
-                        selectedPetKind()
-                            .id,
-                    title =
-                        "完成了「" +
-                            title +
-                            "」",
-                    detail =
-                        petName() +
-                            "记住了这件完成的小事。",
-                    createdAt =
-                        System
-                            .currentTimeMillis()
-                )
+            .recordTaskCompletion(
+                prefs =
+                    prefs,
+                petKind =
+                    selectedPetKind(),
+                title =
+                    title,
+                occurredAt =
+                    occurredAt
             )
 
         prefs.edit()
@@ -4930,7 +4953,7 @@ class PetOverlayService : Service() {
             )
             .putLong(
                 "pet_last_completed_task_at",
-                System.currentTimeMillis()
+                occurredAt
             )
             .apply()
 
@@ -4985,28 +5008,13 @@ class PetOverlayService : Service() {
         cancelLifeChain()
 
         PetWorldStore
-            .addMemory(
-                prefs,
-                PetMemory(
-                    id =
-                        "mood_" +
-                            LocalDate.now()
-                                .toString(),
-                    type =
-                        "mood",
-                    petId =
-                        selectedPetKind()
-                            .id,
-                    title =
-                        "今天的心情：" +
-                            mood,
-                    detail =
-                        petName() +
-                            "收到并记住了今天的心情。",
-                    createdAt =
-                        System
-                            .currentTimeMillis()
-                )
+            .recordMood(
+                prefs =
+                    prefs,
+                petKind =
+                    selectedPetKind(),
+                moodId =
+                    mood
             )
 
         val message =
@@ -5042,6 +5050,15 @@ class PetOverlayService : Service() {
             durationMs = 4_500L
         )
     }
+
+    private fun hasMoodForToday():
+        Boolean =
+        prefs.getString(
+            "journal_mood_date",
+            ""
+        ) ==
+            LocalDate.now()
+                .toString()
 
     private fun currentMoodForToday():
         String {
@@ -5286,6 +5303,8 @@ class PetOverlayService : Service() {
         const val EXTRA_TASK_ID = "pet_task_id"
         const val EXTRA_TASK_TITLE =
             "pet_task_title"
+        const val EXTRA_EVENT_AT =
+            "pet_event_at"
         const val EXTRA_MOOD_ID =
             "pet_mood_id"
         const val EXTRA_MOTION_ID =

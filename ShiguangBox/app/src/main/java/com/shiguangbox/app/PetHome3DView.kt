@@ -1996,24 +1996,25 @@ private class Mesh3D(
                                 1
                         )
 
+                    // Counter-clockwise winding when viewed from outside.
                     add(
                         p00
                     )
                     add(
-                        p10
+                        p11
                     )
                     add(
-                        p11
+                        p10
                     )
 
                     add(
                         p00
                     )
                     add(
-                        p11
+                        p01
                     )
                     add(
-                        p01
+                        p11
                     )
                 }
             }

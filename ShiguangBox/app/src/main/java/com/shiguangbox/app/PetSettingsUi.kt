@@ -229,13 +229,36 @@ fun PetSettingsScreen(
             selectedPetId
         ) {
             PetWorldStore
-                .recentMemories(
-                    prefs,
-                    5
+                .recentMemoriesForPet(
+                    prefs =
+                        prefs,
+                    petKind =
+                        selectedPet,
+                    limit =
+                        8
+                )
+        }
+
+    val todayWorldHistory =
+        remember(
+            memoryRefresh,
+            selectedPetId
+        ) {
+            PetWorldStore
+                .todayEventHistory(
+                    prefs
                 )
                 .filter {
-                    it.petId ==
-                        selectedPet.id
+                    it.eventId
+                        .startsWith(
+                            selectedPet.id +
+                                "_"
+                        ) ||
+                        it.eventId
+                            .startsWith(
+                                "discovery_" +
+                                    selectedPet.id
+                            )
                 }
         }
 
@@ -941,6 +964,23 @@ fun PetSettingsScreen(
                             )
                     )
 
+                    Text(
+                        "今天已经发生 " +
+                            todayWorldHistory.size +
+                            " 个生活事件",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize =
+                            12.sp,
+                        modifier =
+                            Modifier.padding(
+                                top =
+                                    3.dp
+                            )
+                    )
+
                     Spacer(
                         Modifier.height(
                             12.dp
@@ -1064,7 +1104,7 @@ fun PetSettingsScreen(
                             .isEmpty()
                     ) {
                         Text(
-                            "还没有明显的共同回忆。完成待办、记录心情、回应宠物或遇见稀有事件后，会慢慢出现在这里。",
+                            "还没有明显的共同回忆。完成待办、写记录、记录心情、回应宠物或收下稀有发现后，会慢慢出现在这里。",
                             color =
                                 MaterialTheme
                                     .colorScheme

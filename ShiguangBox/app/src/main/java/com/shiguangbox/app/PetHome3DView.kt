@@ -110,6 +110,26 @@ class PetHome3DView(
             .resetCamera()
     }
 
+    fun orbitCamera(
+        dx: Float,
+        dy: Float
+    ) {
+        homeRenderer
+            .rotateCamera(
+                dx,
+                dy
+            )
+    }
+
+    fun zoomCamera(
+        scaleFactor: Float
+    ) {
+        homeRenderer
+            .zoomBy(
+                scaleFactor
+            )
+    }
+
     fun goToBed() {
         homeRenderer
             .goToAnchor(

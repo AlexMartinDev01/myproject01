@@ -151,6 +151,19 @@ class PetRigView @JvmOverloads constructor(
 
     private var lastIdleAction = -1
     private var lastTouchReaction = -1
+
+    private var currentMotion =
+        PetMotion.NONE
+
+    private var motionStartNanos =
+        0L
+
+    private var motionModifier =
+        MotionModifier()
+
+    private val recentMotions =
+        mutableListOf<PetMotion>()
+
     private var actionFrequencyLevel = 1
     private var autoSleepEnabled = true
     private var autoSleepAfterSeconds = 240.0
@@ -193,6 +206,7 @@ class PetRigView @JvmOverloads constructor(
             now
         blinkStartNanos =
             0L
+        clearMotion()
 
         scheduleNextBlink(
             now
@@ -279,6 +293,114 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    fun playMotion(
+        motion: PetMotion,
+        modifier:
+            MotionModifier =
+            MotionModifier()
+    ): Boolean {
+        if (
+            motion ==
+            PetMotion.NONE
+        ) {
+            clearMotion()
+            return true
+        }
+
+        if (
+            state !=
+            State.IDLE
+        ) {
+            return false
+        }
+
+        currentMotion =
+            motion
+        motionStartNanos =
+            System.nanoTime()
+        motionModifier =
+            modifier.copy(
+                intensity =
+                    modifier.intensity
+                        .coerceIn(
+                            0.55f,
+                            1.45f
+                        ),
+                speed =
+                    modifier.speed
+                        .coerceIn(
+                            0.55f,
+                            1.55f
+                        ),
+                direction =
+                    if (
+                        modifier.direction <
+                        0f
+                    ) {
+                        -1f
+                    } else {
+                        1f
+                    }
+            )
+
+        rememberMotion(
+            motion
+        )
+
+        blinkStartNanos =
+            0L
+
+        paused =
+            false
+        postFrame()
+
+        return true
+    }
+
+    fun currentMotion():
+        PetMotion =
+        currentMotion
+
+    private fun clearMotion() {
+        currentMotion =
+            PetMotion.NONE
+        motionStartNanos =
+            0L
+        motionModifier =
+            MotionModifier()
+    }
+
+    private fun rememberMotion(
+        motion: PetMotion
+    ) {
+        if (
+            motion ==
+            PetMotion.NONE
+        ) {
+            return
+        }
+
+        recentMotions
+            .remove(
+                motion
+            )
+
+        recentMotions
+            .add(
+                motion
+            )
+
+        while (
+            recentMotions.size >
+            3
+        ) {
+            recentMotions
+                .removeAt(
+                    0
+                )
+        }
+    }
+
     fun configureBehavior(
         actionLevel: Int,
         autoSleep: Boolean,
@@ -331,7 +453,11 @@ class PetRigView @JvmOverloads constructor(
             else -> "摇尾巴"
         }
 
-    fun canDoAmbientAction(): Boolean = state == State.IDLE
+    fun canDoAmbientAction(): Boolean =
+        state ==
+            State.IDLE &&
+            currentMotion ==
+                PetMotion.NONE
 
     fun isSleepingOrTired(): Boolean =
         state == State.SLEEP ||
@@ -394,6 +520,7 @@ class PetRigView @JvmOverloads constructor(
             .removeFrameCallback(this)
         callbackPosted = false
         stateChangeListener = null
+        clearMotion()
         yutuanRainSystem?.reset()
 
         // Resource bitmaps are intentionally NOT recycled manually.
@@ -415,6 +542,13 @@ class PetRigView @JvmOverloads constructor(
             now
         blinkStartNanos =
             0L
+
+        if (
+            newState !=
+            State.IDLE
+        ) {
+            clearMotion()
+        }
 
         if (
             newState ==
@@ -500,15 +634,53 @@ class PetRigView @JvmOverloads constructor(
             State.WAKE_UP -> drawWakeState(canvas, idleSeconds, stateSeconds)
 
             else -> {
-                val normalBlink = currentBlinkAmount(now)
-                val comboBlink = when (state) {
-                    State.TAIL_WAG -> tailComboBlinkAmount(stateSeconds)
-                    State.PETTED -> pettingBlinkAmount(stateSeconds)
-                    else -> 0.0
-                }
-                val blink = maxOf(normalBlink, comboBlink)
-                buildMesh(idleSeconds, stateSeconds, blink)
-                drawIdleMesh(canvas, 1f)
+                val normalBlink =
+                    currentBlinkAmount(
+                        now
+                    )
+
+                val comboBlink =
+                    when (state) {
+                        State.TAIL_WAG ->
+                            tailComboBlinkAmount(
+                                stateSeconds
+                            )
+
+                        State.PETTED ->
+                            pettingBlinkAmount(
+                                stateSeconds
+                            )
+
+                        else ->
+                            0.0
+                    }
+
+                val motionBlink =
+                    currentMotionBlinkAmount(
+                        now
+                    )
+
+                val blink =
+                    maxOf(
+                        normalBlink,
+                        comboBlink,
+                        motionBlink
+                    )
+
+                buildMesh(
+                    idleSeconds,
+                    stateSeconds,
+                    blink
+                )
+
+                applyCurrentMotionToMesh(
+                    now
+                )
+
+                drawIdleMesh(
+                    canvas,
+                    1f
+                )
             }
         }
 
@@ -987,6 +1159,9 @@ class PetRigView @JvmOverloads constructor(
 
         when (state) {
             State.IDLE -> {
+                updateMotion(
+                    now
+                )
                 maybeStartRandomBlink(now)
                 maybeStartRandomIdleAction(now)
 
@@ -1045,30 +1220,897 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
-    private fun maybeStartRandomIdleAction(now: Long) {
-        if (blinkStartNanos != 0L || now < nextIdleActionNanos) return
-
-        // 0=只眨眼，1=摇尾巴组合，2=挥爪；避免连续相同。
-        var candidate = when (Random.nextInt(100)) {
-            in 0..24 -> 0
-            in 25..69 -> 1
-            else -> 2
+    private fun maybeStartRandomIdleAction(
+        now: Long
+    ) {
+        if (
+            currentMotion !=
+            PetMotion.NONE ||
+            blinkStartNanos !=
+            0L ||
+            now <
+            nextIdleActionNanos
+        ) {
+            return
         }
 
-        if (candidate == lastIdleAction) {
-            candidate = (candidate + 1 + Random.nextInt(2)) % 3
-        }
-        lastIdleAction = candidate
+        val roll =
+            Random.nextInt(
+                100
+            )
 
-        when (candidate) {
-            0 -> {
-                blinkStartNanos = now
-                nextBlinkNanos =
-                    now + BLINK_DURATION_NANOS + randomBlinkDelayNanos()
-                scheduleNextIdleAction(now)
+        when {
+            // 10%：什么都不发生。真正的待机需要留白。
+            roll <
+                10 -> {
+                scheduleNextIdleAction(
+                    now
+                )
             }
-            1 -> setState(State.TAIL_WAG, now)
-            else -> setState(State.WAVE, now)
+
+            // 15%：只有眨眼。
+            roll <
+                25 -> {
+                blinkStartNanos =
+                    now
+                nextBlinkNanos =
+                    now +
+                        BLINK_DURATION_NANOS +
+                        randomBlinkDelayNanos()
+
+                scheduleNextIdleAction(
+                    now
+                )
+            }
+
+            // 15%：保留经典签名动作 / 挥爪。
+            roll <
+                40 -> {
+                var candidate =
+                    Random.nextInt(
+                        2
+                    )
+
+                if (
+                    candidate ==
+                    lastIdleAction
+                ) {
+                    candidate =
+                        1 -
+                            candidate
+                }
+
+                lastIdleAction =
+                    candidate
+
+                if (
+                    candidate ==
+                    0
+                ) {
+                    setState(
+                        State.TAIL_WAG,
+                        now
+                    )
+                } else {
+                    setState(
+                        State.WAVE,
+                        now
+                    )
+                }
+            }
+
+            // 42%：新的微动作和中动作。
+            roll <
+                82 -> {
+                val pool =
+                    listOf(
+                        PetMotion.LOOK_AROUND,
+                        PetMotion.HEAD_TILT,
+                        PetMotion.LOOK_UP,
+                        PetMotion.STRETCH,
+                        PetMotion.DOZE_NOD,
+                        PetMotion.SHY
+                    )
+
+                playMotion(
+                    chooseMotion(
+                        pool
+                    ),
+                    randomMotionModifier()
+                )
+            }
+
+            // 18%：存在感更强的大动作。
+            else -> {
+                val pool =
+                    listOf(
+                        PetMotion.SMALL_JUMP,
+                        PetMotion.SEEK_ATTENTION
+                    )
+
+                playMotion(
+                    chooseMotion(
+                        pool
+                    ),
+                    randomMotionModifier()
+                )
+            }
+        }
+    }
+
+    private fun chooseMotion(
+        pool: List<PetMotion>
+    ): PetMotion {
+        val fresh =
+            pool.filter {
+                it !in
+                    recentMotions
+            }
+
+        return (
+            if (
+                fresh.isNotEmpty()
+            ) {
+                fresh
+            } else {
+                pool
+            }
+            )
+            .random()
+    }
+
+    private fun randomMotionModifier():
+        MotionModifier {
+        val personalityIntensity =
+            when (
+                petKind
+            ) {
+                PetKind.ORANGE ->
+                    Random.nextDouble(
+                        0.95,
+                        1.18
+                    )
+
+                PetKind.YAYA ->
+                    Random.nextDouble(
+                        0.78,
+                        0.98
+                    )
+
+                PetKind.YUTUAN ->
+                    Random.nextDouble(
+                        0.82,
+                        1.03
+                    )
+            }
+
+        return MotionModifier(
+            intensity =
+                personalityIntensity
+                    .toFloat(),
+            speed =
+                Random.nextDouble(
+                    0.90,
+                    1.10
+                )
+                    .toFloat(),
+            direction =
+                if (
+                    Random.nextBoolean()
+                ) {
+                    1f
+                } else {
+                    -1f
+                }
+        )
+    }
+
+    private fun updateMotion(
+        now: Long
+    ) {
+        val motion =
+            currentMotion
+
+        if (
+            motion ==
+            PetMotion.NONE
+        ) {
+            return
+        }
+
+        val durationNanos =
+            (
+                motion
+                    .durationSeconds *
+                    1_000_000_000.0 /
+                    motionModifier
+                        .speed
+                        .coerceAtLeast(
+                            0.55f
+                        )
+            )
+                .toLong()
+                .coerceAtLeast(
+                    1L
+                )
+
+        if (
+            now -
+                motionStartNanos >=
+            durationNanos
+        ) {
+            clearMotion()
+            scheduleNextIdleAction(
+                now
+            )
+        }
+    }
+
+    private fun motionProgress(
+        now: Long
+    ): Double {
+        val motion =
+            currentMotion
+
+        if (
+            motion ==
+            PetMotion.NONE ||
+            motionStartNanos <=
+            0L
+        ) {
+            return 0.0
+        }
+
+        val duration =
+            (
+                motion
+                    .durationSeconds /
+                    motionModifier
+                        .speed
+                        .coerceAtLeast(
+                            0.55f
+                        )
+            )
+                .coerceAtLeast(
+                    0.1
+                )
+
+        return clamp(
+            (
+                now -
+                    motionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                )
+                .toDouble() /
+                1_000_000_000.0 /
+                duration,
+            0.0,
+            1.0
+        )
+    }
+
+    private fun currentMotionBlinkAmount(
+        now: Long
+    ): Double {
+        val p =
+            motionProgress(
+                now
+            )
+
+        return when (
+            currentMotion
+        ) {
+            PetMotion.DOZE_NOD -> {
+                val close =
+                    smoothStep(
+                        clamp(
+                            (
+                                p -
+                                    0.18
+                                ) /
+                                0.28,
+                            0.0,
+                            1.0
+                        )
+                    )
+
+                val open =
+                    1.0 -
+                        smoothStep(
+                            clamp(
+                                (
+                                    p -
+                                        0.72
+                                    ) /
+                                    0.20,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                0.92 *
+                    close *
+                    open
+            }
+
+            PetMotion.HEAD_TILT ->
+                if (
+                    p in
+                    0.48..0.64
+                ) {
+                    sin(
+                        (
+                            p -
+                                0.48
+                            ) /
+                            0.16 *
+                            PI
+                    )
+                        .coerceAtLeast(
+                            0.0
+                        )
+                } else {
+                    0.0
+                }
+
+            PetMotion.SHY ->
+                if (
+                    p in
+                    0.36..0.54
+                ) {
+                    0.72 *
+                        sin(
+                            (
+                                p -
+                                    0.36
+                                ) /
+                                0.18 *
+                                PI
+                        )
+                            .coerceAtLeast(
+                                0.0
+                            )
+                } else {
+                    0.0
+                }
+
+            else ->
+                0.0
+        }
+    }
+
+    private fun applyCurrentMotionToMesh(
+        now: Long
+    ) {
+        val motion =
+            currentMotion
+
+        if (
+            motion ==
+            PetMotion.NONE ||
+            width <=
+            0 ||
+            height <=
+            0
+        ) {
+            return
+        }
+
+        val p =
+            motionProgress(
+                now
+            )
+
+        val profile =
+            PetMotionProfiles
+                .forPet(
+                    petKind
+                )
+
+        val intensity =
+            motionModifier
+                .intensity
+                .toDouble()
+
+        val direction =
+            motionModifier
+                .direction
+                .toDouble()
+
+        val envelope =
+            sin(
+                p *
+                    PI
+            )
+                .coerceAtLeast(
+                    0.0
+                )
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                var x =
+                    verts[index]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                val headWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    profile
+                                        .headCenterU
+                                ) /
+                                profile
+                                    .headRadiusU
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        profile
+                                            .headCenterV
+                                    ) /
+                                    profile
+                                        .headRadiusV
+                            )
+                    )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
+
+                val upperWeight =
+                    smoothStep(
+                        clamp(
+                            (
+                                0.82 -
+                                    v
+                                ) /
+                                0.56,
+                            0.0,
+                            1.0
+                        )
+                    )
+
+                val bodyWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.38
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.67
+                                    ) /
+                                    0.34
+                            )
+                    )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
+
+                fun rotateHead(
+                    angleDegrees:
+                        Double,
+                    weight:
+                        Double =
+                        headWeight
+                ) {
+                    if (
+                        weight <=
+                        0.001
+                    ) {
+                        return
+                    }
+
+                    val angle =
+                        angleDegrees *
+                            PI /
+                            180.0
+
+                    val dx =
+                        x -
+                            profile
+                                .headCenterU
+
+                    val dy =
+                        y -
+                            profile
+                                .headCenterV
+
+                    val rx =
+                        profile
+                            .headCenterU +
+                            dx *
+                                cos(
+                                    angle
+                                ) -
+                            dy *
+                                sin(
+                                    angle
+                                )
+
+                    val ry =
+                        profile
+                            .headCenterV +
+                            dx *
+                                sin(
+                                    angle
+                                ) +
+                            dy *
+                                cos(
+                                    angle
+                                )
+
+                    x =
+                        x *
+                            (
+                                1.0 -
+                                    weight
+                                ) +
+                            rx *
+                                weight
+
+                    y =
+                        y *
+                            (
+                                1.0 -
+                                    weight
+                                ) +
+                            ry *
+                                weight
+                }
+
+                when (
+                    motion
+                ) {
+                    PetMotion.LOOK_AROUND -> {
+                        val look =
+                            sin(
+                                p *
+                                    PI *
+                                    2.0
+                            )
+
+                        val shift =
+                            profile
+                                .lookDistance *
+                                look *
+                                intensity
+
+                        x +=
+                            shift *
+                                headWeight
+
+                        x -=
+                            shift *
+                                0.10 *
+                                bodyWeight
+
+                        rotateHead(
+                            angleDegrees =
+                                2.4 *
+                                    look *
+                                    direction *
+                                    intensity
+                        )
+                    }
+
+                    PetMotion.HEAD_TILT -> {
+                        rotateHead(
+                            angleDegrees =
+                                profile
+                                    .headTiltDegrees *
+                                    direction *
+                                    envelope *
+                                    intensity
+                        )
+
+                        y -=
+                            0.0035 *
+                                envelope *
+                                headWeight
+                    }
+
+                    PetMotion.LOOK_UP -> {
+                        y -=
+                            0.020 *
+                                envelope *
+                                intensity *
+                                headWeight
+
+                        rotateHead(
+                            angleDegrees =
+                                -2.4 *
+                                    direction *
+                                    envelope *
+                                    intensity
+                        )
+                    }
+
+                    PetMotion.STRETCH -> {
+                        val stretch =
+                            profile
+                                .stretchAmount *
+                                envelope *
+                                intensity
+
+                        y -=
+                            stretch *
+                                upperWeight *
+                                (
+                                    0.70 +
+                                        0.30 *
+                                            headWeight
+                                    )
+
+                        x +=
+                            (
+                                u -
+                                    0.50
+                                ) *
+                                stretch *
+                                0.90 *
+                                bodyWeight
+
+                        y +=
+                            0.006 *
+                                envelope *
+                                (
+                                    1.0 -
+                                        upperWeight
+                                    ) *
+                                bodyWeight
+                    }
+
+                    PetMotion.SMALL_JUMP -> {
+                        val prep =
+                            if (
+                                p <
+                                0.20
+                            ) {
+                                sin(
+                                    p /
+                                        0.20 *
+                                        PI
+                                )
+                            } else if (
+                                p >
+                                0.76
+                            ) {
+                                sin(
+                                    (
+                                        p -
+                                            0.76
+                                        ) /
+                                        0.24 *
+                                        PI
+                                )
+                            } else {
+                                0.0
+                            }
+                                .coerceAtLeast(
+                                    0.0
+                                )
+
+                        val flight =
+                            if (
+                                p in
+                                0.12..0.86
+                            ) {
+                                sin(
+                                    (
+                                        p -
+                                            0.12
+                                        ) /
+                                        0.74 *
+                                        PI
+                                )
+                            } else {
+                                0.0
+                            }
+                                .coerceAtLeast(
+                                    0.0
+                                )
+
+                        val jump =
+                            profile
+                                .jumpHeight *
+                                profile
+                                    .personalityBounce *
+                                flight *
+                                intensity
+
+                        val sx =
+                            1.0 +
+                                0.035 *
+                                    prep *
+                                    intensity
+
+                        val sy =
+                            1.0 -
+                                0.055 *
+                                    prep *
+                                    intensity
+
+                        x =
+                            0.50 +
+                                (
+                                    x -
+                                        0.50
+                                    ) *
+                                sx
+
+                        y =
+                            0.88 +
+                                (
+                                    y -
+                                        0.88
+                                    ) *
+                                sy -
+                                jump
+                    }
+
+                    PetMotion.DOZE_NOD -> {
+                        val nod =
+                            envelope *
+                                (
+                                    0.72 +
+                                        0.28 *
+                                            sin(
+                                                p *
+                                                    PI *
+                                                    3.0
+                                            )
+                                            .coerceAtLeast(
+                                                0.0
+                                            )
+                                    )
+
+                        y +=
+                            0.020 *
+                                nod *
+                                intensity *
+                                headWeight
+
+                        rotateHead(
+                            angleDegrees =
+                                4.2 *
+                                    direction *
+                                    nod *
+                                    intensity
+                        )
+                    }
+
+                    PetMotion.SHY -> {
+                        val shrink =
+                            0.030 *
+                                envelope *
+                                intensity
+
+                        x =
+                            0.50 +
+                                (
+                                    x -
+                                        0.50
+                                    ) *
+                                (
+                                    1.0 -
+                                        shrink *
+                                            upperWeight
+                                    )
+
+                        y +=
+                            0.016 *
+                                envelope *
+                                headWeight *
+                                intensity
+
+                        rotateHead(
+                            angleDegrees =
+                                -3.6 *
+                                    direction *
+                                    envelope *
+                                    intensity
+                        )
+                    }
+
+                    PetMotion.SEEK_ATTENTION -> {
+                        val lean =
+                            envelope *
+                                direction *
+                                intensity
+
+                        x +=
+                            0.018 *
+                                lean *
+                                upperWeight
+
+                        y -=
+                            0.010 *
+                                abs(
+                                    sin(
+                                        p *
+                                            PI *
+                                            3.0
+                                    )
+                                ) *
+                                profile
+                                    .personalityBounce *
+                                upperWeight *
+                                intensity
+
+                        rotateHead(
+                            angleDegrees =
+                                profile
+                                    .headTiltDegrees *
+                                    0.62 *
+                                    lean
+                        )
+                    }
+
+                    PetMotion.NONE ->
+                        Unit
+                }
+
+                verts[index] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
         }
     }
 

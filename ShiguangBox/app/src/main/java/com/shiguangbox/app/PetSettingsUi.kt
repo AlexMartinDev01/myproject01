@@ -38,7 +38,8 @@ import androidx.core.content.ContextCompat
 
 @Composable
 fun PetSettingsScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onPetChat: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember {
@@ -112,6 +113,21 @@ fun PetSettingsScreen(
         )
     }
 
+    var rareEventsEnabled by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean(
+                "pet_rare_events_enabled",
+                true
+            )
+        )
+    }
+
+    var memoryRefresh by rememberSaveable {
+        mutableIntStateOf(
+            0
+        )
+    }
+
     var autoSleep by rememberSaveable {
         mutableStateOf(
             prefs.getBoolean("pet_auto_sleep", true)
@@ -161,6 +177,78 @@ fun PetSettingsScreen(
         PetProfiles.fromId(
             selectedPetId
         )
+
+    val currentAffection =
+        remember(
+            selectedPetId,
+            memoryRefresh
+        ) {
+            prefs.getInt(
+                "pet_affection_" +
+                    selectedPet.id,
+                0
+            )
+        }
+
+    val bondStage =
+        remember(
+            currentAffection
+        ) {
+            PetWorldStore
+                .bondStage(
+                    currentAffection
+                )
+        }
+
+    val allDiscoveries =
+        remember(
+            memoryRefresh,
+            selectedPetId
+        ) {
+            PetWorldStore
+                .discoveries(
+                    prefs
+                )
+        }
+
+    val selectedPetDiscoveries =
+        remember(
+            allDiscoveries,
+            selectedPet
+        ) {
+            allDiscoveries
+                .filter {
+                    it.owner ==
+                        selectedPet
+                }
+        }
+
+    val recentMemories =
+        remember(
+            memoryRefresh,
+            selectedPetId
+        ) {
+            PetWorldStore
+                .recentMemories(
+                    prefs,
+                    5
+                )
+                .filter {
+                    it.petId ==
+                        selectedPet.id
+                }
+        }
+
+    val selectedDiscoveryCatalog =
+        remember(
+            selectedPet
+        ) {
+            PetDiscovery.entries
+                .filter {
+                    it.owner ==
+                        selectedPet
+                }
+        }
 
     val selectedPetDrawable =
         when (selectedPet) {
@@ -306,6 +394,10 @@ fun PetSettingsScreen(
                 quietNight
             )
             .putBoolean(
+                "pet_rare_events_enabled",
+                rareEventsEnabled
+            )
+            .putBoolean(
                 "pet_auto_sleep",
                 autoSleep
             )
@@ -366,7 +458,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.9.3 行为编排系统 · 橘团 / 芽芽 / 雨团",
+                        "V2.0 宠物生活与回忆系统 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -794,6 +886,348 @@ fun PetSettingsScreen(
                 Column(
                     Modifier
                         .fillMaxWidth()
+                        .padding(
+                            18.dp
+                        )
+                ) {
+                    Text(
+                        "生活与回忆盒",
+                        fontWeight =
+                            FontWeight.Bold,
+                        fontSize =
+                            18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(
+                            6.dp
+                        )
+                    )
+
+                    Text(
+                        "关系：" +
+                            bondStage.label +
+                            " · " +
+                            bondStage.description,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .primary,
+                        fontSize =
+                            13.sp
+                    )
+
+                    Text(
+                        "发现物：" +
+                            allDiscoveries.size +
+                            "/" +
+                            PetDiscovery.entries.size +
+                            " · 当前" +
+                            selectedPet.displayName +
+                            " " +
+                            selectedPetDiscoveries.size +
+                            "/" +
+                            selectedDiscoveryCatalog.size,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize =
+                            12.sp,
+                        modifier =
+                            Modifier.padding(
+                                top =
+                                    4.dp
+                            )
+                    )
+
+                    Spacer(
+                        Modifier.height(
+                            12.dp
+                        )
+                    )
+
+                    Row(
+                        verticalAlignment =
+                            Alignment
+                                .CenterVertically
+                    ) {
+                        Column(
+                            Modifier.weight(
+                                1f
+                            )
+                        ) {
+                            Text(
+                                "稀有小发现",
+                                fontWeight =
+                                    FontWeight.Medium
+                            )
+                            Text(
+                                "允许宠物低概率遇到只出现一次的小物件，并收进回忆盒",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize =
+                                    12.sp
+                            )
+                        }
+
+                        Switch(
+                            checked =
+                                rareEventsEnabled,
+                            onCheckedChange = {
+                                rareEventsEnabled =
+                                    it
+                            }
+                        )
+                    }
+
+                    Spacer(
+                        Modifier.height(
+                            12.dp
+                        )
+                    )
+
+                    Text(
+                        selectedPet.displayName +
+                            "的小发现",
+                        fontWeight =
+                            FontWeight.Medium
+                    )
+
+                    selectedDiscoveryCatalog
+                        .forEach {
+                            discovery ->
+                            val found =
+                                discovery in
+                                    selectedPetDiscoveries
+
+                            Text(
+                                if (
+                                    found
+                                ) {
+                                    discovery.emoji +
+                                        " " +
+                                        discovery.displayName
+                                } else {
+                                    "？ 尚未发现 · " +
+                                        when (
+                                            discovery.rarity
+                                        ) {
+                                            PetEventRarity.UNCOMMON ->
+                                                "偶遇"
+                                            PetEventRarity.RARE ->
+                                                "稀有"
+                                            PetEventRarity.ULTRA_RARE ->
+                                                "非常稀有"
+                                            else ->
+                                                "普通"
+                                        }
+                                },
+                                color =
+                                    if (
+                                        found
+                                    ) {
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onSurface
+                                    } else {
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onSurfaceVariant
+                                    },
+                                fontSize =
+                                    13.sp,
+                                modifier =
+                                    Modifier.padding(
+                                        top =
+                                            5.dp
+                                    )
+                            )
+                        }
+
+                    Spacer(
+                        Modifier.height(
+                            14.dp
+                        )
+                    )
+
+                    Text(
+                        "最近记住的事情",
+                        fontWeight =
+                            FontWeight.Medium
+                    )
+
+                    if (
+                        recentMemories
+                            .isEmpty()
+                    ) {
+                        Text(
+                            "还没有明显的共同回忆。完成待办、记录心情、回应宠物或遇见稀有事件后，会慢慢出现在这里。",
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                            fontSize =
+                                12.sp,
+                            lineHeight =
+                                18.sp,
+                            modifier =
+                                Modifier.padding(
+                                    top =
+                                        5.dp
+                                )
+                        )
+                    } else {
+                        recentMemories
+                            .forEach {
+                                memory ->
+                                Text(
+                                    "• " +
+                                        memory.title,
+                                    fontSize =
+                                        13.sp,
+                                    modifier =
+                                        Modifier.padding(
+                                            top =
+                                                5.dp
+                                        )
+                                )
+                            }
+                    }
+
+                    Spacer(
+                        Modifier.height(
+                            14.dp
+                        )
+                    )
+
+                    Button(
+                        onClick =
+                            onPetChat,
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "和" +
+                                selectedPet.displayName +
+                                "聊聊"
+                        )
+                    }
+
+                    Spacer(
+                        Modifier.height(
+                            8.dp
+                        )
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            if (
+                                enabled &&
+                                overlayGranted
+                            ) {
+                                ContextCompat
+                                    .startForegroundService(
+                                        context,
+                                        Intent(
+                                            context,
+                                            PetOverlayService::class.java
+                                        ).setAction(
+                                            PetOverlayService
+                                                .ACTION_TEST_WORLD_EVENT
+                                        )
+                                    )
+
+                                message =
+                                    "已触发一次 V2.0 生活事件测试"
+                            } else {
+                                message =
+                                    "先开启悬浮桌宠，再测试生活事件"
+                            }
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "测试一次生活事件"
+                        )
+                    }
+
+                    Spacer(
+                        Modifier.height(
+                            8.dp
+                        )
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            if (
+                                enabled &&
+                                overlayGranted
+                            ) {
+                                ContextCompat
+                                    .startForegroundService(
+                                        context,
+                                        Intent(
+                                            context,
+                                            PetOverlayService::class.java
+                                        ).setAction(
+                                            PetOverlayService
+                                                .ACTION_TEST_RARE_EVENT
+                                        )
+                                    )
+
+                                message =
+                                    "已强制触发一次尚未发现的稀有事件，用于测试回忆盒"
+                            } else {
+                                message =
+                                    "先开启悬浮桌宠，再测试稀有事件"
+                            }
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "测试一个稀有发现"
+                        )
+                    }
+
+                    TextButton(
+                        onClick = {
+                            memoryRefresh +=
+                                1
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "刷新回忆盒"
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors =
+                    CardDefaults
+                        .cardColors(
+                            containerColor =
+                                MaterialTheme
+                                    .colorScheme
+                                    .surface
+                        ),
+                shape =
+                    RoundedCornerShape(
+                        22.dp
+                    )
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
                         .padding(18.dp)
                 ) {
                     Text(
@@ -808,7 +1242,7 @@ fun PetSettingsScreen(
                     )
 
                     Text(
-                        "8 个新动作可单独播放，也可以直接演示 V1.9.3 的完整行为链；三只宠物会使用不同节奏和动作组合。",
+                        "8 个新动作可单独播放，也可以演示完整行为链；V2.0 的生活事件会直接调用这些动作组合。",
                         color =
                             MaterialTheme
                                 .colorScheme
@@ -1050,7 +1484,7 @@ fun PetSettingsScreen(
                                 message =
                                     "正在演示 " +
                                         selectedPet.displayName +
-                                        " 的 V1.9.3 行为链"
+                                        " 的完整行为链"
                             } else {
                                 message =
                                     "先开启悬浮桌宠，再测试行为链"
@@ -1060,7 +1494,7 @@ fun PetSettingsScreen(
                             Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            "演示 V1.9.3 完整行为链"
+                            "演示完整行为链"
                         )
                     }
 
@@ -1522,7 +1956,13 @@ fun PetSettingsScreen(
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
                     Text("• 主动陪伴会根据粘人度自行决定：只做小动作、主动说话、来找你、轻提醒或安静陪伴")
                     Text("• 动作引擎 2.0 新增左右观察、歪头、抬头、伸懒腰、小跳、困倦点头、害羞、主动求关注 8 个独立动作")
-                    Text("• V1.9.3 行为编排系统：动作按顺序完整播放，加入自然停顿和回中，不再用固定延时互相覆盖")
+                    Text("• V2.0 生活事件系统会综合时间、待办、心情、粘人度、关系阶段、每日历史和冷却决定下一次行为")
+                    Text("• 普通生活事件可以只做动作不弹气泡；调度器也会主动选择“这次什么都不发生”")
+                    Text("• 稀有发现物可以收进回忆盒，每只宠物有自己的偶遇 / 稀有 / 非常稀有收藏")
+                    Text("• 待办完成、心情、主动回应和 AI 对话会逐渐形成本地真实回忆")
+                    Text("• 宠物可以从气泡直接带你进入待办、快速记录或心情页")
+                    Text("• 可选 DeepSeek 宠物自由聊天会读取本地真实回忆，但不会编造不存在的用户经历")
+                    Text("• 行为编排系统：动作按顺序完整播放，加入自然停顿和回中，不再用固定延时互相覆盖")
                     Text("• 单击、双击、连续点击、长按摸摸都接入不同的三宠专属动作链")
                     Text("• 用户拖动、正式提醒、睡眠等高优先级状态会安全中断普通行为链")
                     Text("• 连续行为链：先动作、再观察、再气泡；部分事件可以直接回应“摸摸你 / 我先忙”")

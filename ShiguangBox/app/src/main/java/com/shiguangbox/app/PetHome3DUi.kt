@@ -192,15 +192,14 @@ fun PetHome3DScreen(
             modifier =
                 Modifier
                     .align(
-                        Alignment.BottomCenter
+                        Alignment.TopCenter
                     )
-                    .fillMaxWidth()
                     .padding(
-                        12.dp
+                        top = 10.dp
                     ),
             shape =
                 RoundedCornerShape(
-                    24.dp
+                    16.dp
                 ),
             colors =
                 CardDefaults
@@ -211,49 +210,69 @@ fun PetHome3DScreen(
                                 .surface
                                 .copy(
                                     alpha =
-                                        0.94f
+                                        0.88f
+                                )
+                    )
+        ) {
+            Text(
+                "拖动旋转 · 双指缩放 · 双击复位",
+                modifier =
+                    Modifier.padding(
+                        horizontal = 14.dp,
+                        vertical = 8.dp
+                    ),
+                fontSize =
+                    12.sp,
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+            )
+        }
+
+        Card(
+            modifier =
+                Modifier
+                    .align(
+                        Alignment.BottomCenter
+                    )
+                    .fillMaxWidth()
+                    .padding(
+                        10.dp
+                    ),
+            shape =
+                RoundedCornerShape(
+                    20.dp
+                ),
+            colors =
+                CardDefaults
+                    .cardColors(
+                        containerColor =
+                            MaterialTheme
+                                .colorScheme
+                                .surface
+                                .copy(
+                                    alpha =
+                                        0.92f
                                 )
                     )
         ) {
             Column(
                 modifier =
                     Modifier.padding(
-                        16.dp
+                        horizontal = 12.dp,
+                        vertical = 10.dp
                     )
             ) {
-                Text(
-                    "橘团 3D 小窝 · 技术 Demo",
-                    fontSize =
-                        18.sp,
-                    fontWeight =
-                        FontWeight.Bold
-                )
-
-                Text(
-                    "手指拖动可以旋转视角，双指缩放。橘团会自己在床边、窗边和地毯之间移动。",
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .onSurfaceVariant,
-                    fontSize =
-                        12.sp,
-                    lineHeight =
-                        17.sp
-                )
-
-                Spacer(
-                    Modifier.height(
-                        10.dp
-                    )
-                )
-
                 Row(
                     modifier =
                         Modifier.fillMaxWidth(),
                     horizontalArrangement =
                         Arrangement.spacedBy(
-                            7.dp
-                        )
+                            6.dp
+                        ),
+                    verticalAlignment =
+                        Alignment.CenterVertically
                 ) {
                     OutlinedButton(
                         onClick = {
@@ -266,9 +285,9 @@ fun PetHome3DScreen(
                             )
                     ) {
                         Text(
-                            "去床边",
+                            "床",
                             fontSize =
-                                12.sp
+                                11.sp
                         )
                     }
 
@@ -283,9 +302,9 @@ fun PetHome3DScreen(
                             )
                     ) {
                         Text(
-                            "去窗边",
+                            "窗",
                             fontSize =
-                                12.sp
+                                11.sp
                         )
                     }
 
@@ -300,16 +319,33 @@ fun PetHome3DScreen(
                             )
                     ) {
                         Text(
-                            "去地毯",
+                            "地毯",
                             fontSize =
-                                12.sp
+                                11.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.goToToy()
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "玩具",
+                            fontSize =
+                                11.sp
                         )
                     }
                 }
 
                 Spacer(
                     Modifier.height(
-                        8.dp
+                        4.dp
                     )
                 )
 
@@ -330,17 +366,17 @@ fun PetHome3DScreen(
                             fontWeight =
                                 FontWeight.Medium,
                             fontSize =
-                                13.sp
+                                12.sp
                         )
 
                         Text(
-                            "到达目标后停留约 3 秒，再自己选择下一个位置。",
+                            "会自己在小窝不同区域之间走动",
                             color =
                                 MaterialTheme
                                     .colorScheme
                                     .onSurfaceVariant,
                             fontSize =
-                                11.sp
+                                10.sp
                         )
                     }
 
@@ -360,6 +396,7 @@ fun PetHome3DScreen(
                     )
                 }
             }
+        }
         }
     }
 }

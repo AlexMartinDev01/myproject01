@@ -871,7 +871,8 @@ private fun MainShell(
                             "journal_mood",
                             "daily_journal",
                             "pet_settings",
-                            "pet_chat"
+                            "pet_chat",
+                            "pet_home_3d"
                         )
                 }
 
@@ -1110,6 +1111,20 @@ private fun MainShell(
                             .navigate(
                                 "pet_chat"
                             )
+                    },
+                    onPetHome3D = {
+                        navController
+                            .navigate(
+                                "pet_home_3d"
+                            )
+                    }
+                )
+            }
+            composable("pet_home_3d") {
+                PetHome3DScreen(
+                    onBack = {
+                        navController
+                            .popBackStack()
                     }
                 )
             }

@@ -9,6 +9,7 @@ enum class PetLifeEvent {
     TASK_NUDGE,
     MOOD_COMPANY,
     PROUD_OF_YOU,
+    AFTER_TASK,
     WELCOME_BACK
 }
 
@@ -224,6 +225,8 @@ object PetLifeEngine {
                 "陪着你"
             PetLifeEvent.PROUD_OF_YOU ->
                 "看到啦"
+            PetLifeEvent.AFTER_TASK ->
+                "刚才那件事"
             PetLifeEvent.WELCOME_BACK ->
                 "欢迎回来"
             else ->
@@ -311,6 +314,15 @@ object PetLifeEngine {
                     )
                 )
 
+            PetLifeEvent.AFTER_TASK ->
+                pick(
+                    listOf(
+                        "刚才那件事做完以后，是不是轻松一点啦？",
+                        "刚刚完成一件事，我还记得呢～",
+                        "那件事已经收好啦，先给自己一点小奖励吧。"
+                    )
+                )
+
             PetLifeEvent.WELCOME_BACK ->
                 pick(
                     listOf(
@@ -380,6 +392,15 @@ object PetLifeEngine {
                     )
                 )
 
+            PetLifeEvent.AFTER_TASK ->
+                pick(
+                    listOf(
+                        "刚才那件事已经完成啦，现在可以稍微松一点。",
+                        "我还记得你刚刚做完了一件事，辛苦啦。",
+                        "完成以后别急着马上赶下一件，先停一下也好。"
+                    )
+                )
+
             PetLifeEvent.WELCOME_BACK ->
                 pick(
                     listOf(
@@ -446,6 +467,15 @@ object PetLifeEngine {
                         "今天已经完成 ${context.completedTasks} 件事啦，云好像轻了一点。",
                         "你做完不少事情了，今天可能会有一点晴。",
                         "我都看见啦，雨也替你开心了一点。"
+                    )
+                )
+
+            PetLifeEvent.AFTER_TASK ->
+                pick(
+                    listOf(
+                        "刚才那件事做完以后，雨好像也轻了一点。",
+                        "我还记得你刚刚完成的那件事，云都松了一点。",
+                        "做完一件事以后，听一会儿小雨再继续吧。"
                     )
                 )
 

@@ -752,299 +752,1028 @@ private class PetHome3DRenderer :
     }
 
     private fun drawRoom() {
-        drawBox(
-            x = 0f,
-            y = -0.10f,
-            z = 0f,
-            sx = 6.2f,
-            sy = 0.12f,
-            sz = 5.2f,
-            color =
-                floatArrayOf(
-                    0.72f,
-                    0.61f,
-                    0.48f,
-                    1f
-                )
-        )
-
-        drawBox(
-            x = 0f,
-            y = 2.0f,
-            z = -2.56f,
-            sx = 6.2f,
-            sy = 4.1f,
-            sz = 0.10f,
-            color =
-                floatArrayOf(
-                    0.95f,
-                    0.89f,
-                    0.80f,
-                    1f
-                )
-        )
-
-        drawBox(
-            x = -3.08f,
-            y = 2.0f,
-            z = 0f,
-            sx = 0.10f,
-            sy = 4.1f,
-            sz = 5.2f,
-            color =
-                floatArrayOf(
-                    0.88f,
-                    0.82f,
-                    0.73f,
-                    1f
-                )
-        )
-
-        // Window recess + blue glass.
-        drawBox(
-            x = 1.95f,
-            y = 2.15f,
-            z = -2.48f,
-            sx = 1.70f,
-            sy = 1.55f,
-            sz = 0.07f,
-            color =
-                floatArrayOf(
-                    0.58f,
-                    0.76f,
-                    0.82f,
-                    1f
-                )
-        )
-
-        val frameColor =
+        val floor =
             floatArrayOf(
-                0.72f,
-                0.58f,
-                0.42f,
+                0.62f,
+                0.46f,
+                0.32f,
                 1f
             )
 
+        val floorSeam =
+            floatArrayOf(
+                0.42f,
+                0.31f,
+                0.23f,
+                1f
+            )
+
+        val wallBack =
+            floatArrayOf(
+                0.95f,
+                0.89f,
+                0.80f,
+                1f
+            )
+
+        val wallLeft =
+            floatArrayOf(
+                0.90f,
+                0.84f,
+                0.76f,
+                1f
+            )
+
+        val trim =
+            floatArrayOf(
+                0.73f,
+                0.57f,
+                0.40f,
+                1f
+            )
+
+        val sky =
+            floatArrayOf(
+                0.50f,
+                0.71f,
+                0.82f,
+                1f
+            )
+
+        val curtain =
+            floatArrayOf(
+                0.70f,
+                0.45f,
+                0.40f,
+                1f
+            )
+
+        // Main wooden floor.
         drawBox(
-            1.95f,
-            2.95f,
-            -2.39f,
-            1.92f,
-            0.10f,
-            0.08f,
-            frameColor
+            x = 0f,
+            y = -0.12f,
+            z = 0f,
+            sx = 6.4f,
+            sy = 0.16f,
+            sz = 5.4f,
+            color =
+                floor
+        )
+
+        // Floor plank seams create real depth instead of one flat slab.
+        var plankZ =
+            -2.35f
+
+        while (
+            plankZ <=
+            2.35f
+        ) {
+            drawBox(
+                x = 0f,
+                y = -0.025f,
+                z = plankZ,
+                sx = 6.15f,
+                sy = 0.012f,
+                sz = 0.018f,
+                color =
+                    floorSeam
+            )
+
+            plankZ +=
+                0.43f
+        }
+
+        var jointX =
+            -2.75f
+
+        var row =
+            0
+
+        while (
+            jointX <=
+            2.75f
+        ) {
+            val offset =
+                if (
+                    row %
+                        2 ==
+                    0
+                ) {
+                    0.20f
+                } else {
+                    -0.20f
+                }
+
+            drawBox(
+                x =
+                    jointX,
+                y =
+                    -0.023f,
+                z =
+                    -1.40f +
+                        offset,
+                sx =
+                    0.018f,
+                sy =
+                    0.012f,
+                sz =
+                    1.90f,
+                color =
+                    floorSeam
+            )
+
+            drawBox(
+                x =
+                    jointX +
+                        0.55f,
+                y =
+                    -0.023f,
+                z =
+                    1.35f -
+                        offset,
+                sx =
+                    0.018f,
+                sy =
+                    0.012f,
+                sz =
+                    1.85f,
+                color =
+                    floorSeam
+            )
+
+            jointX +=
+                1.10f
+            row +=
+                1
+        }
+
+        // Doll-house style open corner walls.
+        drawBox(
+            x = 0f,
+            y = 2.0f,
+            z = -2.60f,
+            sx = 6.35f,
+            sy = 4.15f,
+            sz = 0.12f,
+            color =
+                wallBack
         )
 
         drawBox(
-            1.95f,
-            1.35f,
-            -2.39f,
-            1.92f,
+            x = -3.12f,
+            y = 2.0f,
+            z = 0f,
+            sx = 0.12f,
+            sy = 4.15f,
+            sz = 5.35f,
+            color =
+                wallLeft
+        )
+
+        // Baseboards.
+        drawBox(
+            0f,
+            0.12f,
+            -2.49f,
+            6.18f,
+            0.20f,
             0.10f,
-            0.08f,
-            frameColor
+            trim
         )
 
         drawBox(
-            1.05f,
-            2.15f,
-            -2.39f,
+            -3.01f,
+            0.12f,
+            0f,
             0.10f,
-            1.70f,
-            0.08f,
-            frameColor
+            0.20f,
+            5.16f,
+            trim
+        )
+
+        // Simple ceiling beam to frame the room.
+        drawBox(
+            0f,
+            3.76f,
+            -2.43f,
+            6.20f,
+            0.16f,
+            0.18f,
+            trim
+        )
+
+        drawBox(
+            -2.95f,
+            3.76f,
+            0f,
+            0.18f,
+            0.16f,
+            5.0f,
+            trim
+        )
+
+        // Window outside sky panel.
+        drawBox(
+            x = 1.87f,
+            y = 2.16f,
+            z = -2.50f,
+            sx = 1.86f,
+            sy = 1.70f,
+            sz = 0.055f,
+            color =
+                sky
+        )
+
+        val frame =
+            floatArrayOf(
+                0.73f,
+                0.56f,
+                0.39f,
+                1f
+            )
+
+        // Window frame and crossbars.
+        drawBox(
+            1.87f,
+            3.06f,
+            -2.37f,
+            2.08f,
+            0.13f,
+            0.11f,
+            frame
+        )
+
+        drawBox(
+            1.87f,
+            1.27f,
+            -2.37f,
+            2.08f,
+            0.13f,
+            0.11f,
+            frame
+        )
+
+        drawBox(
+            0.89f,
+            2.16f,
+            -2.37f,
+            0.13f,
+            1.92f,
+            0.11f,
+            frame
         )
 
         drawBox(
             2.85f,
-            2.15f,
-            -2.39f,
-            0.10f,
-            1.70f,
-            0.08f,
-            frameColor
+            2.16f,
+            -2.37f,
+            0.13f,
+            1.92f,
+            0.11f,
+            frame
         )
 
         drawBox(
-            1.95f,
-            2.15f,
-            -2.37f,
-            0.07f,
-            1.55f,
+            1.87f,
+            2.16f,
+            -2.35f,
             0.08f,
-            frameColor
+            1.70f,
+            0.08f,
+            frame
+        )
+
+        drawBox(
+            1.87f,
+            2.16f,
+            -2.35f,
+            1.86f,
+            0.08f,
+            0.08f,
+            frame
+        )
+
+        // Window sill.
+        drawBox(
+            1.87f,
+            1.16f,
+            -2.18f,
+            2.25f,
+            0.13f,
+            0.42f,
+            frame
+        )
+
+        // Curtain rod.
+        drawBox(
+            1.87f,
+            3.26f,
+            -2.14f,
+            2.70f,
+            0.07f,
+            0.07f,
+            frame
+        )
+
+        // Curtains, split so the view outside remains visible.
+        drawBox(
+            0.56f,
+            2.12f,
+            -2.16f,
+            0.42f,
+            2.18f,
+            0.10f,
+            curtain
+        )
+
+        drawBox(
+            3.18f,
+            2.12f,
+            -2.16f,
+            0.42f,
+            2.18f,
+            0.10f,
+            curtain
+        )
+
+        // Wall art on left/back walls.
+        val artFrame =
+            floatArrayOf(
+                0.42f,
+                0.31f,
+                0.22f,
+                1f
+            )
+
+        drawBox(
+            -1.05f,
+            2.46f,
+            -2.42f,
+            0.92f,
+            0.72f,
+            0.08f,
+            artFrame
+        )
+
+        drawBox(
+            -1.05f,
+            2.46f,
+            -2.34f,
+            0.72f,
+            0.52f,
+            0.045f,
+            floatArrayOf(
+                0.63f,
+                0.75f,
+                0.59f,
+                1f
+            )
+        )
+
+        drawBox(
+            -2.98f,
+            2.34f,
+            0.62f,
+            0.08f,
+            0.88f,
+            0.78f,
+            artFrame
+        )
+
+        drawBox(
+            -2.90f,
+            2.34f,
+            0.62f,
+            0.045f,
+            0.68f,
+            0.58f,
+            floatArrayOf(
+                0.80f,
+                0.62f,
+                0.45f,
+                1f
+            )
         )
     }
 
+
     private fun drawFurniture() {
-        // Rug.
+        val wood =
+            floatArrayOf(
+                0.53f,
+                0.36f,
+                0.23f,
+                1f
+            )
+
+        val woodLight =
+            floatArrayOf(
+                0.69f,
+                0.49f,
+                0.31f,
+                1f
+            )
+
+        val cream =
+            floatArrayOf(
+                0.95f,
+                0.88f,
+                0.77f,
+                1f
+            )
+
+        val terracotta =
+            floatArrayOf(
+                0.72f,
+                0.40f,
+                0.30f,
+                1f
+            )
+
+        val moss =
+            floatArrayOf(
+                0.34f,
+                0.50f,
+                0.30f,
+                1f
+            )
+
+        // Layered oval-ish rug built from two low boxes.
         drawBox(
-            x = 0.20f,
-            y = 0.02f,
-            z = 1.12f,
-            sx = 2.35f,
-            sy = 0.06f,
-            sz = 1.60f,
+            x = 0.12f,
+            y = 0.015f,
+            z = 0.95f,
+            sx = 2.72f,
+            sy = 0.055f,
+            sz = 1.82f,
             color =
                 floatArrayOf(
-                    0.78f,
-                    0.50f,
-                    0.40f,
+                    0.55f,
+                    0.33f,
+                    0.28f,
                     1f
                 )
         )
 
-        // Bed.
         drawBox(
-            -2.15f,
-            0.20f,
-            -1.35f,
+            x = 0.12f,
+            y = 0.052f,
+            z = 0.95f,
+            sx = 2.48f,
+            sy = 0.035f,
+            sz = 1.58f,
+            color =
+                floatArrayOf(
+                    0.80f,
+                    0.54f,
+                    0.43f,
+                    1f
+                )
+        )
+
+        // Bed frame.
+        drawBox(
+            -2.12f,
+            0.18f,
+            -1.34f,
+            1.72f,
+            0.28f,
+            1.48f,
+            wood
+        )
+
+        // Headboard and feet.
+        drawBox(
+            -2.12f,
+            0.82f,
+            -1.98f,
+            1.72f,
+            1.05f,
+            0.12f,
+            woodLight
+        )
+
+        for (
+            x in
+            listOf(
+                -2.84f,
+                -1.40f
+            )
+        ) {
+            drawBox(
+                x,
+                0.10f,
+                -0.78f,
+                0.12f,
+                0.34f,
+                0.12f,
+                wood
+            )
+        }
+
+        // Mattress.
+        drawBox(
+            -2.12f,
+            0.42f,
+            -1.34f,
             1.55f,
-            0.35f,
+            0.24f,
             1.30f,
+            cream
+        )
+
+        // Blanket.
+        drawBox(
+            -2.12f,
+            0.56f,
+            -1.09f,
+            1.48f,
+            0.12f,
+            0.68f,
             floatArrayOf(
+                0.68f,
+                0.48f,
+                0.40f,
+                1f
+            )
+        )
+
+        // Pillow.
+        drawBox(
+            -2.12f,
+            0.61f,
+            -1.68f,
+            0.70f,
+            0.14f,
+            0.34f,
+            floatArrayOf(
+                0.98f,
+                0.94f,
+                0.87f,
+                1f
+            )
+        )
+
+        // Bedside table.
+        drawBox(
+            -1.03f,
+            0.52f,
+            -1.64f,
+            0.58f,
+            0.10f,
+            0.52f,
+            woodLight
+        )
+
+        for (
+            x in
+            listOf(
+                -1.22f,
+                -0.84f
+            )
+        ) {
+            for (
+                z in
+                listOf(
+                    -1.82f,
+                    -1.46f
+                )
+            ) {
+                drawBox(
+                    x,
+                    0.26f,
+                    z,
+                    0.08f,
+                    0.50f,
+                    0.08f,
+                    wood
+                )
+            }
+        }
+
+        // Small warm bedside lamp.
+        drawBox(
+            -1.03f,
+            0.78f,
+            -1.64f,
+            0.07f,
+            0.42f,
+            0.07f,
+            floatArrayOf(
+                0.51f,
+                0.39f,
+                0.31f,
+                1f
+            )
+        )
+
+        drawSphere(
+            -1.03f,
+            1.04f,
+            -1.64f,
+            0.26f,
+            0.18f,
+            0.26f,
+            floatArrayOf(
+                0.96f,
+                0.74f,
+                0.37f,
+                1f
+            )
+        )
+
+        // Window-side reading table.
+        drawBox(
+            2.05f,
+            0.74f,
+            0.32f,
+            1.25f,
+            0.14f,
+            0.76f,
+            woodLight
+        )
+
+        for (
+            x in
+            listOf(
+                1.55f,
+                2.55f
+            )
+        ) {
+            for (
+                z in
+                listOf(
+                    0.08f,
+                    0.56f
+                )
+            ) {
+                drawBox(
+                    x,
+                    0.36f,
+                    z,
+                    0.11f,
+                    0.68f,
+                    0.11f,
+                    wood
+                )
+            }
+        }
+
+        // Cup / tiny object on table.
+        drawSphere(
+            1.76f,
+            0.92f,
+            0.28f,
+            0.11f,
+            0.15f,
+            0.11f,
+            floatArrayOf(
+                0.80f,
+                0.85f,
+                0.79f,
+                1f
+            )
+        )
+
+        // Collection shelf: open shelving instead of one block.
+        drawBox(
+            -2.54f,
+            1.12f,
+            1.58f,
+            0.14f,
+            2.12f,
+            0.44f,
+            wood
+        )
+
+        drawBox(
+            -1.72f,
+            1.12f,
+            1.58f,
+            0.14f,
+            2.12f,
+            0.44f,
+            wood
+        )
+
+        for (
+            y in
+            listOf(
+                0.16f,
+                0.78f,
+                1.40f,
+                2.02f
+            )
+        ) {
+            drawBox(
+                -2.13f,
+                y,
+                1.58f,
+                0.96f,
+                0.10f,
+                0.54f,
+                woodLight
+            )
+        }
+
+        // Books / boxes on shelves.
+        drawBox(
+            -2.34f,
+            0.48f,
+            1.55f,
+            0.18f,
+            0.46f,
+            0.34f,
+            floatArrayOf(
+                0.63f,
+                0.42f,
+                0.36f,
+                1f
+            )
+        )
+
+        drawBox(
+            -2.08f,
+            0.45f,
+            1.55f,
+            0.16f,
+            0.40f,
+            0.32f,
+            floatArrayOf(
+                0.35f,
+                0.54f,
+                0.53f,
+                1f
+            )
+        )
+
+        drawBox(
+            -1.84f,
+            0.43f,
+            1.55f,
+            0.16f,
+            0.36f,
+            0.30f,
+            floatArrayOf(
+                0.70f,
+                0.58f,
+                0.35f,
+                1f
+            )
+        )
+
+        // Discovery objects on upper shelves.
+        drawSphere(
+            -2.32f,
+            1.05f,
+            1.50f,
+            0.13f,
+            0.13f,
+            0.13f,
+            floatArrayOf(
+                0.97f,
+                0.77f,
+                0.23f,
+                1f
+            )
+        )
+
+        drawSphere(
+            -1.92f,
+            1.05f,
+            1.50f,
+            0.11f,
+            0.14f,
+            0.11f,
+            floatArrayOf(
+                0.47f,
+                0.72f,
                 0.55f,
-                0.38f,
+                1f
+            )
+        )
+
+        drawSphere(
+            -2.15f,
+            1.68f,
+            1.50f,
+            0.14f,
+            0.10f,
+            0.14f,
+            floatArrayOf(
+                0.53f,
+                0.71f,
+                0.86f,
+                1f
+            )
+        )
+
+        // Plant in the quiet corner.
+        drawBox(
+            -1.18f,
+            0.23f,
+            1.72f,
+            0.38f,
+            0.42f,
+            0.38f,
+            terracotta
+        )
+
+        drawBox(
+            -1.18f,
+            0.70f,
+            1.72f,
+            0.06f,
+            0.72f,
+            0.06f,
+            floatArrayOf(
+                0.30f,
+                0.42f,
+                0.25f,
+                1f
+            )
+        )
+
+        drawSphere(
+            -1.42f,
+            0.88f,
+            1.72f,
+            0.32f,
+            0.13f,
+            0.18f,
+            moss
+        )
+
+        drawSphere(
+            -0.94f,
+            1.02f,
+            1.70f,
+            0.32f,
+            0.14f,
+            0.18f,
+            moss
+        )
+
+        drawSphere(
+            -1.22f,
+            1.16f,
+            1.88f,
+            0.20f,
+            0.14f,
+            0.34f,
+            moss
+        )
+
+        // Floor lamp.
+        drawBox(
+            2.68f,
+            0.10f,
+            1.62f,
+            0.40f,
+            0.10f,
+            0.40f,
+            floatArrayOf(
+                0.43f,
+                0.33f,
                 0.27f,
                 1f
             )
         )
 
         drawBox(
-            -2.15f,
-            0.43f,
-            -1.35f,
-            1.42f,
-            0.20f,
-            1.18f,
+            2.68f,
+            1.14f,
+            1.62f,
+            0.07f,
+            2.08f,
+            0.07f,
             floatArrayOf(
-                0.90f,
-                0.75f,
-                0.62f,
+                0.49f,
+                0.39f,
+                0.31f,
                 1f
             )
         )
 
-        drawBox(
-            -2.45f,
-            0.58f,
-            -1.64f,
-            0.58f,
-            0.15f,
-            0.34f,
+        drawSphere(
+            2.68f,
+            2.24f,
+            1.62f,
+            0.42f,
+            0.30f,
+            0.42f,
             floatArrayOf(
                 0.97f,
-                0.91f,
-                0.82f,
+                0.76f,
+                0.42f,
                 1f
             )
         )
 
-        // Small table.
-        val wood =
-            floatArrayOf(
-                0.56f,
-                0.39f,
-                0.26f,
-                1f
-            )
-
+        // Toy basket / toy area.
         drawBox(
-            1.92f,
-            0.78f,
-            0.62f,
-            1.25f,
-            0.14f,
-            0.82f,
-            wood
-        )
-
-        for (
-            x in
-            listOf(
-                1.42f,
-                2.42f
-            )
-        ) {
-            for (
-                z in
-                listOf(
-                    0.34f,
-                    0.90f
-                )
-            ) {
-                drawBox(
-                    x,
-                    0.39f,
-                    z,
-                    0.12f,
-                    0.72f,
-                    0.12f,
-                    wood
-                )
-            }
-        }
-
-        // Collection shelf.
-        drawBox(
-            -2.62f,
-            1.18f,
-            1.45f,
-            0.78f,
-            2.20f,
-            0.38f,
-            wood
-        )
-
-        drawBox(
-            -2.18f,
-            1.18f,
-            1.45f,
-            0.08f,
-            2.20f,
+            1.50f,
+            0.20f,
+            1.70f,
+            0.68f,
+            0.34f,
             0.52f,
             floatArrayOf(
-                0.72f,
-                0.54f,
-                0.36f,
+                0.64f,
+                0.47f,
+                0.31f,
                 1f
             )
         )
 
-        // Toy ball.
-        drawSphere(
-            x = 1.25f,
-            y = 0.22f,
-            z = 1.72f,
-            sx = 0.23f,
-            sy = 0.23f,
-            sz = 0.23f,
-            color =
-                floatArrayOf(
-                    0.38f,
-                    0.60f,
-                    0.74f,
-                    1f
-                )
+        drawBox(
+            1.50f,
+            0.41f,
+            1.70f,
+            0.78f,
+            0.08f,
+            0.62f,
+            woodLight
         )
 
-        // Tiny discovery star placeholder.
         drawSphere(
-            x = -2.18f,
-            y = 1.45f,
-            z = 1.18f,
-            sx = 0.13f,
-            sy = 0.13f,
-            sz = 0.13f,
-            color =
-                floatArrayOf(
-                    0.97f,
-                    0.77f,
-                    0.23f,
-                    1f
-                )
+            1.30f,
+            0.49f,
+            1.62f,
+            0.22f,
+            0.22f,
+            0.22f,
+            floatArrayOf(
+                0.38f,
+                0.60f,
+                0.74f,
+                1f
+            )
+        )
+
+        drawSphere(
+            1.70f,
+            0.48f,
+            1.76f,
+            0.18f,
+            0.18f,
+            0.18f,
+            floatArrayOf(
+                0.78f,
+                0.48f,
+                0.40f,
+                1f
+            )
+        )
+
+        // Food and water bowls close to the wall.
+        drawSphere(
+            2.42f,
+            0.12f,
+            -0.72f,
+            0.28f,
+            0.09f,
+            0.28f,
+            floatArrayOf(
+                0.64f,
+                0.70f,
+                0.73f,
+                1f
+            )
+        )
+
+        drawSphere(
+            1.84f,
+            0.12f,
+            -0.72f,
+            0.28f,
+            0.09f,
+            0.28f,
+            floatArrayOf(
+                0.72f,
+                0.53f,
+                0.43f,
+                1f
+            )
+        )
+
+        // Soft floor cushion in quiet corner.
+        drawSphere(
+            -1.72f,
+            0.20f,
+            1.28f,
+            0.58f,
+            0.16f,
+            0.46f,
+            floatArrayOf(
+                0.74f,
+                0.68f,
+                0.57f,
+                1f
+            )
         )
     }
+
 
     private fun drawPet() {
         val walkBob =
@@ -1754,12 +2483,52 @@ private class PetHome3DRenderer :
             varying vec3 vWorldPosition;
 
             void main() {
-                vec3 lightDir = normalize(vec3(-0.45, 0.92, 0.58));
-                float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
-                float hemisphere = 0.5 + 0.5 * max(normalize(vNormal).y, 0.0);
-                float shade = 0.42 + 0.42 * diffuse + 0.16 * hemisphere;
-                vec3 color = uColor.rgb * shade;
-                gl_FragColor = vec4(color, uColor.a);
+                vec3 n = normalize(vNormal);
+
+                vec3 keyDir = normalize(vec3(-0.45, 0.92, 0.58));
+                vec3 fillDir = normalize(vec3(0.70, 0.38, -0.45));
+
+                float key = max(dot(n, keyDir), 0.0);
+                float fill = max(dot(n, fillDir), 0.0);
+                float hemi = 0.5 + 0.5 * max(n.y, 0.0);
+
+                float lampDistance =
+                    distance(
+                        vWorldPosition,
+                        vec3(2.68, 2.24, 1.62)
+                    );
+
+                float lamp =
+                    max(
+                        0.0,
+                        1.0 - lampDistance / 3.8
+                    );
+
+                vec3 warm =
+                    vec3(
+                        1.0,
+                        0.82,
+                        0.62
+                    ) *
+                    lamp *
+                    0.12;
+
+                float shade =
+                    0.33 +
+                    0.38 * key +
+                    0.16 * fill +
+                    0.13 * hemi;
+
+                vec3 color =
+                    uColor.rgb *
+                    shade +
+                    warm;
+
+                gl_FragColor =
+                    vec4(
+                        color,
+                        uColor.a
+                    );
             }
             """
     }

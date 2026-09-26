@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - shiguangbox-v1
+      - feature-v2.1.0-3d-home-demo
     paths:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
@@ -112,6 +113,7 @@ jobs:
           path: ShiguangBox/app/build/outputs/apk/release/${{ env.OUTPUT_NAME }}
 
       - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/shiguangbox-v1'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.app_version.outputs.version_name }}
@@ -121,7 +123,24 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.2" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.3" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.3 · 3D 相机输入重构版"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.3 · 3D 相机输入重构版
+
+          - versionCode: $VERSION_CODE
+          - 移除 Compose detectTransformGestures 相机方案
+          - AndroidView Modifier 直接接入 pointerInteropFilter 原始 MotionEvent
+          - 单指拖动直接按像素位移修改 yaw / pitch
+          - 双指缩放直接根据两指距离比例修改 camera distance
+          - 不经过 GestureDetector，也不依赖 GLSurfaceView.onTouchEvent
+          - 增加 ← → ↑ ↓ + − 六个相机测试按钮，直接调用渲染器相机接口
+          - 测试按钮可独立验证相机本体和触摸输入链
+          - 保留 V2.1.1 / V2.1.2 的暖色小窝、360°轨道相机、墙体自动隐藏和自动巡游
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.2" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.2 · 3D 镜头交互修正版"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.2 · 3D 镜头交互修正版

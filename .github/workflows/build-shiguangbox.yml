@@ -123,7 +123,27 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.0.1" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.0" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.0 · 3D 小窝技术预览"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.0 · 3D 小窝技术预览
+
+          - versionCode: $VERSION_CODE
+          - 新增原生 OpenGL ES 3D 小窝技术 Demo，不是 2D 缩放或伪 3D
+          - 新增真实透视摄像机，可单指旋转视角、双指缩放、重置视角
+          - 新增 3D 房间、地板、墙体、窗户、小床、地毯、小桌、收藏架、小球等空间物件
+          - 新增橘团低多边形 3D 占位模型，包含头、身体、耳朵、四肢、尾巴、眼睛和口鼻区域
+          - 橘团支持床边 / 窗边 / 地毯三个 3D 空间锚点
+          - 新增自主巡游：到达目标后停留，再自动选择下一个位置
+          - 移动过程包含朝向变化、身体上下起伏、四肢交替和尾巴摆动
+          - 新增手动“去床边 / 去窗边 / 去地毯”测试按钮
+          - 3D 页面与原有 2D 悬浮桌宠完全分离，不影响现有桌面陪伴性能
+          - 当前版本重点验证 3D 技术路线与手机流畅度；正式三宠 3D 精模、骨骼动画与小世界系统将在确认方向后继续制作
+          - 保留 V2.0.1 宠物世界、回忆盒、发现物、AI 对话、BehaviorSequence、Motion 2.0、雨团天气和彩虹系统
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.0.1" ]]; then
             RELEASE_TITLE="拾光盒 V2.0.1 · 宠物世界闭环修复"
             cat > release-notes.md <<EOF
           拾光盒 V2.0.1 · 宠物世界闭环修复

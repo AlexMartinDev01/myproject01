@@ -141,6 +141,11 @@ class MainActivity : ComponentActivity() {
     private var updateCheckTrigger by
         mutableIntStateOf(0)
 
+    private var petOpenRoute by
+        mutableStateOf<String?>(
+            null
+        )
+
     private val updateDownloadReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(
@@ -175,6 +180,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        petOpenRoute =
+            intent
+                ?.getStringExtra(
+                    EXTRA_OPEN_ROUTE
+                )
+
         ContextCompat.registerReceiver(
             this,
             updateDownloadReceiver,
@@ -190,6 +201,12 @@ class MainActivity : ComponentActivity() {
             ShiguangBoxApp(
                 updateCheckTrigger =
                     updateCheckTrigger,
+                petOpenRoute =
+                    petOpenRoute,
+                consumePetOpenRoute = {
+                    petOpenRoute =
+                        null
+                },
                 requestNotifications = {
                     if (Build.VERSION.SDK_INT >= 33 &&
                         ActivityCompat.checkSelfPermission(
@@ -206,6 +223,23 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
+    }
+
+    override fun onNewIntent(
+        intent: Intent
+    ) {
+        super.onNewIntent(
+            intent
+        )
+
+        setIntent(
+            intent
+        )
+
+        petOpenRoute =
+            intent.getStringExtra(
+                EXTRA_OPEN_ROUTE
+            )
     }
 
     override fun onResume() {
@@ -228,11 +262,18 @@ class MainActivity : ComponentActivity() {
 
         super.onDestroy()
     }
+
+    companion object {
+        const val EXTRA_OPEN_ROUTE =
+            "shiguangbox_open_route"
+    }
 }
 
 @Composable
 fun ShiguangBoxApp(
     updateCheckTrigger: Int,
+    petOpenRoute: String?,
+    consumePetOpenRoute: () -> Unit,
     requestNotifications: () -> Unit
 ) {
     val context = LocalContext.current
@@ -397,7 +438,9 @@ fun ShiguangBoxApp(
                 prefs = prefs,
                 journalMood = journalMood,
                 onSelectMood = selectMood,
-                onShuffleTheme = shuffleJournalTheme
+                onShuffleTheme = shuffleJournalTheme,
+                petOpenRoute = petOpenRoute,
+                consumePetOpenRoute = consumePetOpenRoute
             )
         }
 
@@ -777,14 +820,54 @@ private fun MainShell(
     prefs: SharedPreferences,
     journalMood: String,
     onSelectMood: (String) -> Unit,
-    onShuffleTheme: () -> Unit
+    onShuffleTheme: () -> Unit,
+    petOpenRoute: String?,
+    consumePetOpenRoute: () -> Unit
 ) {
     val context = LocalContext.current
     val db = remember { AppDatabase.get(context) }
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    var quickAddOpen by rememberSaveable { mutableStateOf(false) }
+    var quickAddOpen by
+        rememberSaveable {
+            mutableStateOf(
+                false
+            )
+        }
+
+    LaunchedEffect(
+        petOpenRoute
+    ) {
+        val route =
+            petOpenRoute
+                ?.takeIf {
+                    it in
+                        setOf(
+                            "today",
+                            "tasks",
+                            "quick_note",
+                            "journal_mood",
+                            "daily_journal",
+                            "pet_settings",
+                            "pet_chat"
+                        )
+                }
+
+        if (
+            route !=
+            null
+        ) {
+            navController.navigate(
+                route
+            ) {
+                launchSingleTop =
+                    true
+            }
+
+            consumePetOpenRoute()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -997,7 +1080,32 @@ private fun MainShell(
             }
             composable("pet_settings") {
                 PetSettingsScreen(
-                    onBack = { navController.popBackStack() }
+                    onBack = {
+                        navController
+                            .popBackStack()
+                    },
+                    onPetChat = {
+                        navController
+                            .navigate(
+                                "pet_chat"
+                            )
+                    }
+                )
+            }
+            composable("pet_chat") {
+                PetChatScreen(
+                    db =
+                        db,
+                    onBack = {
+                        navController
+                            .popBackStack()
+                    },
+                    onAiSettings = {
+                        navController
+                            .navigate(
+                                "ai_settings"
+                            )
+                    }
                 )
             }
             composable("ai_settings") {

@@ -51,7 +51,29 @@ fun PetSettingsScreen(
     var enabled by rememberSaveable {
         mutableStateOf(prefs.getBoolean("pet_enabled", false))
     }
-    var message by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable {
+        mutableStateOf("")
+    }
+
+    var motionPreviewIndex by rememberSaveable {
+        mutableStateOf(0)
+    }
+
+    var motionPreviewIntensity by rememberSaveable {
+        mutableStateOf(1.0f)
+    }
+
+    val motionPreviewOptions =
+        listOf(
+            PetMotion.LOOK_AROUND,
+            PetMotion.HEAD_TILT,
+            PetMotion.LOOK_UP,
+            PetMotion.STRETCH,
+            PetMotion.SMALL_JUMP,
+            PetMotion.DOZE_NOD,
+            PetMotion.SHY,
+            PetMotion.SEEK_ATTENTION
+        )
 
     var actionLevel by rememberSaveable {
         mutableStateOf(
@@ -344,7 +366,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V1.9.1 生活事件与连续行为链 · 橘团 / 芽芽 / 雨团",
+                        "V1.9.2 动作引擎 2.0 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -775,6 +797,258 @@ fun PetSettingsScreen(
                         .padding(18.dp)
                 ) {
                     Text(
+                        "动作实验室 2.0",
+                        fontWeight =
+                            FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(6.dp)
+                    )
+
+                    Text(
+                        "第一批 8 个新动作都可以单独播放；三只宠物会使用不同的幅度、速度和身体语言。",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(14.dp)
+                    )
+
+                    val selectedMotion =
+                        motionPreviewOptions[
+                            motionPreviewIndex
+                                .coerceIn(
+                                    0,
+                                    motionPreviewOptions
+                                        .lastIndex
+                                )
+                        ]
+
+                    Text(
+                        "当前动作：" +
+                            selectedMotion
+                                .displayName,
+                        fontWeight =
+                            FontWeight.Medium
+                    )
+
+                    Slider(
+                        value =
+                            motionPreviewIndex
+                                .toFloat(),
+                        onValueChange = {
+                            motionPreviewIndex =
+                                it.toInt()
+                                    .coerceIn(
+                                        0,
+                                        motionPreviewOptions
+                                            .lastIndex
+                                    )
+                        },
+                        valueRange =
+                            0f..
+                                motionPreviewOptions
+                                    .lastIndex
+                                    .toFloat(),
+                        steps =
+                            (
+                                motionPreviewOptions
+                                    .size -
+                                    2
+                                )
+                                .coerceAtLeast(
+                                    0
+                                )
+                    )
+
+                    Text(
+                        when (
+                            selectedMotion
+                        ) {
+                            PetMotion.LOOK_AROUND ->
+                                "左看看 → 右看看 → 回中间，头部和身体有轻微反向补偿"
+
+                            PetMotion.HEAD_TILT ->
+                                "头部局部歪向一侧，中段会眨眼，不是整张图片旋转"
+
+                            PetMotion.LOOK_UP ->
+                                "头部轻轻抬起，适合看气泡、看彩虹和发现东西"
+
+                            PetMotion.STRETCH ->
+                                "上半身拉伸、身体舒展，适合久坐或完成任务之后"
+
+                            PetMotion.SMALL_JUMP ->
+                                "蓄力 → 腾空 → 落地压缩 → 回弹，橘团会更明显"
+
+                            PetMotion.DOZE_NOD ->
+                                "眼睛慢慢闭上、头往下点，再重新醒过来，不会直接睡着"
+
+                            PetMotion.SHY ->
+                                "上半身轻缩、低头并小幅歪头，适合被摸或被夸"
+
+                            PetMotion.SEEK_ATTENTION ->
+                                "身体向一侧靠近、抬头并轻轻弹动，作为主动求关注姿态"
+
+                            else ->
+                                ""
+                        },
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(
+                        Modifier.height(12.dp)
+                    )
+
+                    Text(
+                        "动作强度：" +
+                            String.format(
+                                "%.1f",
+                                motionPreviewIntensity
+                            ) +
+                            "×"
+                    )
+
+                    Slider(
+                        value =
+                            motionPreviewIntensity,
+                        onValueChange = {
+                            motionPreviewIntensity =
+                                it.coerceIn(
+                                    0.6f,
+                                    1.4f
+                                )
+                        },
+                        valueRange =
+                            0.6f..1.4f
+                    )
+
+                    Spacer(
+                        Modifier.height(8.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            if (
+                                enabled &&
+                                overlayGranted
+                            ) {
+                                ContextCompat
+                                    .startForegroundService(
+                                        context,
+                                        Intent(
+                                            context,
+                                            PetOverlayService::class.java
+                                        )
+                                            .setAction(
+                                                PetOverlayService
+                                                    .ACTION_TEST_MOTION
+                                            )
+                                            .putExtra(
+                                                PetOverlayService
+                                                    .EXTRA_MOTION_ID,
+                                                selectedMotion
+                                                    .name
+                                            )
+                                            .putExtra(
+                                                PetOverlayService
+                                                    .EXTRA_MOTION_INTENSITY,
+                                                motionPreviewIntensity
+                                            )
+                                    )
+
+                                message =
+                                    "正在播放：" +
+                                        selectedMotion
+                                            .displayName
+                            } else {
+                                message =
+                                    "先开启悬浮桌宠，再测试动作"
+                            }
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "播放「" +
+                                selectedMotion
+                                    .displayName +
+                                "」"
+                        )
+                    }
+
+                    Spacer(
+                        Modifier.height(8.dp)
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            if (
+                                enabled &&
+                                overlayGranted
+                            ) {
+                                ContextCompat
+                                    .startForegroundService(
+                                        context,
+                                        Intent(
+                                            context,
+                                            PetOverlayService::class.java
+                                        ).setAction(
+                                            PetOverlayService
+                                                .ACTION_TEST_MOTION_SHOWCASE
+                                        )
+                                    )
+
+                                message =
+                                    "开始连续演示 8 个新动作，完整看完约半分钟"
+                            } else {
+                                message =
+                                    "先开启悬浮桌宠，再测试动作"
+                            }
+                        },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "连续演示 8 个新动作"
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors =
+                    CardDefaults
+                        .cardColors(
+                            containerColor =
+                                MaterialTheme
+                                    .colorScheme
+                                    .surface
+                        ),
+                shape =
+                    RoundedCornerShape(
+                        22.dp
+                    )
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp)
+                ) {
+                    Text(
                         "主动陪伴",
                         fontWeight =
                             FontWeight.Bold,
@@ -991,13 +1265,13 @@ fun PetSettingsScreen(
                     Text(
                         when (selectedPet) {
                             PetKind.YAYA ->
-                                "控制随机眨眼、耳朵轻晃和挥爪出现的频率"
+                                "控制随机眨眼、耳朵轻晃、新微动作与中动作出现的频率"
 
                             PetKind.YUTUAN ->
-                                "控制随机眨眼、抬爪回应和抖水甩耳出现的频率；真实细雨会持续自然变化"
+                                "控制随机眨眼、抬爪、新微动作与中动作出现的频率；真实细雨会持续自然变化"
 
                             else ->
-                                "控制随机眨眼、摇尾巴和挥爪出现的频率"
+                                "控制随机眨眼、摇尾巴、挥爪和新生活动作出现的频率"
                         },
                         color =
                             MaterialTheme
@@ -1183,6 +1457,7 @@ fun PetSettingsScreen(
                     )
                     Text("• 每天第一次见面会根据时间、今天待办和心情说一句不同的话")
                     Text("• 主动陪伴会根据粘人度自行决定：只做小动作、主动说话、来找你、轻提醒或安静陪伴")
+                    Text("• 动作引擎 2.0 新增左右观察、歪头、抬头、伸懒腰、小跳、困倦点头、害羞、主动求关注 8 个独立动作")
                     Text("• 新增连续行为链：先动作、再观察、再气泡；部分事件可以直接回应“摸摸你 / 我先忙”")
                     Text("• 新增短期记忆：同一种生活事件不会短时间重复；刚完成的任务过一会儿也可能被宠物重新提起")
                     Text("• 长时间没互动后，橘团 / 芽芽 / 雨团会用各自性格来找你；亲密感会在后台慢慢积累，不显示游戏数值")

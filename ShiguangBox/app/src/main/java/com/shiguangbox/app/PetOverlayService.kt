@@ -76,6 +76,9 @@ class PetOverlayService : Service() {
 
     private var speechBubblePriority = 0
 
+    private var speechBubblePreferBelow =
+        false
+
     private var speechBubbleHideRunnable:
         Runnable? = null
 
@@ -450,9 +453,6 @@ class PetOverlayService : Service() {
                         dragging = true
                         longPressed = false
                         closePanel()
-                        hideSpeechBubble(
-                            immediate = true
-                        )
                         dockedSide = 0
                         edgePeekRunnable?.let {
                             handler.removeCallbacks(it)
@@ -489,6 +489,8 @@ class PetOverlayService : Service() {
                                 params
                             )
                         }
+
+                        syncSpeechBubblePosition()
                     }
                     return true
                 }
@@ -570,6 +572,8 @@ class PetOverlayService : Service() {
                             params
                         )
                     }
+
+                    syncSpeechBubblePosition()
                 }
             }
             start()
@@ -734,6 +738,9 @@ class PetOverlayService : Service() {
             )
         }
 
+        syncSpeechBubblePosition(
+            force = true
+        )
         syncYutuanRainbowPosition()
 
         if (prefs.getBoolean("pet_auto_snap", true)) {
@@ -1359,6 +1366,10 @@ class PetOverlayService : Service() {
             rainbowParams =
                 params
 
+            syncSpeechBubblePosition(
+                force = true
+            )
+
             view.animate()
                 .alpha(1f)
                 .scaleX(1f)
@@ -1461,6 +1472,8 @@ class PetOverlayService : Service() {
                     params
                 )
         }
+
+        syncSpeechBubblePosition()
     }
 
     private fun startYutuanRainbowFollowing() {
@@ -1526,6 +1539,10 @@ class PetOverlayService : Service() {
                         view
                     )
             }
+
+            syncSpeechBubblePosition(
+                force = true
+            )
             return
         }
 
@@ -1545,6 +1562,10 @@ class PetOverlayService : Service() {
                             view
                         )
                 }
+
+                syncSpeechBubblePosition(
+                    force = true
+                )
             }
             .start()
     }
@@ -1656,6 +1677,8 @@ class PetOverlayService : Service() {
                             params
                         )
                     }
+
+                    syncSpeechBubblePosition()
                 }
                 start()
             }
@@ -2290,6 +2313,8 @@ class PetOverlayService : Service() {
                 params
             speechBubblePriority =
                 priority
+            speechBubblePreferBelow =
+                preferBelow
 
             view.alpha =
                 0f
@@ -2374,7 +2399,7 @@ class PetOverlayService : Service() {
         val aboveY =
             pet.y -
                 bubbleHeight +
-                dp(4)
+                dp(12)
 
         val belowY =
             pet.y +
@@ -2640,6 +2665,153 @@ class PetOverlayService : Service() {
         )
     }
 
+    private fun syncSpeechBubblePosition(
+        force: Boolean = false
+    ) {
+        val bubble =
+            speechBubble ?: return
+
+        val params =
+            speechBubbleParams ?: return
+
+        val pet =
+            petParams ?: return
+
+        val screenW =
+            resources
+                .displayMetrics
+                .widthPixels
+
+        val screenH =
+            resources
+                .displayMetrics
+                .heightPixels
+
+        val rainbowRect =
+            rainbowParams
+                ?.let {
+                    Rect(
+                        it.x,
+                        it.y,
+                        it.x +
+                            it.width,
+                        it.y +
+                            it.height
+                    )
+                }
+
+        val compactForRainbow =
+            rainbowRect != null &&
+                bubble.isDecorativeTheme()
+
+        bubble.setCompactMode(
+            compactForRainbow
+        )
+
+        val bubbleWidth =
+            bubble.preferredWidthPx(
+                screenW
+            )
+
+        bubble.measure(
+            View.MeasureSpec
+                .makeMeasureSpec(
+                    bubbleWidth,
+                    View.MeasureSpec.EXACTLY
+                ),
+            View.MeasureSpec
+                .makeMeasureSpec(
+                    0,
+                    View.MeasureSpec
+                        .UNSPECIFIED
+                )
+        )
+
+        val bubbleHeight =
+            bubble.measuredHeight
+                .coerceAtLeast(
+                    bubble.minimumOverlayHeightPx()
+                )
+
+        val placement =
+            resolveSpeechBubblePlacement(
+                pet = pet,
+                bubbleWidth = bubbleWidth,
+                bubbleHeight = bubbleHeight,
+                screenW = screenW,
+                screenH = screenH,
+                rainbowRect = rainbowRect,
+                preferBelow =
+                    speechBubblePreferBelow
+            )
+
+        val petCenterX =
+            pet.x +
+                pet.width / 2
+
+        val tailCenter =
+            (petCenterX -
+                placement.x)
+                .toFloat()
+                .coerceIn(
+                    dp(34).toFloat(),
+                    (
+                        bubbleWidth -
+                            dp(34)
+                        ).toFloat()
+                )
+
+        bubble.setTail(
+            atTop =
+                !placement.placeAbove,
+            centerPx =
+                tailCenter
+        )
+
+        val moveThreshold =
+            dp(2)
+
+        val positionChanged =
+            kotlin.math.abs(
+                params.x -
+                    placement.x
+            ) >=
+                moveThreshold ||
+                kotlin.math.abs(
+                    params.y -
+                        placement.y
+                ) >=
+                moveThreshold
+
+        val widthChanged =
+            params.width !=
+                bubbleWidth
+
+        if (
+            !force &&
+            !positionChanged &&
+            !widthChanged
+        ) {
+            return
+        }
+
+        params.width =
+            bubbleWidth
+        params.x =
+            placement.x
+        params.y =
+            placement.y
+
+        runCatching {
+            windowManager
+                .updateViewLayout(
+                    bubble,
+                    params
+                )
+        }
+    }
+
+
     private fun hideSpeechBubble(
         immediate: Boolean
     ) {
@@ -2659,6 +2831,7 @@ class PetOverlayService : Service() {
         speechBubble = null
         speechBubbleParams = null
         speechBubblePriority = 0
+        speechBubblePreferBelow = false
 
         if (immediate) {
             runCatching {

@@ -90,6 +90,11 @@ class PetOverlayService : Service() {
     private var previousPetSessionEndedAt =
         0L
 
+    private var lifeChainToken = 0
+
+    private var lifeChainActiveUntil =
+        0L
+
     private var yutuanWeatherRunnable:
         Runnable? = null
 
@@ -455,6 +460,8 @@ class PetOverlayService : Service() {
         ): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    cancelLifeChain()
+
                     recordPetInteraction(
                         affectionPoints = 1
                     )
@@ -789,7 +796,22 @@ class PetOverlayService : Service() {
         }
 
         scheduleEdgePeek()
-        scheduleContextBubble()
+
+        if (
+            companionEnabled()
+        ) {
+            scheduleContextBubble()
+        } else {
+            cancelLifeChain()
+            contextBubbleRunnable
+                ?.let {
+                    handler.removeCallbacks(
+                        it
+                    )
+                }
+            contextBubbleRunnable =
+                null
+        }
     }
 
     private fun recreatePetViewForSelection() {
@@ -1937,6 +1959,7 @@ class PetOverlayService : Service() {
     private fun showPreReminder(
         title: String
     ) {
+        cancelLifeChain()
         petView?.playWave()
 
         showPetBubble(
@@ -1958,6 +1981,7 @@ class PetOverlayService : Service() {
         taskId: Long,
         title: String
     ) {
+        cancelLifeChain()
         reminderTaskId = taskId
         closePanel()
         animateReminder()
@@ -3042,6 +3066,88 @@ class PetOverlayService : Service() {
         editor.apply()
     }
 
+    private fun cancelLifeChain(
+        snoozeMs: Long = 0L
+    ) {
+        lifeChainToken += 1
+        lifeChainActiveUntil =
+            0L
+
+        if (
+            snoozeMs >
+            0L
+        ) {
+            prefs.edit()
+                .putLong(
+                    "pet_companion_snooze_until",
+                    System.currentTimeMillis() +
+                        snoozeMs
+                )
+                .apply()
+        }
+    }
+
+    private fun rememberLifeEvent(
+        event: PetLifeEvent
+    ) {
+        prefs.edit()
+            .putString(
+                "pet_last_life_event",
+                event.name
+            )
+            .putLong(
+                "pet_last_life_event_at",
+                System.currentTimeMillis()
+            )
+            .apply()
+    }
+
+    private fun wasLifeEventRecent(
+        event: PetLifeEvent,
+        withinMs: Long =
+            28L *
+                60L *
+                1000L
+    ): Boolean =
+        prefs.getString(
+            "pet_last_life_event",
+            ""
+        ) ==
+            event.name &&
+            System.currentTimeMillis() -
+                prefs.getLong(
+                    "pet_last_life_event_at",
+                    0L
+                ) <
+            withinMs
+
+    private fun recentTaskMemoryAvailable():
+        Boolean {
+        val at =
+            prefs.getLong(
+                "pet_last_completed_task_at",
+                0L
+            )
+
+        return at >
+            0L &&
+            System.currentTimeMillis() -
+                at <
+            55L *
+                60L *
+                1000L
+    }
+
+    private fun lifeChainAllowed(
+        token: Int
+    ): Boolean =
+        token ==
+            lifeChainToken &&
+            panelView ==
+                null &&
+            petView !=
+                null
+
     private fun maybeShowWelcomeBack() {
         if (
             !companionEnabled() ||
@@ -3255,7 +3361,7 @@ class PetOverlayService : Service() {
             return
         }
 
-        val delay =
+        val baseDelay =
             PetLifeEngine
                 .nextDelayMs(
                     level =
@@ -3266,6 +3372,24 @@ class PetOverlayService : Service() {
                         isCompanionQuietNight()
                 )
 
+        val snoozeRemaining =
+            (
+                prefs.getLong(
+                    "pet_companion_snooze_until",
+                    0L
+                ) -
+                    System.currentTimeMillis()
+                )
+                .coerceAtLeast(
+                    0L
+                )
+
+        val delay =
+            maxOf(
+                baseDelay,
+                snoozeRemaining
+            )
+
         val runnable =
             Runnable {
                 maybeShowDailyGreeting()
@@ -3273,6 +3397,8 @@ class PetOverlayService : Service() {
                 if (
                     panelView == null &&
                     speechBubble == null &&
+                    System.currentTimeMillis() >=
+                        lifeChainActiveUntil &&
                     petView
                         ?.canDoAmbientAction() ==
                         true
@@ -3368,81 +3494,71 @@ class PetOverlayService : Service() {
                     )
 
             if (
+                recentTaskMemoryAvailable() &&
+                !wasLifeEventRecent(
+                    PetLifeEvent
+                        .AFTER_TASK,
+                    withinMs =
+                        75L *
+                            60L *
+                            1000L
+                ) &&
+                kotlin.random.Random
+                    .nextFloat() <
+                0.42f
+            ) {
+                event =
+                    PetLifeEvent
+                        .AFTER_TASK
+            }
+
+            if (
                 event !=
                 PetLifeEvent
                     .SILENT_ACTION &&
-                now -
-                    lastAmbientBubbleAt <
-                config
-                    .bubbleCooldownMs
+                (
+                    now -
+                        lastAmbientBubbleAt <
+                    config
+                        .bubbleCooldownMs ||
+                    wasLifeEventRecent(
+                        event
+                    )
+                    )
             ) {
                 event =
                     PetLifeEvent
                         .SILENT_ACTION
             }
 
-            playCompanionAction(
-                event
+            runLifeEventChain(
+                context =
+                    context,
+                event =
+                    event,
+                interactive =
+                    event ==
+                        PetLifeEvent
+                            .MISS_YOU ||
+                        event ==
+                            PetLifeEvent
+                                .MOOD_COMPANY ||
+                        event ==
+                            PetLifeEvent
+                                .WELCOME_BACK
             )
 
             if (
-                event ==
+                event !=
                 PetLifeEvent
                     .SILENT_ACTION
             ) {
-                scheduleContextBubble()
-                return@launch
+                lastAmbientBubbleAt =
+                    now
+                rememberLifeEvent(
+                    event
+                )
             }
-
-            lastAmbientBubbleAt =
-                now
-
-            handler.postDelayed(
-                {
-                    if (
-                        panelView ==
-                        null &&
-                        speechBubble ==
-                        null &&
-                        petView
-                            ?.canDoAmbientAction() ==
-                            true
-                    ) {
-                        showPetBubble(
-                            title =
-                                petName() +
-                                    " · " +
-                                    PetLifeEngine
-                                        .titleSuffix(
-                                            event
-                                        ),
-                            message =
-                                PetLifeEngine
-                                    .message(
-                                        context,
-                                        event
-                                    ),
-                            tone =
-                                PetSpeechBubbleView
-                                    .Tone.MOOD,
-                            priority =
-                                PRIORITY_AMBIENT,
-                            durationMs =
-                                when (
-                                    config.level
-                                ) {
-                                    3 ->
-                                        4_300L
-                                    2 ->
-                                        4_500L
-                                    else ->
-                                        4_800L
-                                }
-                        )
-                    }
-                },
-                300L
-            )
 
             scheduleContextBubble()
         }
@@ -3463,7 +3579,8 @@ class PetOverlayService : Service() {
                     PetLifeEvent.WELCOME_BACK ->
                         pet.playWave()
 
-                    PetLifeEvent.PROUD_OF_YOU ->
+                    PetLifeEvent.PROUD_OF_YOU,
+                    PetLifeEvent.AFTER_TASK ->
                         pet.playTailWag()
 
                     PetLifeEvent.SILENT_ACTION ->
@@ -3488,7 +3605,8 @@ class PetOverlayService : Service() {
                         pet.playWave()
 
                     PetLifeEvent.SILENT_ACTION,
-                    PetLifeEvent.MOOD_COMPANY ->
+                    PetLifeEvent.MOOD_COMPANY,
+                    PetLifeEvent.AFTER_TASK ->
                         pet.playBlink()
 
                     else ->
@@ -3506,7 +3624,8 @@ class PetOverlayService : Service() {
             PetKind.YUTUAN -> {
                 when (event) {
                     PetLifeEvent.MISS_YOU,
-                    PetLifeEvent.PROUD_OF_YOU ->
+                    PetLifeEvent.PROUD_OF_YOU,
+                    PetLifeEvent.AFTER_TASK ->
                         pet.playTailWag()
 
                     PetLifeEvent.WELCOME_BACK,
@@ -3520,9 +3639,372 @@ class PetOverlayService : Service() {
         }
     }
 
+    private fun runLifeEventChain(
+        context: PetLifeContext,
+        event: PetLifeEvent,
+        interactive: Boolean
+    ) {
+        cancelLifeChain()
+
+        val token =
+            lifeChainToken
+
+        lifeChainActiveUntil =
+            System.currentTimeMillis() +
+                if (
+                    interactive
+                ) {
+                    7_500L
+                } else {
+                    4_800L
+                }
+
+        val pet =
+            petView ?: return
+
+        when (
+            context.petKind
+        ) {
+            PetKind.ORANGE -> {
+                pet.playBlink()
+
+                handler.postDelayed(
+                    {
+                        if (
+                            lifeChainAllowed(
+                                token
+                            )
+                        ) {
+                            when (event) {
+                                PetLifeEvent.MISS_YOU,
+                                PetLifeEvent.WELCOME_BACK ->
+                                    pet.playWave()
+
+                                PetLifeEvent.PROUD_OF_YOU,
+                                PetLifeEvent.AFTER_TASK ->
+                                    pet.playTailWag()
+
+                                PetLifeEvent.SILENT_ACTION ->
+                                    pet.playTailWag()
+
+                                else ->
+                                    pet.playWave()
+                            }
+                        }
+                    },
+                    620L
+                )
+            }
+
+            PetKind.YAYA -> {
+                pet.playBlink()
+
+                if (
+                    event ==
+                    PetLifeEvent.MISS_YOU ||
+                    event ==
+                    PetLifeEvent.WELCOME_BACK
+                ) {
+                    handler.postDelayed(
+                        {
+                            if (
+                                lifeChainAllowed(
+                                    token
+                                )
+                            ) {
+                                pet.playWave()
+                            }
+                        },
+                        920L
+                    )
+                }
+            }
+
+            PetKind.YUTUAN -> {
+                pet.playBlink()
+
+                handler.postDelayed(
+                    {
+                        if (
+                            lifeChainAllowed(
+                                token
+                            )
+                        ) {
+                            when (event) {
+                                PetLifeEvent.MISS_YOU,
+                                PetLifeEvent.AFTER_TASK,
+                                PetLifeEvent.PROUD_OF_YOU ->
+                                    pet.playTailWag()
+
+                                PetLifeEvent.WELCOME_BACK,
+                                PetLifeEvent.TASK_NUDGE ->
+                                    pet.playWave()
+
+                                else ->
+                                    pet.playBlink()
+                            }
+                        }
+                    },
+                    760L
+                )
+            }
+        }
+
+        if (
+            event ==
+            PetLifeEvent.SILENT_ACTION
+        ) {
+            return
+        }
+
+        handler.postDelayed(
+            {
+                if (
+                    !lifeChainAllowed(
+                        token
+                    ) ||
+                    speechBubble !=
+                    null
+                ) {
+                    return@postDelayed
+                }
+
+                if (
+                    interactive
+                ) {
+                    showInteractiveLifeBubble(
+                        context,
+                        event,
+                        token
+                    )
+                } else {
+                    showPetBubble(
+                        title =
+                            petName() +
+                                " · " +
+                                PetLifeEngine
+                                    .titleSuffix(
+                                        event
+                                    ),
+                        message =
+                            PetLifeEngine
+                                .message(
+                                    context,
+                                    event
+                                ),
+                        tone =
+                            PetSpeechBubbleView
+                                .Tone.MOOD,
+                        priority =
+                            PRIORITY_AMBIENT,
+                        durationMs =
+                            4_700L
+                    )
+                }
+            },
+            when (
+                context.petKind
+            ) {
+                PetKind.ORANGE -> 1_320L
+                PetKind.YAYA -> 1_560L
+                PetKind.YUTUAN -> 1_420L
+            }
+        )
+    }
+
+    private fun showInteractiveLifeBubble(
+        context: PetLifeContext,
+        event: PetLifeEvent,
+        token: Int
+    ) {
+        if (
+            !lifeChainAllowed(
+                token
+            )
+        ) {
+            return
+        }
+
+        val bubble =
+            PetSpeechBubbleView(
+                this,
+                selectedPetKind()
+            ).apply {
+                bind(
+                    title =
+                        petName() +
+                            " · " +
+                            PetLifeEngine
+                                .titleSuffix(
+                                    event
+                                ),
+                    message =
+                        PetLifeEngine
+                            .message(
+                                context,
+                                event
+                            ),
+                    tone =
+                        PetSpeechBubbleView
+                            .Tone.MOOD
+                )
+
+                addAction(
+                    label =
+                        when (
+                            selectedPetKind()
+                        ) {
+                            PetKind.YAYA ->
+                                "陪你一下"
+                            else ->
+                                "摸摸你"
+                        },
+                    primary = true
+                ) {
+                    handleLifeBubbleResponse(
+                        positive = true,
+                        event = event
+                    )
+                }
+
+                addAction(
+                    label = "我先忙",
+                    primary = false
+                ) {
+                    handleLifeBubbleResponse(
+                        positive = false,
+                        event = event
+                    )
+                }
+            }
+
+        showSpeechBubbleView(
+            view = bubble,
+            priority =
+                PRIORITY_AMBIENT,
+            durationMs =
+                7_500L
+        )
+    }
+
+    private fun handleLifeBubbleResponse(
+        positive: Boolean,
+        event: PetLifeEvent
+    ) {
+        hideSpeechBubble(
+            immediate = false
+        )
+
+        if (
+            positive
+        ) {
+            cancelLifeChain()
+
+            recordPetInteraction(
+                affectionPoints = 3
+            )
+
+            petView
+                ?.playPetted()
+
+            val response =
+                when (
+                    selectedPetKind()
+                ) {
+                    PetKind.ORANGE ->
+                        if (
+                            event ==
+                            PetLifeEvent
+                                .MISS_YOU
+                        ) {
+                            "嘿嘿，被你发现啦！"
+                        } else {
+                            "好～我收到你的摸摸啦！"
+                        }
+
+                    PetKind.YAYA ->
+                        "嗯，我就安静陪你待一会儿。"
+
+                    PetKind.YUTUAN ->
+                        "收到啦，雨声都好像轻了一点。"
+                }
+
+            handler.postDelayed(
+                {
+                    if (
+                        speechBubble ==
+                        null &&
+                        panelView ==
+                        null
+                    ) {
+                        petView
+                            ?.playHappy()
+
+                        showPetBubble(
+                            title =
+                                petName() +
+                                    " · 回应你",
+                            message =
+                                response,
+                            tone =
+                                PetSpeechBubbleView
+                                    .Tone.MOOD,
+                            priority =
+                                PRIORITY_INTERACTION,
+                            durationMs =
+                                3_400L
+                        )
+                    }
+                },
+                850L
+            )
+        } else {
+            val quietFor =
+                when (
+                    clinginessLevel()
+                ) {
+                    3 ->
+                        18L *
+                            60L *
+                            1000L
+                    2 ->
+                        25L *
+                            60L *
+                            1000L
+                    else ->
+                        35L *
+                            60L *
+                            1000L
+                }
+
+            cancelLifeChain(
+                snoozeMs =
+                    quietFor
+            )
+
+            petView
+                ?.playBlink()
+
+            scheduleContextBubble()
+        }
+    }
+
     private fun showTaskCompletionCelebration(
         title: String
     ) {
+        cancelLifeChain()
+
+        prefs.edit()
+            .putString(
+                "pet_last_completed_task_title",
+                title
+            )
+            .putLong(
+                "pet_last_completed_task_at",
+                System.currentTimeMillis()
+            )
+            .apply()
+
         scope.launch {
             val stats =
                 todayTaskStats()
@@ -3571,6 +4053,8 @@ class PetOverlayService : Service() {
     private fun showMoodReaction(
         mood: String
     ) {
+        cancelLifeChain()
+
         val message =
             moodSentence(mood)
                 .ifBlank {

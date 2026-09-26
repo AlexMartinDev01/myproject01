@@ -470,37 +470,50 @@ object PetWorldStore {
             )
             .apply()
 
-        addMemory(
-            prefs,
-            PetMemory(
-                id =
-                    "event_" +
-                        event.id +
-                        "_" +
-                        System.currentTimeMillis(),
-                type =
-                    event.type.name
-                        .lowercase(),
-                petId =
-                    when {
-                        event.discovery !=
-                            null ->
-                            event.discovery.owner.id
-                        else ->
-                            prefs.getString(
-                                "pet_selected_id",
-                                PetKind.ORANGE.id
-                            ) ?:
-                                PetKind.ORANGE.id
-                    },
-                title =
-                    event.title,
-                detail =
-                    event.message,
-                createdAt =
-                    System.currentTimeMillis()
+        if (
+            event.type in
+            setOf(
+                PetWorldEventType.SEEK_TOUCH,
+                PetWorldEventType.CHECK_TASKS,
+                PetWorldEventType.INVITE_NOTE,
+                PetWorldEventType.INVITE_MOOD,
+                PetWorldEventType.TASK_MEMORY,
+                PetWorldEventType.MOOD_COMPANY,
+                PetWorldEventType.RARE_DISCOVERY
             )
-        )
+        ) {
+            addMemory(
+                prefs,
+                PetMemory(
+                    id =
+                        "event_" +
+                            event.id +
+                            "_" +
+                            System.currentTimeMillis(),
+                    type =
+                        event.type.name
+                            .lowercase(),
+                    petId =
+                        when {
+                            event.discovery !=
+                                null ->
+                                event.discovery.owner.id
+                            else ->
+                                prefs.getString(
+                                    "pet_selected_id",
+                                    PetKind.ORANGE.id
+                                ) ?:
+                                    PetKind.ORANGE.id
+                        },
+                    title =
+                        event.title,
+                    detail =
+                        event.message,
+                    createdAt =
+                        System.currentTimeMillis()
+                )
+            )
+        }
     }
 
     fun wasEventRecent(
@@ -815,6 +828,53 @@ object PetWorldEngine {
                     .coerceAtLeast(
                         1
                     )
+        }
+
+        when (
+            PetWorldStore
+                .bondStage(
+                    context.affection
+                )
+        ) {
+            PetBondStage.NEW ->
+                Unit
+
+            PetBondStage.FAMILIAR -> {
+                if (
+                    event.interactive
+                ) {
+                    weight +=
+                        1
+                }
+            }
+
+            PetBondStage.CLOSE -> {
+                if (
+                    event.type in
+                    setOf(
+                        PetWorldEventType.SEEK_TOUCH,
+                        PetWorldEventType.TASK_MEMORY,
+                        PetWorldEventType.MOOD_COMPANY
+                    )
+                ) {
+                    weight +=
+                        3
+                }
+            }
+
+            PetBondStage.IN_SYNC -> {
+                if (
+                    event.type in
+                    setOf(
+                        PetWorldEventType.TASK_MEMORY,
+                        PetWorldEventType.MOOD_COMPANY,
+                        PetWorldEventType.RARE_DISCOVERY
+                    )
+                ) {
+                    weight +=
+                        4
+                }
+            }
         }
 
         return weight
@@ -1195,6 +1255,16 @@ object PetWorldEngine {
         context: PetWorldContext,
         force: Boolean = false
     ): PetWorldEvent? {
+        if (
+            !force &&
+            !prefs.getBoolean(
+                "pet_rare_events_enabled",
+                true
+            )
+        ) {
+            return null
+        }
+
         val undiscovered =
             PetDiscovery.entries
                 .filter {

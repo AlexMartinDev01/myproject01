@@ -2,11 +2,16 @@ package com.shiguangbox.app
 
 import android.content.Context
 import android.opengl.GLES20
-import android.opengl.GLSurfaceView
 import android.opengl.Matrix
-import android.view.GestureDetector
+import android.graphics.SurfaceTexture
+import android.opengl.EGL14
+import android.opengl.EGLConfig
+import android.opengl.EGLContext
+import android.opengl.EGLDisplay
+import android.opengl.EGLSurface
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
+import android.view.Surface
+import android.view.TextureView
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -19,89 +24,85 @@ import kotlin.math.sqrt
 
 class PetHome3DView(
     context: Context
-) : GLSurfaceView(context) {
+) : TextureView(
+    context
+),
+    TextureView.SurfaceTextureListener {
 
     private val homeRenderer =
         PetHome3DRenderer()
 
-    private val scaleDetector =
-        ScaleGestureDetector(
-            context,
-            object :
-                ScaleGestureDetector
-                    .SimpleOnScaleGestureListener() {
-                override fun onScale(
-                    detector:
-                        ScaleGestureDetector
-                ): Boolean {
-                    homeRenderer.zoomBy(
-                        detector.scaleFactor
-                    )
-                    return true
-                }
-            }
-        )
+    @Volatile
+    private var renderThread:
+        Thread? =
+        null
 
-    private val gestureDetector =
-        GestureDetector(
-            context,
-            object :
-                GestureDetector
-                    .SimpleOnGestureListener() {
-                override fun onDown(
-                    event:
-                        MotionEvent
-                ): Boolean =
-                    true
+    @Volatile
+    private var rendering =
+        false
 
-                override fun onScroll(
-                    e1: MotionEvent?,
-                    e2: MotionEvent,
-                    distanceX: Float,
-                    distanceY: Float
-                ): Boolean {
-                    if (
-                        !scaleDetector
-                            .isInProgress
-                    ) {
-                        homeRenderer
-                            .rotateCamera(
-                                -distanceX,
-                                -distanceY
-                            )
-                    }
+    @Volatile
+    private var paused =
+        false
 
-                    return true
-                }
+    @Volatile
+    private var pendingWidth =
+        1
 
-                override fun onDoubleTap(
-                    event:
-                        MotionEvent
-                ): Boolean {
-                    homeRenderer
-                        .resetCamera()
-                    return true
-                }
-            }
-        )
+    @Volatile
+    private var pendingHeight =
+        1
+
+    private var lastTouchX =
+        0f
+
+    private var lastTouchY =
+        0f
+
+    private var lastPinchDistance =
+        0f
 
     init {
-        setEGLContextClientVersion(
-            2
-        )
-        setRenderer(
-            homeRenderer
-        )
-        renderMode =
-            RENDERMODE_CONTINUOUSLY
-        preserveEGLContextOnPause =
-            true
+        surfaceTextureListener =
+            this
 
         isClickable =
             true
+
         isFocusable =
             true
+
         isFocusableInTouchMode =
+            true
+    }
+
+    fun onResume() {
+        paused =
+            false
+
+        if (
+            isAvailable
+        ) {
+            surfaceTexture
+                ?.let {
+                    texture ->
+                    startRendererIfNeeded(
+                        texture,
+                        width
+                            .coerceAtLeast(
+                                1
+                            ),
+                        height
+                            .coerceAtLeast(
+                                1
+                            )
+                    )
+                }
+        }
+    }
+
+    fun onPause() {
+        paused =
             true
     }
 
@@ -173,36 +174,153 @@ class PetHome3DView(
         when (
             event.actionMasked
         ) {
-            MotionEvent.ACTION_DOWN,
-            MotionEvent.ACTION_POINTER_DOWN ->
+            MotionEvent.ACTION_DOWN -> {
                 parent
                     ?.requestDisallowInterceptTouchEvent(
                         true
                     )
 
+                lastTouchX =
+                    event.x
+
+                lastTouchY =
+                    event.y
+
+                lastPinchDistance =
+                    0f
+
+                return true
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                parent
+                    ?.requestDisallowInterceptTouchEvent(
+                        true
+                    )
+
+                if (
+                    event.pointerCount >=
+                    2
+                ) {
+                    lastPinchDistance =
+                        pointerDistance(
+                            event
+                        )
+                }
+
+                return true
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                if (
+                    event.pointerCount >=
+                    2
+                ) {
+                    val distance =
+                        pointerDistance(
+                            event
+                        )
+
+                    if (
+                        lastPinchDistance >
+                        1f &&
+                        distance >
+                        1f
+                    ) {
+                        zoomCamera(
+                            (
+                                distance /
+                                    lastPinchDistance
+                                )
+                                .coerceIn(
+                                    0.88f,
+                                    1.14f
+                                )
+                        )
+                    }
+
+                    lastPinchDistance =
+                        distance
+                } else {
+                    val dx =
+                        event.x -
+                            lastTouchX
+
+                    val dy =
+                        event.y -
+                            lastTouchY
+
+                    if (
+                        kotlin.math.abs(
+                            dx
+                        ) >
+                        0.1f ||
+                        kotlin.math.abs(
+                            dy
+                        ) >
+                        0.1f
+                    ) {
+                        orbitCamera(
+                            dx,
+                            dy
+                        )
+                    }
+
+                    lastTouchX =
+                        event.x
+
+                    lastTouchY =
+                        event.y
+                }
+
+                return true
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                lastPinchDistance =
+                    0f
+
+                if (
+                    event.pointerCount >
+                    1
+                ) {
+                    val remaining =
+                        if (
+                            event.actionIndex ==
+                            0
+                        ) {
+                            1
+                        } else {
+                            0
+                        }
+
+                    lastTouchX =
+                        event.getX(
+                            remaining
+                        )
+
+                    lastTouchY =
+                        event.getY(
+                            remaining
+                        )
+                }
+
+                return true
+            }
+
             MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL ->
+            MotionEvent.ACTION_CANCEL -> {
                 parent
                     ?.requestDisallowInterceptTouchEvent(
                         false
                     )
-        }
 
-        scaleDetector
-            .onTouchEvent(
-                event
-            )
+                lastPinchDistance =
+                    0f
 
-        gestureDetector
-            .onTouchEvent(
-                event
-            )
-
-        if (
-            event.actionMasked ==
-            MotionEvent.ACTION_UP
-        ) {
-            performClick()
+                performClick()
+                return true
+            }
         }
 
         return true
@@ -214,6 +332,442 @@ class PetHome3DView(
         return true
     }
 
+    override fun onSurfaceTextureAvailable(
+        surface:
+            SurfaceTexture,
+        width: Int,
+        height: Int
+    ) {
+        pendingWidth =
+            width
+                .coerceAtLeast(
+                    1
+                )
+
+        pendingHeight =
+            height
+                .coerceAtLeast(
+                    1
+                )
+
+        startRendererIfNeeded(
+            surface,
+            pendingWidth,
+            pendingHeight
+        )
+    }
+
+    override fun onSurfaceTextureSizeChanged(
+        surface:
+            SurfaceTexture,
+        width: Int,
+        height: Int
+    ) {
+        pendingWidth =
+            width
+                .coerceAtLeast(
+                    1
+                )
+
+        pendingHeight =
+            height
+                .coerceAtLeast(
+                    1
+                )
+    }
+
+    override fun onSurfaceTextureDestroyed(
+        surface:
+            SurfaceTexture
+    ): Boolean {
+        stopRenderer()
+        return true
+    }
+
+    override fun onSurfaceTextureUpdated(
+        surface:
+            SurfaceTexture
+    ) =
+        Unit
+
+    override fun onDetachedFromWindow() {
+        stopRenderer()
+        super.onDetachedFromWindow()
+    }
+
+    private fun pointerDistance(
+        event: MotionEvent
+    ): Float {
+        if (
+            event.pointerCount <
+            2
+        ) {
+            return 0f
+        }
+
+        val dx =
+            event.getX(
+                0
+            ) -
+                event.getX(
+                    1
+                )
+
+        val dy =
+            event.getY(
+                0
+            ) -
+                event.getY(
+                    1
+                )
+
+        return kotlin.math.sqrt(
+            dx *
+                dx +
+                dy *
+                dy
+        )
+    }
+
+    @Synchronized
+    private fun startRendererIfNeeded(
+        texture:
+            SurfaceTexture,
+        width: Int,
+        height: Int
+    ) {
+        if (
+            rendering
+        ) {
+            pendingWidth =
+                width
+            pendingHeight =
+                height
+            return
+        }
+
+        rendering =
+            true
+
+        pendingWidth =
+            width
+
+        pendingHeight =
+            height
+
+        val thread =
+            Thread(
+                {
+                    runRenderLoop(
+                        texture
+                    )
+                },
+                "PetHome3D-EGL"
+            )
+
+        renderThread =
+            thread
+
+        thread.start()
+    }
+
+    @Synchronized
+    private fun stopRenderer() {
+        rendering =
+            false
+
+        renderThread
+            ?.interrupt()
+
+        renderThread =
+            null
+    }
+
+    private fun runRenderLoop(
+        texture:
+            SurfaceTexture
+    ) {
+        var display:
+            EGLDisplay =
+            EGL14.EGL_NO_DISPLAY
+
+        var context:
+            EGLContext =
+            EGL14.EGL_NO_CONTEXT
+
+        var eglSurface:
+            EGLSurface =
+            EGL14.EGL_NO_SURFACE
+
+        var nativeSurface:
+            Surface? =
+            null
+
+        try {
+            display =
+                EGL14.eglGetDisplay(
+                    EGL14.EGL_DEFAULT_DISPLAY
+                )
+
+            if (
+                display ==
+                EGL14.EGL_NO_DISPLAY
+            ) {
+                return
+            }
+
+            val version =
+                IntArray(
+                    2
+                )
+
+            if (
+                !EGL14.eglInitialize(
+                    display,
+                    version,
+                    0,
+                    version,
+                    1
+                )
+            ) {
+                return
+            }
+
+            val configAttributes =
+                intArrayOf(
+                    EGL14.EGL_RED_SIZE,
+                    8,
+                    EGL14.EGL_GREEN_SIZE,
+                    8,
+                    EGL14.EGL_BLUE_SIZE,
+                    8,
+                    EGL14.EGL_ALPHA_SIZE,
+                    8,
+                    EGL14.EGL_DEPTH_SIZE,
+                    24,
+                    EGL14.EGL_RENDERABLE_TYPE,
+                    EGL14.EGL_OPENGL_ES2_BIT,
+                    EGL14.EGL_NONE
+                )
+
+            val configs =
+                arrayOfNulls<
+                    EGLConfig
+                    >(
+                    1
+                )
+
+            val configCount =
+                IntArray(
+                    1
+                )
+
+            if (
+                !EGL14.eglChooseConfig(
+                    display,
+                    configAttributes,
+                    0,
+                    configs,
+                    0,
+                    configs.size,
+                    configCount,
+                    0
+                ) ||
+                configCount[0] <=
+                0
+            ) {
+                return
+            }
+
+            val config =
+                configs[0]
+                    ?: return
+
+            val contextAttributes =
+                intArrayOf(
+                    EGL14.EGL_CONTEXT_CLIENT_VERSION,
+                    2,
+                    EGL14.EGL_NONE
+                )
+
+            context =
+                EGL14.eglCreateContext(
+                    display,
+                    config,
+                    EGL14.EGL_NO_CONTEXT,
+                    contextAttributes,
+                    0
+                )
+
+            if (
+                context ==
+                EGL14.EGL_NO_CONTEXT
+            ) {
+                return
+            }
+
+            nativeSurface =
+                Surface(
+                    texture
+                )
+
+            eglSurface =
+                EGL14.eglCreateWindowSurface(
+                    display,
+                    config,
+                    nativeSurface,
+                    intArrayOf(
+                        EGL14.EGL_NONE
+                    ),
+                    0
+                )
+
+            if (
+                eglSurface ==
+                EGL14.EGL_NO_SURFACE
+            ) {
+                return
+            }
+
+            if (
+                !EGL14.eglMakeCurrent(
+                    display,
+                    eglSurface,
+                    eglSurface,
+                    context
+                )
+            ) {
+                return
+            }
+
+            homeRenderer
+                .onSurfaceCreated()
+
+            var appliedWidth =
+                -1
+
+            var appliedHeight =
+                -1
+
+            while (
+                rendering &&
+                !Thread
+                    .currentThread()
+                    .isInterrupted
+            ) {
+                if (
+                    paused
+                ) {
+                    try {
+                        Thread.sleep(
+                            30L
+                        )
+                    } catch (
+                        _: InterruptedException
+                    ) {
+                        break
+                    }
+
+                    continue
+                }
+
+                val targetWidth =
+                    pendingWidth
+                        .coerceAtLeast(
+                            1
+                        )
+
+                val targetHeight =
+                    pendingHeight
+                        .coerceAtLeast(
+                            1
+                        )
+
+                if (
+                    targetWidth !=
+                    appliedWidth ||
+                    targetHeight !=
+                    appliedHeight
+                ) {
+                    homeRenderer
+                        .onSurfaceChanged(
+                            targetWidth,
+                            targetHeight
+                        )
+
+                    appliedWidth =
+                        targetWidth
+
+                    appliedHeight =
+                        targetHeight
+                }
+
+                homeRenderer
+                    .onDrawFrame()
+
+                if (
+                    !EGL14.eglSwapBuffers(
+                        display,
+                        eglSurface
+                    )
+                ) {
+                    break
+                }
+
+                try {
+                    Thread.sleep(
+                        16L
+                    )
+                } catch (
+                    _: InterruptedException
+                ) {
+                    break
+                }
+            }
+        } finally {
+            if (
+                display !=
+                EGL14.EGL_NO_DISPLAY
+            ) {
+                EGL14.eglMakeCurrent(
+                    display,
+                    EGL14.EGL_NO_SURFACE,
+                    EGL14.EGL_NO_SURFACE,
+                    EGL14.EGL_NO_CONTEXT
+                )
+
+                if (
+                    eglSurface !=
+                    EGL14.EGL_NO_SURFACE
+                ) {
+                    EGL14.eglDestroySurface(
+                        display,
+                        eglSurface
+                    )
+                }
+
+                if (
+                    context !=
+                    EGL14.EGL_NO_CONTEXT
+                ) {
+                    EGL14.eglDestroyContext(
+                        display,
+                        context
+                    )
+                }
+
+                EGL14.eglTerminate(
+                    display
+                )
+            }
+
+            nativeSurface
+                ?.release()
+
+            rendering =
+                false
+        }
+    }
 }
 
 enum class Home3DAnchor(
@@ -248,8 +802,7 @@ enum class Home3DAnchor(
     )
 }
 
-private class PetHome3DRenderer :
-    GLSurfaceView.Renderer {
+private class PetHome3DRenderer {
 
     private val projection =
         FloatArray(
@@ -348,6 +901,7 @@ private class PetHome3DRenderer :
     private var petFacingDegrees =
         180f
 
+    @Volatile
     private var target =
         Home3DAnchor
             .RUG
@@ -355,6 +909,7 @@ private class PetHome3DRenderer :
     private var lastFrameNanos =
         0L
 
+    @Volatile
     private var arrivedAtNanos =
         0L
 
@@ -371,17 +926,14 @@ private class PetHome3DRenderer :
             Home3DAnchor.RUG
         )
 
+    @Volatile
     private var moving =
         false
 
     private var elapsedSeconds =
         0f
 
-    override fun onSurfaceCreated(
-        gl: javax.microedition.khronos.opengles.GL10?,
-        config:
-            javax.microedition.khronos.egl.EGLConfig?
-    ) {
+    fun onSurfaceCreated() {
         GLES20.glClearColor(
             0.93f,
             0.90f,
@@ -461,8 +1013,7 @@ private class PetHome3DRenderer :
             lastFrameNanos
     }
 
-    override fun onSurfaceChanged(
-        gl: javax.microedition.khronos.opengles.GL10?,
+    fun onSurfaceChanged(
         width: Int,
         height: Int
     ) {
@@ -491,9 +1042,7 @@ private class PetHome3DRenderer :
         )
     }
 
-    override fun onDrawFrame(
-        gl: javax.microedition.khronos.opengles.GL10?
-    ) {
+    fun onDrawFrame() {
         val now =
             System.nanoTime()
 

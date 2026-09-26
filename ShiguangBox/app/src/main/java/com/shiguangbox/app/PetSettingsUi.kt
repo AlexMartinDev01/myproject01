@@ -652,6 +652,31 @@ fun PetSettingsScreen(
                             onClick = {
                                 ContextCompat.startForegroundService(
                                     context,
+                                    Intent(
+                                        context,
+                                        PetOverlayService::class.java
+                                    ).setAction(
+                                        PetOverlayService
+                                            .ACTION_TEST_COMPANION
+                                    )
+                                )
+                                message =
+                                    "已经触发一次" +
+                                        selectedPet.displayName +
+                                        "主动陪伴"
+                            },
+                            modifier =
+                                Modifier.fillMaxWidth()
+                        ) {
+                            Text("测试主动陪伴")
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                ContextCompat.startForegroundService(
+                                    context,
                                     Intent(context, PetOverlayService::class.java)
                                         .setAction(PetOverlayService.ACTION_TEST_BLINK)
                                 )

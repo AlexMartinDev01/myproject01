@@ -3809,11 +3809,27 @@ class PetOverlayService : Service() {
                             context
                         )
                 } else {
-                    PetWorldEngine
-                        .choose(
-                            prefs,
-                            context
-                        )
+                    var candidate:
+                        PetWorldEvent? =
+                        null
+
+                    repeat(
+                        6
+                    ) {
+                        if (
+                            candidate ==
+                            null
+                        ) {
+                            candidate =
+                                PetWorldEngine
+                                    .choose(
+                                        prefs,
+                                        context
+                                    )
+                        }
+                    }
+
+                    candidate
                 }
 
             if (

@@ -1,7 +1,7 @@
 package com.shiguangbox.app
 
+import android.view.MotionEvent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,11 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.sqrt
 
 @Composable
 fun PetHome3DScreen(
@@ -58,6 +59,16 @@ fun PetHome3DScreen(
                 true
             )
         }
+
+    val cameraTouchState =
+        remember {
+            floatArrayOf(
+                0f,
+                0f,
+                0f
+            )
+        }
+
 
     DisposableEffect(
         view
@@ -106,48 +117,175 @@ fun PetHome3DScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-        )
-
-        // Compose owns camera gestures. This avoids AndroidView / GLSurfaceView
-        // touch-dispatch conflicts on real devices.
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(
-                        view
-                    ) {
-                        detectTransformGestures(
-                            panZoomLock =
-                                true
+                    .pointerInteropFilter {
+                            event ->
+                        when (
+                            event.actionMasked
                         ) {
-                                _,
-                                pan,
-                                zoom,
-                                _ ->
-                            if (
-                                zoom !=
-                                1f
-                            ) {
-                                view
-                                    ?.zoomCamera(
-                                        zoom
-                                    )
+                            MotionEvent.ACTION_DOWN -> {
+                                cameraTouchState[0] =
+                                    event.x
+                                cameraTouchState[1] =
+                                    event.y
+                                cameraTouchState[2] =
+                                    0f
                             }
 
-                            if (
-                                pan.x !=
-                                0f ||
-                                pan.y !=
-                                0f
-                            ) {
-                                view
-                                    ?.orbitCamera(
-                                        pan.x,
-                                        pan.y
-                                    )
+                            MotionEvent.ACTION_POINTER_DOWN -> {
+                                if (
+                                    event.pointerCount >=
+                                    2
+                                ) {
+                                    val dx =
+                                        event.getX(
+                                            0
+                                        ) -
+                                            event.getX(
+                                                1
+                                            )
+
+                                    val dy =
+                                        event.getY(
+                                            0
+                                        ) -
+                                            event.getY(
+                                                1
+                                            )
+
+                                    cameraTouchState[2] =
+                                        sqrt(
+                                            dx *
+                                                dx +
+                                                dy *
+                                                dy
+                                        )
+                                }
+                            }
+
+                            MotionEvent.ACTION_MOVE -> {
+                                if (
+                                    event.pointerCount >=
+                                    2
+                                ) {
+                                    val dx =
+                                        event.getX(
+                                            0
+                                        ) -
+                                            event.getX(
+                                                1
+                                            )
+
+                                    val dy =
+                                        event.getY(
+                                            0
+                                        ) -
+                                            event.getY(
+                                                1
+                                            )
+
+                                    val distance =
+                                        sqrt(
+                                            dx *
+                                                dx +
+                                                dy *
+                                                dy
+                                        )
+
+                                    val previous =
+                                        cameraTouchState[2]
+
+                                    if (
+                                        previous >
+                                        1f &&
+                                        distance >
+                                        1f
+                                    ) {
+                                        view
+                                            ?.zoomCamera(
+                                                (
+                                                    distance /
+                                                        previous
+                                                    )
+                                                    .coerceIn(
+                                                        0.88f,
+                                                        1.14f
+                                                    )
+                                            )
+                                    }
+
+                                    cameraTouchState[2] =
+                                        distance
+                                } else {
+                                    val dx =
+                                        event.x -
+                                            cameraTouchState[0]
+
+                                    val dy =
+                                        event.y -
+                                            cameraTouchState[1]
+
+                                    if (
+                                        kotlin.math.abs(
+                                            dx
+                                        ) >
+                                        0.25f ||
+                                        kotlin.math.abs(
+                                            dy
+                                        ) >
+                                        0.25f
+                                    ) {
+                                        view
+                                            ?.orbitCamera(
+                                                dx,
+                                                dy
+                                            )
+                                    }
+
+                                    cameraTouchState[0] =
+                                        event.x
+                                    cameraTouchState[1] =
+                                        event.y
+                                }
+                            }
+
+                            MotionEvent.ACTION_POINTER_UP -> {
+                                cameraTouchState[2] =
+                                    0f
+
+                                if (
+                                    event.pointerCount >
+                                    1
+                                ) {
+                                    val remainingIndex =
+                                        if (
+                                            event.actionIndex ==
+                                            0
+                                        ) {
+                                            1
+                                        } else {
+                                            0
+                                        }
+
+                                    cameraTouchState[0] =
+                                        event.getX(
+                                            remainingIndex
+                                        )
+
+                                    cameraTouchState[1] =
+                                        event.getY(
+                                            remainingIndex
+                                        )
+                                }
+                            }
+
+                            MotionEvent.ACTION_UP,
+                            MotionEvent.ACTION_CANCEL -> {
+                                cameraTouchState[2] =
+                                    0f
                             }
                         }
+
+                        true
                     }
         )
 
@@ -260,7 +398,7 @@ fun PetHome3DScreen(
                     )
         ) {
             Text(
-                "拖动旋转 · 双指缩放 · 右上角复位",
+                "拖动旋转 · 双指缩放 · 下方按钮可直接测试镜头",
                 modifier =
                     Modifier.padding(
                         horizontal = 14.dp,
@@ -384,6 +522,139 @@ fun PetHome3DScreen(
                             "玩具",
                             fontSize =
                                 11.sp
+                        )
+                    }
+                }
+
+                Spacer(
+                    Modifier.height(
+                        5.dp
+                    )
+                )
+
+                Row(
+                    modifier =
+                        Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        Arrangement.spacedBy(
+                            5.dp
+                        )
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.orbitCamera(
+                                    -55f,
+                                    0f
+                                )
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "←",
+                            fontSize =
+                                13.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.orbitCamera(
+                                    55f,
+                                    0f
+                                )
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "→",
+                            fontSize =
+                                13.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.orbitCamera(
+                                    0f,
+                                    -45f
+                                )
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "↑",
+                            fontSize =
+                                13.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.orbitCamera(
+                                    0f,
+                                    45f
+                                )
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "↓",
+                            fontSize =
+                                13.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.zoomCamera(
+                                    1.18f
+                                )
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "+",
+                            fontSize =
+                                13.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            view
+                                ?.zoomCamera(
+                                    0.84f
+                                )
+                        },
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
+                        Text(
+                            "−",
+                            fontSize =
+                                13.sp
                         )
                     }
                 }

@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - shiguangbox-v1
-      - feature-v2.1.0-3d-home-demo
     paths:
       - 'ShiguangBox/**'
       - '.github/workflows/build-shiguangbox.yml'
@@ -113,7 +112,6 @@ jobs:
           path: ShiguangBox/app/build/outputs/apk/release/${{ env.OUTPUT_NAME }}
 
       - name: Publish GitHub Release
-        if: github.ref == 'refs/heads/shiguangbox-v1'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.app_version.outputs.version_name }}

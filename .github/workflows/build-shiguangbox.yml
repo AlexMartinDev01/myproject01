@@ -121,7 +121,23 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "1.8.1" ]]; then
+          if [[ "$VERSION_NAME" == "1.8.2" ]]; then
+            RELEASE_TITLE="拾光盒 V1.8.2 · 气泡动态跟随"
+            cat > release-notes.md <<EOF
+          拾光盒 V1.8.2 · 气泡动态跟随
+
+          - versionCode: $VERSION_CODE
+          - 上方气泡与宠物距离进一步缩短，整体更紧凑自然
+          - 拖动宠物时气泡会同步跟随，不再直接消失
+          - 自动贴边和探头动画期间，气泡持续跟随宠物位置
+          - 宠物从左侧移动到右侧时，气泡位置与尾巴方向会自动重新计算
+          - 彩虹出现、移动和消失时，气泡会动态重新避让
+          - 增加轻微位置变化阈值，减少气泡抖动
+          - 宠物动作、天气、在线更新和其他业务逻辑保持不变
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "1.8.1" ]]; then
             RELEASE_TITLE="拾光盒 V1.8.1 · 气泡智能布局修复"
             cat > release-notes.md <<EOF
           拾光盒 V1.8.1 · 气泡智能布局修复

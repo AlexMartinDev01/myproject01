@@ -121,7 +121,28 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.2.0" ]]; then
+          if [[ "$VERSION_NAME" == "2.2.1" ]]; then
+            RELEASE_TITLE="拾光盒 V2.2.1 · 自主巡游自然化"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.2.1 · 自主巡游自然化 / Pause & Look
+
+          - versionCode: $VERSION_CODE
+          - 基于 V2.2.0 的芽芽自主巡游继续做自然化与稳定化，不扩散到橘团和雨团
+          - 长距离巡游新增“走几步 -> 停下看看 -> 再继续”的 Pause & Look 行为，避免一次性匀速走到底
+          - 手动测试会优先展示一次中途观察，便于直接验收自然化效果；自主模式根据活跃度随机触发
+          - 中途暂停时会真正收脚，执行 LOOK_AROUND 观察，再重新起步，而不是窗口停住但腿还空踩
+          - 靠近左右边缘时出发前先观察，再往屏幕内部走，减少硬掉头感
+          - 自主目标新增边缘呼吸区，不把芽芽的目标点直接压到最边缘
+          - 用户刚点击/摸过芽芽后，下一次巡游更倾向原地陪伴或只移动较短距离，不会马上跑远
+          - 提醒、心情、陪伴气泡现在可以安全打断巡游：先停下再说话，之后重新进入巡游冷却
+          - 行走窗口更新新增整数像素去重，重复帧不再无意义调用 WindowManager.updateViewLayout
+          - walking intensity 刷新增加变化阈值，减少重复 Mesh 刷新，同时保持起步/刹车的同步步幅变化
+          - 芽芽巡游期间移除无意义的雨团彩虹/气泡位置同步，降低长期后台运行中的额外更新开销
+          - 保留 V2.2.0 的自主开关、安全目标、加速减速、触摸立即打断、频率控制，以及 Walking V3 的拟人眼神/转头/耳朵惯性
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.2.0" ]]; then
             RELEASE_TITLE="拾光盒 V2.2.0 · 芽芽自主巡游"
             cat > release-notes.md <<EOF
           拾光盒 V2.2.0 · 芽芽自主巡游 / Locomotion 1.0

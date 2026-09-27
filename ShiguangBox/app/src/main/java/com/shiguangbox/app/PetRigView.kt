@@ -206,10 +206,10 @@ class PetRigView @JvmOverloads constructor(
     private var motionModifier =
         MotionModifier()
 
-    // V2.1.7 Locomotion prototype:
+    // Locomotion：
     // WALK 不作为一次性 PetMotion，而是独立的持续移动层。
-    // 第一版只给芽芽使用，负责“脚步循环 + 身体重心”，
-    // 真正的屏幕位移由 PetOverlayService 同步驱动。
+    // 三只宠物共享真实屏幕位移控制，但保留各自独立的 Mesh 步态。
+    // V2.3.1 开始让 Service 的根位移按这里的 gait cycle 锁相，减少“腿动身体滑”的感觉。
     private var locomotionActive =
         false
 
@@ -523,6 +523,44 @@ class PetRigView @JvmOverloads constructor(
     fun isWalking():
         Boolean =
         locomotionActive
+
+    fun walkingCycleSeconds():
+        Double =
+        when (
+            petKind
+        ) {
+            PetKind.ORANGE ->
+                0.48
+
+            PetKind.YAYA ->
+                0.60
+
+            PetKind.YUTUAN ->
+                0.76
+        }
+
+    fun walkingElapsedSeconds(
+        nowNanos: Long =
+            System.nanoTime()
+    ):
+        Double {
+        if (
+            !locomotionActive ||
+            locomotionStartNanos <=
+            0L
+        ) {
+            return 0.0
+        }
+
+        return (
+            nowNanos -
+                locomotionStartNanos
+            )
+            .coerceAtLeast(
+                0L
+            ) /
+            1_000_000_000.0
+    }
 
     fun setWalkingIntensity(
         intensity: Float
@@ -2408,7 +2446,7 @@ class PetRigView @JvmOverloads constructor(
             elapsedSeconds *
                 2.0 *
                 PI /
-                WALK_CYCLE_SECONDS
+                walkingCycleSeconds()
 
         val leftSignal =
             sin(
@@ -2479,6 +2517,21 @@ class PetRigView @JvmOverloads constructor(
             locomotionIntensity
                 .toDouble()
 
+        val departureLean =
+            (
+                1.0 -
+                    smoothStep(
+                        clamp(
+                            elapsedSeconds /
+                                0.34,
+                            0.0,
+                            1.0
+                        )
+                    )
+                ) *
+                direction *
+                gaitIntensity
+
         val viewW =
             width.toDouble()
 
@@ -2543,9 +2596,13 @@ class PetRigView @JvmOverloads constructor(
                         )
 
                 x +=
-                    -bodySway *
-                        0.0105 *
-                        gaitIntensity *
+                    (
+                        -bodySway *
+                            0.0105 *
+                            gaitIntensity +
+                            departureLean *
+                                0.0048
+                        ) *
                         torsoWeight
 
                 y -=
@@ -2578,9 +2635,13 @@ class PetRigView @JvmOverloads constructor(
                         )
 
                 x +=
-                    bodySway *
-                        0.0035 *
-                        gaitIntensity *
+                    (
+                        bodySway *
+                            0.0035 *
+                            gaitIntensity +
+                            departureLean *
+                                0.0030
+                        ) *
                         headWeight
 
                 // 整个头先有明显的横向偏移。
@@ -3142,7 +3203,7 @@ class PetRigView @JvmOverloads constructor(
             elapsedSeconds *
                 2.0 *
                 PI /
-                0.48
+                walkingCycleSeconds()
 
         val step =
             sin(
@@ -3246,10 +3307,29 @@ class PetRigView @JvmOverloads constructor(
                             1.0
                         )
 
+                val departureLean =
+                    (
+                        1.0 -
+                            smoothStep(
+                                clamp(
+                                    elapsedSeconds /
+                                        0.30,
+                                    0.0,
+                                    1.0
+                                )
+                            )
+                        ) *
+                        direction *
+                        intensity
+
                 x +=
-                    -step *
-                        0.0125 *
-                        intensity *
+                    (
+                        -step *
+                            0.0125 *
+                            intensity +
+                            departureLean *
+                                0.0065
+                        ) *
                         bodyWeight
 
                 y -=
@@ -3287,6 +3367,9 @@ class PetRigView @JvmOverloads constructor(
                         step *
                             0.0035 *
                             intensity *
+                            headWeight +
+                        departureLean *
+                            0.0040 *
                             headWeight
 
                 // 眼睛更主动看向行走方向，偶尔扫一眼另一侧。
@@ -3593,7 +3676,7 @@ class PetRigView @JvmOverloads constructor(
             elapsedSeconds *
                 2.0 *
                 PI /
-                0.76
+                walkingCycleSeconds()
 
         val step =
             sin(
@@ -3693,10 +3776,29 @@ class PetRigView @JvmOverloads constructor(
                             1.0
                         )
 
+                val departureLean =
+                    (
+                        1.0 -
+                            smoothStep(
+                                clamp(
+                                    elapsedSeconds /
+                                        0.42,
+                                    0.0,
+                                    1.0
+                                )
+                            )
+                        ) *
+                        direction *
+                        intensity
+
                 x +=
-                    -sway *
-                        0.0075 *
-                        intensity *
+                    (
+                        -sway *
+                            0.0075 *
+                            intensity +
+                            departureLean *
+                                0.0042
+                        ) *
                         bodyWeight
 
                 y -=
@@ -3734,6 +3836,9 @@ class PetRigView @JvmOverloads constructor(
                         sway *
                             0.0020 *
                             intensity *
+                            headWeight +
+                        departureLean *
+                            0.0024 *
                             headWeight
 
                 // 雨团视线也会看路，但明显比芽芽慢。

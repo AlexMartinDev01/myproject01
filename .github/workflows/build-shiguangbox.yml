@@ -121,7 +121,30 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.4.1" ]]; then
+          if [[ "$VERSION_NAME" == "2.4.2" ]]; then
+            RELEASE_TITLE="拾光盒 V2.4.2 · 橘团丝滑转身"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.4.2 · 橘团丝滑转身 / Smooth Directional Turn
+
+          - versionCode: $VERSION_CODE
+          - 针对实机反馈“橘团从正面切到侧身有卡帧、切图感明显、缺少灵性”进行专项优化
+          - 根因拆成三部分处理：方向图透明边距/角色位置不一致、170ms 两段切图过快、切图期间正面和方向图同时使用过强步态变形
+          - 新增透明像素边界分析：运行时读取方向图真实可见区域，而不是把整张 256x256 画布直接对齐
+          - 正面、3/4、侧面现在统一按“角色可见高度 + 水平中心 + 脚底基线”自动对齐，显著减少换图时上下跳动和体型忽大忽小
+          - 转身增加约 105ms 的预判动作：眼睛先看向行走方向，头部随后轻转，身体重心再做非常小的方向预倾
+          - FRONT -> 3/4 过渡从 170ms 放缓到约 245ms，并改用五次 smootherstep 曲线，起止速度和加速度都更柔和
+          - 3/4 中间保留约 65ms 的极短稳定帧，让 3/4 真正成为可感知的中间朝向，而不是一闪而过
+          - 3/4 -> SIDE 过渡放缓到约 275ms，同样使用 smootherstep
+          - 停止后 SIDE -> 3/4 -> FRONT 也改为分阶段柔和回正，不再把整个方向 amount 一次性线性压回 0
+          - 转身过程中不再让正面图直接跑完整橘团步态；3/4 与侧面图的身体动作强度随转身进度渐入，避免两张不同姿势同时大幅摆动造成视觉卡顿
+          - 保留 V2.4.1 左向运行时镜像修复，左走不再读取损坏资源
+          - 保留 V2.3.2 Soft Foot Plant 顺滑根位移与 V2.3.3 Walking Attention
+          - 橘团停下后的摇尾巴/观察反应延后约 620ms，等方向回正完成后再进入下一动作
+          - 芽芽、雨团行为不受本次优化影响
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.4.1" ]]; then
             RELEASE_TITLE="拾光盒 V2.4.1 · 橘团左向资源修复"
             cat > release-notes.md <<EOF
           拾光盒 V2.4.1 · 橘团左向资源修复 / Directional Asset Fix

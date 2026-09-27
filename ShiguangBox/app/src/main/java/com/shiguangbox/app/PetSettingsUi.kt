@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.4.1 橘团左向资源修复 · Directional Locomotion",
+                        "V2.4.2 橘团丝滑转身 · Smooth Directional Turn",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -940,7 +940,7 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "立即测试橘团方向行走：重点看正面 → 3/4 → 侧面是否自然，侧走时是否顺滑，停下后是否经 3/4 回正"
+                                            "立即测试橘团丝滑转身：重点看眼睛先看、头部预判、正面 → 3/4 → 侧面是否连续，以及切图时角色有没有跳位或突然卡一下"
 
                                         PetKind.YAYA ->
                                             "立即测试芽芽行走灵动感：重点看眼睛先看、头再转、短暂停留和偶尔回正是否自然"
@@ -2125,7 +2125,7 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "方向型：先从正面转到 3/4，再进入真实侧面小跑；停下后会从侧面经 3/4 自然回正，保留顺滑步态和尾巴惯性"
+                                            "方向型：眼睛先看、头和身体轻预倾，再用更柔和的正面 → 3/4 → 侧面过渡；三张图自动对齐脚底与角色中心，减少切图卡顿"
 
                                         PetKind.YAYA ->
                                             "观察型：顺滑小碎步中会随机看前方、回正或侧看；眼睛先到、头随后跟上，耳朵继续晚半拍"

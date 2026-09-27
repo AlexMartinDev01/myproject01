@@ -214,6 +214,257 @@ class PetRigView @JvmOverloads constructor(
                 )
             }
 
+    private data class NormalizedAlphaBounds(
+        val left: Double,
+        val top: Double,
+        val right: Double,
+        val bottom: Double
+    ) {
+        val width:
+            Double
+            get() =
+                (
+                    right -
+                        left
+                    )
+                    .coerceAtLeast(
+                        0.001
+                    )
+
+        val height:
+            Double
+            get() =
+                (
+                    bottom -
+                        top
+                    )
+                    .coerceAtLeast(
+                        0.001
+                    )
+
+        val centerX:
+            Double
+            get() =
+                (
+                    left +
+                        right
+                    ) /
+                    2.0
+    }
+
+    private fun findAlphaBounds(
+        bitmap: Bitmap
+    ): NormalizedAlphaBounds {
+        val bitmapW =
+            bitmap.width
+                .coerceAtLeast(
+                    1
+                )
+
+        val bitmapH =
+            bitmap.height
+                .coerceAtLeast(
+                    1
+                )
+
+        val pixels =
+            IntArray(
+                bitmapW *
+                    bitmapH
+            )
+
+        bitmap.getPixels(
+            pixels,
+            0,
+            bitmapW,
+            0,
+            0,
+            bitmapW,
+            bitmapH
+        )
+
+        var minX =
+            bitmapW
+
+        var minY =
+            bitmapH
+
+        var maxX =
+            -1
+
+        var maxY =
+            -1
+
+        var index =
+            0
+
+        for (
+            y in
+            0 until bitmapH
+        ) {
+            for (
+                x in
+                0 until bitmapW
+            ) {
+                val alpha =
+                    (
+                        pixels[
+                            index++
+                        ] ushr
+                            24
+                        ) and
+                        0xff
+
+                if (
+                    alpha >
+                    14
+                ) {
+                    if (
+                        x <
+                        minX
+                    ) {
+                        minX =
+                            x
+                    }
+
+                    if (
+                        x >
+                        maxX
+                    ) {
+                        maxX =
+                            x
+                    }
+
+                    if (
+                        y <
+                        minY
+                    ) {
+                        minY =
+                            y
+                    }
+
+                    if (
+                        y >
+                        maxY
+                    ) {
+                        maxY =
+                            y
+                    }
+                }
+            }
+        }
+
+        if (
+            maxX <
+            minX ||
+            maxY <
+            minY
+        ) {
+            return NormalizedAlphaBounds(
+                left =
+                    0.0,
+                top =
+                    0.0,
+                right =
+                    1.0,
+                bottom =
+                    1.0
+            )
+        }
+
+        return NormalizedAlphaBounds(
+            left =
+                minX
+                    .toDouble() /
+                    bitmapW
+                        .toDouble(),
+            top =
+                minY
+                    .toDouble() /
+                    bitmapH
+                        .toDouble(),
+            right =
+                (
+                    maxX +
+                        1
+                    )
+                    .toDouble() /
+                    bitmapW
+                        .toDouble(),
+            bottom =
+                (
+                    maxY +
+                        1
+                    )
+                    .toDouble() /
+                    bitmapH
+                        .toDouble()
+        )
+    }
+
+    private val orangeFrontAlphaBounds by
+        lazy {
+            findAlphaBounds(
+                idleBitmap
+            )
+        }
+
+    private val orange3qRightAlphaBounds by
+        lazy {
+            findAlphaBounds(
+                orange3qRightBitmap
+                    ?: idleBitmap
+            )
+        }
+
+    private val orange3qLeftAlphaBounds by
+        lazy {
+            findAlphaBounds(
+                orange3qLeftBitmap
+                    ?: idleBitmap
+            )
+        }
+
+    private val orangeSideRightAlphaBounds by
+        lazy {
+            findAlphaBounds(
+                orangeSideRightBitmap
+                    ?: idleBitmap
+            )
+        }
+
+    private val orangeSideLeftAlphaBounds by
+        lazy {
+            findAlphaBounds(
+                orangeSideLeftBitmap
+                    ?: idleBitmap
+            )
+        }
+
+    private fun orangeAlphaBoundsFor(
+        bitmap: Bitmap
+    ): NormalizedAlphaBounds =
+        when {
+            bitmap ===
+                orange3qRightBitmap ->
+                orange3qRightAlphaBounds
+
+            bitmap ===
+                orange3qLeftBitmap ->
+                orange3qLeftAlphaBounds
+
+            bitmap ===
+                orangeSideRightBitmap ->
+                orangeSideRightAlphaBounds
+
+            bitmap ===
+                orangeSideLeftBitmap ->
+                orangeSideLeftAlphaBounds
+
+            else ->
+                orangeFrontAlphaBounds
+        }
+
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
     )
@@ -5719,6 +5970,57 @@ class PetRigView @JvmOverloads constructor(
         ) * 1_000_000L
     }
 
+    private fun directionalSmootherStep(
+        value: Double
+    ): Double {
+        val t =
+            clamp(
+                value,
+                0.0,
+                1.0
+            )
+
+        return t *
+            t *
+            t *
+            (
+                t *
+                    (
+                        t *
+                            6.0 -
+                            15.0
+                        ) +
+                    10.0
+                )
+    }
+
+    private fun orangeDirectionalAnticipationProgress(
+        now: Long
+    ): Double {
+        if (
+            !locomotionActive ||
+            locomotionStartNanos <=
+            0L
+        ) {
+            return 0.0
+        }
+
+        val elapsed =
+            (
+                now -
+                    locomotionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                )
+                .toDouble()
+
+        return directionalSmootherStep(
+            elapsed /
+                105_000_000.0
+        )
+    }
+
     private fun orangeDirectionalAmountWhileWalking(
         now: Long
     ): Float {
@@ -5730,10 +6032,23 @@ class PetRigView @JvmOverloads constructor(
             return 0f
         }
 
-        val stageNanos =
-            170_000_000.0
+        // V2.4.2：
+        // 先给眼神 / 头部一个极短的预判，
+        // 再用两段更长的视角过渡。3/4 中间保留很短的“读帧”时间，
+        // 让大脑看到的是主动转身，而不是两张图快速闪过去。
+        val anticipationNanos =
+            105_000_000.0
 
-        val raw =
+        val frontToThreeQuarterNanos =
+            245_000_000.0
+
+        val threeQuarterHoldNanos =
+            65_000_000.0
+
+        val threeQuarterToSideNanos =
+            275_000_000.0
+
+        var elapsed =
             (
                 now -
                     locomotionStartNanos
@@ -5741,35 +6056,57 @@ class PetRigView @JvmOverloads constructor(
                 .coerceAtLeast(
                     0L
                 )
-                .toDouble() /
-                stageNanos
+                .toDouble()
 
-        return when {
-            raw <=
-                0.0 ->
-                0f
-
-            raw <
-                1.0 ->
-                smoothStep(
-                    raw
-                )
-                    .toFloat()
-
-            raw <
-                2.0 ->
-                (
-                    1.0 +
-                        smoothStep(
-                            raw -
-                                1.0
-                        )
-                    )
-                    .toFloat()
-
-            else ->
-                2f
+        if (
+            elapsed <
+            anticipationNanos
+        ) {
+            return 0f
         }
+
+        elapsed -=
+            anticipationNanos
+
+        if (
+            elapsed <
+            frontToThreeQuarterNanos
+        ) {
+            return directionalSmootherStep(
+                elapsed /
+                    frontToThreeQuarterNanos
+            )
+                .toFloat()
+        }
+
+        elapsed -=
+            frontToThreeQuarterNanos
+
+        if (
+            elapsed <
+            threeQuarterHoldNanos
+        ) {
+            return 1f
+        }
+
+        elapsed -=
+            threeQuarterHoldNanos
+
+        if (
+            elapsed <
+            threeQuarterToSideNanos
+        ) {
+            return (
+                1.0 +
+                    directionalSmootherStep(
+                        elapsed /
+                            threeQuarterToSideNanos
+                    )
+                )
+                .toFloat()
+        }
+
+        return 2f
     }
 
     private fun orangeDirectionalReturnAmount(
@@ -5780,6 +6117,10 @@ class PetRigView @JvmOverloads constructor(
 
         val from =
             orangeDirectionalReturnFromAmount
+                .coerceIn(
+                    0f,
+                    2f
+                )
 
         if (
             start <=
@@ -5790,52 +6131,119 @@ class PetRigView @JvmOverloads constructor(
             return 0f
         }
 
-        val durationNanos =
+        var elapsed =
             (
-                170_000_000.0 *
-                    from
-                        .toDouble()
+                now -
+                    start
                 )
-                .toLong()
                 .coerceAtLeast(
-                    1L
+                    0L
                 )
+                .toDouble()
 
-        val p =
-            clamp(
-                (
-                    now -
-                        start
-                    )
-                    .coerceAtLeast(
-                        0L
-                    )
-                    .toDouble() /
-                    durationNanos
-                        .toDouble(),
-                0.0,
-                1.0
-            )
+        val sideToThreeQuarterNanos =
+            245_000_000.0
 
-        val eased =
-            smoothStep(
-                p
-            )
+        val threeQuarterHoldNanos =
+            55_000_000.0
 
-        val amount =
-            from *
-                (
-                    1.0 -
-                        eased
-                    )
-                    .toFloat()
+        val threeQuarterToFrontNanos =
+            255_000_000.0
+
+        var amount =
+            from
 
         if (
-            p >=
-            1.0
+            from >
+            1f
         ) {
+            val sideSpan =
+                from -
+                    1f
+
+            val sideDuration =
+                sideToThreeQuarterNanos *
+                    sideSpan
+                        .toDouble()
+
+            if (
+                elapsed <
+                sideDuration
+            ) {
+                amount =
+                    (
+                        1.0 +
+                            sideSpan *
+                                (
+                                    1.0 -
+                                        directionalSmootherStep(
+                                            elapsed /
+                                                sideDuration
+                                        )
+                                    )
+                        )
+                        .toFloat()
+
+                return amount
+                    .coerceIn(
+                        0f,
+                        2f
+                    )
+            }
+
+            elapsed -=
+                sideDuration
+
+            if (
+                elapsed <
+                threeQuarterHoldNanos
+            ) {
+                return 1f
+            }
+
+            elapsed -=
+                threeQuarterHoldNanos
+        }
+
+        val frontSpan =
+            minOf(
+                from,
+                1f
+            )
+
+        val frontDuration =
+            (
+                threeQuarterToFrontNanos *
+                    frontSpan
+                        .toDouble()
+                )
+                .coerceAtLeast(
+                    1.0
+                )
+
+        if (
+            elapsed <
+            frontDuration
+        ) {
+            amount =
+                (
+                    frontSpan *
+                        (
+                            1.0 -
+                                directionalSmootherStep(
+                                    elapsed /
+                                        frontDuration
+                                )
+                            )
+                    )
+                    .toFloat()
+        } else {
+            amount =
+                0f
+
             orangeDirectionalReturnStartNanos =
                 0L
+
             orangeDirectionalReturnFromAmount =
                 0f
         }
@@ -5875,12 +6283,41 @@ class PetRigView @JvmOverloads constructor(
                 ?: idleBitmap
         }
 
-    private fun buildNeutralMesh() {
+    private fun buildOrangeAlignedNeutralMesh(
+        bitmap: Bitmap
+    ) {
         val viewW =
-            width.toFloat()
+            width.toDouble()
 
         val viewH =
-            height.toFloat()
+            height.toDouble()
+
+        val reference =
+            orangeFrontAlphaBounds
+
+        val source =
+            orangeAlphaBoundsFor(
+                bitmap
+            )
+
+        // 统一“脚底基线 + 可见角色中心 + 可见高度”。
+        // 生成的 3/4 / 侧面图透明边距并不完全一致，
+        // 若直接把整张 256x256 填满 View，会在换图瞬间产生明显跳位。
+        val scale =
+            (
+                reference.height /
+                    source.height
+                )
+                .coerceIn(
+                    0.90,
+                    1.085
+                )
+
+        val targetCenterX =
+            reference.centerX
+
+        val targetBottom =
+            reference.bottom
 
         var index =
             0
@@ -5890,30 +6327,52 @@ class PetRigView @JvmOverloads constructor(
             0..meshHeight
         ) {
             val v =
-                row.toFloat() /
+                row.toDouble() /
                     meshHeight
-                        .toFloat()
+                        .toDouble()
 
             for (
                 col in
                 0..meshWidth
             ) {
                 val u =
-                    col.toFloat() /
+                    col.toDouble() /
                         meshWidth
-                            .toFloat()
+                            .toDouble()
+
+                val alignedU =
+                    targetCenterX +
+                        (
+                            u -
+                                source.centerX
+                            ) *
+                            scale
+
+                val alignedV =
+                    targetBottom +
+                        (
+                            v -
+                                source.bottom
+                            ) *
+                            scale
 
                 verts[
                     index++
                 ] =
-                    u *
-                        viewW
+                    (
+                        alignedU *
+                            viewW
+                        )
+                        .toFloat()
 
                 verts[
                     index++
                 ] =
-                    v *
-                        viewH
+                    (
+                        alignedV *
+                            viewH
+                        )
+                        .toFloat()
             }
         }
     }
@@ -5960,9 +6419,25 @@ class PetRigView @JvmOverloads constructor(
         direction: Float,
         blinkAmount: Double,
         sideView: Boolean,
-        walking: Boolean
+        walking: Boolean,
+        motionScale: Double = 1.0
     ) {
-        buildNeutralMesh()
+        val directionalBitmap =
+            if (
+                sideView
+            ) {
+                orangeSideBitmap(
+                    direction
+                )
+            } else {
+                orangeThreeQuarterBitmap(
+                    direction
+                )
+            }
+
+        buildOrangeAlignedNeutralMesh(
+            directionalBitmap
+        )
 
         val viewW =
             width.toDouble()
@@ -6016,7 +6491,12 @@ class PetRigView @JvmOverloads constructor(
                 walking
             ) {
                 locomotionIntensity
-                    .toDouble()
+                    .toDouble() *
+                    motionScale
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
             } else {
                 0.0
             }
@@ -6535,6 +7015,280 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun applyOrangeTurnAnticipationToMesh(
+        direction: Float,
+        progress: Double
+    ) {
+        val p =
+            clamp(
+                progress,
+                0.0,
+                1.0
+            )
+
+        if (
+            p <=
+            0.0
+        ) {
+            return
+        }
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        val dir =
+            direction
+                .toDouble()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight
+                        .toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth
+                            .toDouble()
+
+                var x =
+                    verts[
+                        index
+                    ]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                val bodyWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.37
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.69
+                                    ) /
+                                0.34
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                // 身体先给出非常轻的方向预倾。
+                x +=
+                    dir *
+                        0.0035 *
+                        p *
+                        bodyWeight
+
+                val headWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.505
+                                ) /
+                                0.315
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.355
+                                    ) /
+                                0.285
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                val headCenterU =
+                    0.505
+
+                val headCenterV =
+                    0.355
+
+                val dx0 =
+                    x -
+                        headCenterU
+
+                val dy0 =
+                    y -
+                        headCenterV
+
+                val angle =
+                    dir *
+                        p *
+                        2.25 *
+                        PI /
+                        180.0
+
+                val yawX =
+                    headCenterU +
+                        dx0 *
+                            (
+                                1.0 -
+                                    0.020 *
+                                        p
+                                ) +
+                        dir *
+                            0.0055 *
+                            p
+
+                val dx =
+                    yawX -
+                        headCenterU
+
+                val rx =
+                    headCenterU +
+                        dx *
+                            cos(
+                                angle
+                            ) -
+                        dy0 *
+                            sin(
+                                angle
+                            )
+
+                val ry =
+                    headCenterV +
+                        dx *
+                            sin(
+                                angle
+                            ) +
+                        dy0 *
+                            cos(
+                                angle
+                            )
+
+                x =
+                    x *
+                        (
+                            1.0 -
+                                headWeight
+                            ) +
+                        rx *
+                            headWeight
+
+                y =
+                    y *
+                        (
+                            1.0 -
+                                headWeight
+                            ) +
+                        ry *
+                            headWeight
+
+                val leftEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.400
+                                ) /
+                                0.050
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.392
+                                    ) /
+                                0.045
+                            )
+                    )
+
+                val rightEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.606
+                                ) /
+                                0.050
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.392
+                                    ) /
+                                0.045
+                            )
+                    )
+
+                val eyeWeight =
+                    clamp(
+                        leftEyeWeight +
+                            rightEyeWeight,
+                        0.0,
+                        1.0
+                    )
+
+                // 眼睛略微领先头部，让转身前先“看过去”。
+                x +=
+                    dir *
+                        0.0125 *
+                        directionalSmootherStep(
+                            minOf(
+                                1.0,
+                                p *
+                                    1.35
+                            )
+                        ) *
+                        eyeWeight
+
+                verts[
+                    index
+                ] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
+        }
+    }
+
     private fun drawOrangeDirectionalLocomotion(
         canvas: Canvas,
         now: Long,
@@ -6575,6 +7329,17 @@ class PetRigView @JvmOverloads constructor(
                 )
             }
 
+        val anticipation =
+            if (
+                walking
+            ) {
+                orangeDirectionalAnticipationProgress(
+                    now
+                )
+            } else {
+                1.0
+            }
+
         val threeQuarter =
             orangeThreeQuarterBitmap(
                 direction
@@ -6594,9 +7359,22 @@ class PetRigView @JvmOverloads constructor(
                     blinkAmount
                 )
 
-                applyCurrentMotionToMesh(
-                    now
-                )
+                if (
+                    walking
+                ) {
+                    // 转图之前先由眼睛、头和身体给出方向预判。
+                    // 这一小段不做完整走路步态，避免“还没转身腿已经跑起来”。
+                    applyOrangeTurnAnticipationToMesh(
+                        direction =
+                            direction,
+                        progress =
+                            anticipation
+                    )
+                } else {
+                    applyCurrentMotionToMesh(
+                        now
+                    )
+                }
 
                 drawIdleMesh(
                     canvas,
@@ -6621,8 +7399,11 @@ class PetRigView @JvmOverloads constructor(
                 if (
                     walking
                 ) {
-                    applyOrangeLocomotionToMesh(
-                        now
+                    applyOrangeTurnAnticipationToMesh(
+                        direction =
+                            direction,
+                        progress =
+                            1.0
                     )
                 }
 
@@ -6642,7 +7423,12 @@ class PetRigView @JvmOverloads constructor(
                     sideView =
                         false,
                     walking =
-                        walking
+                        walking,
+                    motionScale =
+                        0.10 +
+                            0.22 *
+                                p
+                                    .toDouble()
                 )
 
                 drawCurrentMeshBitmap(
@@ -6666,6 +7452,7 @@ class PetRigView @JvmOverloads constructor(
                             1f
                         )
 
+                // 3/4 在切侧面时逐步增加动作量，而不是一出现就全幅摆动。
                 buildOrangeDirectionalMesh(
                     now =
                         now,
@@ -6676,7 +7463,12 @@ class PetRigView @JvmOverloads constructor(
                     sideView =
                         false,
                     walking =
-                        walking
+                        walking,
+                    motionScale =
+                        0.32 +
+                            0.34 *
+                                p
+                                    .toDouble()
                 )
 
                 drawCurrentMeshBitmap(
@@ -6699,7 +7491,12 @@ class PetRigView @JvmOverloads constructor(
                     sideView =
                         true,
                     walking =
-                        walking
+                        walking,
+                    motionScale =
+                        0.24 +
+                            0.76 *
+                                p
+                                    .toDouble()
                 )
 
                 drawCurrentMeshBitmap(

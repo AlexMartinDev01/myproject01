@@ -121,7 +121,28 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.9" ]]; then
+          if [[ "$VERSION_NAME" == "2.2.0" ]]; then
+            RELEASE_TITLE="拾光盒 V2.2.0 · 芽芽自主巡游"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.2.0 · 芽芽自主巡游 / Locomotion 1.0
+
+          - versionCode: $VERSION_CODE
+          - 将 V2.1.x 的“手动测试走路”升级为芽芽真正的自主巡游系统
+          - 新增“芽芽自主巡游”设置开关；默认开启，仅芽芽生效，橘团和雨团暂不改动
+          - 待机一段时间后会自主判断是否适合移动；“安静”活跃档和夜间安静时不会频繁走动
+          - 目标位置使用屏幕安全区计算：靠近左右边缘时优先向屏幕内部走，中间区域更倾向空间较大的一侧
+          - 出发前先朝目标方向观察，再进入 Walking V3 的眼睛先看、头部跟随、耳朵滞后动作
+          - 行走开始与结束使用加速/减速曲线，不再全程匀速平移
+          - PetRigView 新增 walking intensity：起步和刹车阶段腿部步幅、身体重心和耳朵脚步惯性会同步收小
+          - 接近目标时逐渐减速并缩小步幅，落地后轻微回稳，再做一次自然观察
+          - 用户点击、长按或拖动芽芽时会立即取消准备阶段或正在进行的巡游，并进入较长冷却
+          - 自主巡游加入频率控制与最小间隔，避免桌宠一直乱跑；“自然/活泼”档位使用不同巡游频率
+          - 保留 V2.1.9 的明显步幅、拟人转头、眼睛方向跟随、耳朵惯性、环境光、粒子、气泡、睡眠、生活事件与回忆系统
+          - “我的桌宠”中可点击“测试芽芽自主巡游流程（立即）”直接验收完整起步→行走→减速→停止流程
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.9" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.9 · 芽芽 Walking V3"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.9 · 芽芽 Walking V3

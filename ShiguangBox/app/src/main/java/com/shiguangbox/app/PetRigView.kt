@@ -4,7 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.Choreographer
@@ -120,6 +124,32 @@ class PetRigView @JvmOverloads constructor(
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
     )
+
+    // v1.9 2.5D 换装试验：
+    // 帽子不是一张预合成宠物图，而是独立矢量层。
+    // 它从雨团当前头部 Mesh 采样 3 个稳定锚点，实时求仿射变换，
+    // 所以 LOOK_UP / HEAD_TILT / SMALL_JUMP 等动作发生时会随头运动。
+    private val yutuanHatDemoEnabled =
+        petKind == PetKind.YUTUAN
+
+    private val yutuanHatFillPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+
+    private val yutuanHatLinePaint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+    private val yutuanHatPath =
+        Path()
+
+    private val yutuanHatMatrix =
+        Matrix()
+
 
     private val yutuanRainSystem: YutuanRainSystem? =
         if (
@@ -686,10 +716,28 @@ class PetRigView @JvmOverloads constructor(
                     now
                 )
 
+                if (
+                    petKind == PetKind.YUTUAN &&
+                    yutuanHatDemoEnabled
+                ) {
+                    drawYutuanHatBackLayer(
+                        canvas
+                    )
+                }
+
                 drawIdleMesh(
                     canvas,
                     1f
                 )
+
+                if (
+                    petKind == PetKind.YUTUAN &&
+                    yutuanHatDemoEnabled
+                ) {
+                    drawYutuanHatFrontLayer(
+                        canvas
+                    )
+                }
             }
         }
 
@@ -1144,6 +1192,824 @@ class PetRigView @JvmOverloads constructor(
         )
         paint.alpha = 255
         canvas.restoreToCount(save)
+    }
+
+    private fun sampleCurrentMeshPoint(
+        uValue: Float,
+        vValue: Float
+    ): PointF {
+        val u =
+            uValue
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        val v =
+            vValue
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        val gx =
+            u *
+                meshWidth
+
+        val gy =
+            v *
+                meshHeight
+
+        val x0 =
+            gx
+                .toInt()
+                .coerceIn(
+                    0,
+                    meshWidth
+                )
+
+        val y0 =
+            gy
+                .toInt()
+                .coerceIn(
+                    0,
+                    meshHeight
+                )
+
+        val x1 =
+            (x0 + 1)
+                .coerceAtMost(
+                    meshWidth
+                )
+
+        val y1 =
+            (y0 + 1)
+                .coerceAtMost(
+                    meshHeight
+                )
+
+        val tx =
+            gx -
+                x0
+
+        val ty =
+            gy -
+                y0
+
+        fun point(
+            col: Int,
+            row: Int
+        ): PointF {
+            val index =
+                (
+                    row *
+                        (
+                            meshWidth +
+                                1
+                            ) +
+                        col
+                    ) *
+                    2
+
+            return PointF(
+                verts[index],
+                verts[
+                    index +
+                        1
+                ]
+            )
+        }
+
+        val p00 =
+            point(
+                x0,
+                y0
+            )
+
+        val p10 =
+            point(
+                x1,
+                y0
+            )
+
+        val p01 =
+            point(
+                x0,
+                y1
+            )
+
+        val p11 =
+            point(
+                x1,
+                y1
+            )
+
+        val topX =
+            p00.x +
+                (
+                    p10.x -
+                        p00.x
+                    ) *
+                tx
+
+        val topY =
+            p00.y +
+                (
+                    p10.y -
+                        p00.y
+                    ) *
+                tx
+
+        val bottomX =
+            p01.x +
+                (
+                    p11.x -
+                        p01.x
+                    ) *
+                tx
+
+        val bottomY =
+            p01.y +
+                (
+                    p11.y -
+                        p01.y
+                    ) *
+                tx
+
+        return PointF(
+            topX +
+                (
+                    bottomX -
+                        topX
+                    ) *
+                ty,
+            topY +
+                (
+                    bottomY -
+                        topY
+                    ) *
+                ty
+        )
+    }
+
+    /**
+     * 从雨团最终 Mesh 中读取 3 个“脸部保护区”锚点。
+     *
+     * 这三个点不会参与左右耳各自的摆动，因此帽子绑定的是 HEAD，
+     * 而不是错误地绑定到耳朵。动作系统修改 verts 后再计算矩阵，
+     * 帽子自然继承头部平移、缩放、旋转和跳跃。
+     */
+    private fun updateYutuanHatMatrix():
+        Boolean {
+        if (
+            width <= 0 ||
+            height <= 0
+        ) {
+            return false
+        }
+
+        val source =
+            floatArrayOf(
+                width *
+                    0.360f,
+                height *
+                    0.235f,
+
+                width *
+                    0.640f,
+                height *
+                    0.235f,
+
+                width *
+                    0.500f,
+                height *
+                    0.420f
+            )
+
+        val left =
+            sampleCurrentMeshPoint(
+                0.360f,
+                0.235f
+            )
+
+        val right =
+            sampleCurrentMeshPoint(
+                0.640f,
+                0.235f
+            )
+
+        val lower =
+            sampleCurrentMeshPoint(
+                0.500f,
+                0.420f
+            )
+
+        val destination =
+            floatArrayOf(
+                left.x,
+                left.y,
+                right.x,
+                right.y,
+                lower.x,
+                lower.y
+            )
+
+        yutuanHatMatrix
+            .reset()
+
+        return yutuanHatMatrix
+            .setPolyToPoly(
+                source,
+                0,
+                destination,
+                0,
+                3
+            )
+    }
+
+    /**
+     * 帽檐后层在宠物本体之前绘制。
+     * 两侧帽檐因此会自然被耳朵/头部遮挡，建立第一层真实深度关系。
+     */
+    private fun drawYutuanHatBackLayer(
+        canvas: Canvas
+    ) {
+        if (
+            !updateYutuanHatMatrix()
+        ) {
+            return
+        }
+
+        val w =
+            width.toFloat()
+
+        val h =
+            height.toFloat()
+
+        val save =
+            canvas.save()
+
+        canvas.concat(
+            yutuanHatMatrix
+        )
+
+        yutuanHatPath
+            .reset()
+
+        yutuanHatPath
+            .moveTo(
+                w * 0.190f,
+                h * 0.275f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.270f,
+                h * 0.225f,
+                w * 0.730f,
+                h * 0.225f,
+                w * 0.810f,
+                h * 0.275f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.760f,
+                h * 0.330f,
+                w * 0.240f,
+                h * 0.330f,
+                w * 0.190f,
+                h * 0.275f
+            )
+
+        yutuanHatPath
+            .close()
+
+        yutuanHatFillPaint
+            .color =
+            Color.rgb(
+                184,
+                122,
+                45
+            )
+
+        canvas.drawPath(
+            yutuanHatPath,
+            yutuanHatFillPaint
+        )
+
+        // 后檐内侧较深，前层出现后会产生明显的帽檐厚度。
+        yutuanHatLinePaint
+            .color =
+            Color.argb(
+                92,
+                89,
+                55,
+                24
+            )
+
+        yutuanHatLinePaint
+            .strokeWidth =
+            w *
+                0.010f
+
+        canvas.drawArc(
+            RectF(
+                w * 0.210f,
+                h * 0.244f,
+                w * 0.790f,
+                h * 0.323f
+            ),
+            5f,
+            170f,
+            false,
+            yutuanHatLinePaint
+        )
+
+        canvas.restoreToCount(
+            save
+        )
+    }
+
+    /**
+     * 正面帽层：帽冠 + 草编纹理 + 蓝色缎带 + 前帽檐 + 接触阴影。
+     * 最后只在“头顶卷毛”区域重绘宠物 Mesh，让卷毛压住帽檐，
+     * 因而不是一张 PNG 悬浮在角色上。
+     */
+    private fun drawYutuanHatFrontLayer(
+        canvas: Canvas
+    ) {
+        if (
+            !updateYutuanHatMatrix()
+        ) {
+            return
+        }
+
+        val w =
+            width.toFloat()
+
+        val h =
+            height.toFloat()
+
+        val save =
+            canvas.save()
+
+        canvas.concat(
+            yutuanHatMatrix
+        )
+
+        // 接触阴影：只贴着帽檐，不给整顶帽子做悬浮阴影。
+        yutuanHatLinePaint
+            .color =
+            Color.argb(
+                68,
+                74,
+                48,
+                27
+            )
+
+        yutuanHatLinePaint
+            .strokeWidth =
+            w *
+                0.016f
+
+        canvas.drawArc(
+            RectF(
+                w * 0.275f,
+                h * 0.270f,
+                w * 0.725f,
+                h * 0.325f
+            ),
+            8f,
+            164f,
+            false,
+            yutuanHatLinePaint
+        )
+
+        // 帽冠。
+        yutuanHatPath
+            .reset()
+
+        yutuanHatPath
+            .moveTo(
+                w * 0.335f,
+                h * 0.252f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.345f,
+                h * 0.115f,
+                w * 0.405f,
+                h * 0.065f,
+                w * 0.500f,
+                h * 0.060f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.595f,
+                h * 0.065f,
+                w * 0.655f,
+                h * 0.115f,
+                w * 0.665f,
+                h * 0.252f
+            )
+
+        yutuanHatPath
+            .close()
+
+        yutuanHatFillPaint
+            .color =
+            Color.rgb(
+                242,
+                186,
+                91
+            )
+
+        canvas.drawPath(
+            yutuanHatPath,
+            yutuanHatFillPaint
+        )
+
+        // 草编横向纹理。
+        yutuanHatLinePaint
+            .color =
+            Color.argb(
+                105,
+                157,
+                101,
+                35
+            )
+
+        yutuanHatLinePaint
+            .strokeWidth =
+            w *
+                0.0043f
+
+        for (
+            row in
+            0..3
+        ) {
+            val y =
+                h *
+                    (
+                        0.105f +
+                            row *
+                            0.032f
+                        )
+
+            canvas.drawArc(
+                RectF(
+                    w * 0.355f,
+                    y,
+                    w * 0.645f,
+                    y +
+                        h *
+                            0.060f
+                ),
+                190f,
+                160f,
+                false,
+                yutuanHatLinePaint
+            )
+        }
+
+        // 草编斜纹。
+        yutuanHatLinePaint
+            .color =
+            Color.argb(
+                70,
+                137,
+                84,
+                27
+            )
+
+        yutuanHatLinePaint
+            .strokeWidth =
+            w *
+                0.0033f
+
+        for (
+            column in
+            0..5
+        ) {
+            val x =
+                w *
+                    (
+                        0.365f +
+                            column *
+                            0.052f
+                        )
+
+            canvas.drawLine(
+                x,
+                h *
+                    0.105f,
+                x +
+                    w *
+                        0.060f,
+                h *
+                    0.230f,
+                yutuanHatLinePaint
+            )
+        }
+
+        // 蓝色帽带。
+        yutuanHatPath
+            .reset()
+
+        yutuanHatPath
+            .moveTo(
+                w * 0.337f,
+                h * 0.198f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.405f,
+                h * 0.181f,
+                w * 0.595f,
+                h * 0.181f,
+                w * 0.663f,
+                h * 0.198f
+            )
+
+        yutuanHatPath
+            .lineTo(
+                w * 0.660f,
+                h * 0.240f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.585f,
+                h * 0.226f,
+                w * 0.415f,
+                h * 0.226f,
+                w * 0.340f,
+                h * 0.240f
+            )
+
+        yutuanHatPath
+            .close()
+
+        yutuanHatFillPaint
+            .color =
+            Color.rgb(
+                116,
+                170,
+                234
+            )
+
+        canvas.drawPath(
+            yutuanHatPath,
+            yutuanHatFillPaint
+        )
+
+        // 前帽檐。
+        yutuanHatPath
+            .reset()
+
+        yutuanHatPath
+            .moveTo(
+                w * 0.215f,
+                h * 0.270f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.300f,
+                h * 0.238f,
+                w * 0.700f,
+                h * 0.238f,
+                w * 0.785f,
+                h * 0.270f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.745f,
+                h * 0.317f,
+                w * 0.255f,
+                h * 0.317f,
+                w * 0.215f,
+                h * 0.270f
+            )
+
+        yutuanHatPath
+            .close()
+
+        yutuanHatFillPaint
+            .color =
+            Color.rgb(
+                247,
+                196,
+                105
+            )
+
+        canvas.drawPath(
+            yutuanHatPath,
+            yutuanHatFillPaint
+        )
+
+        yutuanHatLinePaint
+            .color =
+            Color.argb(
+                112,
+                148,
+                91,
+                30
+            )
+
+        yutuanHatLinePaint
+            .strokeWidth =
+            w *
+                0.004f
+
+        canvas.drawArc(
+            RectF(
+                w * 0.238f,
+                h * 0.260f,
+                w * 0.762f,
+                h * 0.307f
+            ),
+            4f,
+            172f,
+            false,
+            yutuanHatLinePaint
+        )
+
+        // 蓝色蝴蝶结：两个叶片 + 中心结。
+        yutuanHatFillPaint
+            .color =
+            Color.rgb(
+                104,
+                160,
+                228
+            )
+
+        yutuanHatPath
+            .reset()
+
+        yutuanHatPath
+            .moveTo(
+                w * 0.650f,
+                h * 0.198f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.695f,
+                h * 0.168f,
+                w * 0.735f,
+                h * 0.180f,
+                w * 0.717f,
+                h * 0.225f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.735f,
+                h * 0.263f,
+                w * 0.690f,
+                h * 0.272f,
+                w * 0.650f,
+                h * 0.235f
+            )
+
+        yutuanHatPath
+            .close()
+
+        canvas.drawPath(
+            yutuanHatPath,
+            yutuanHatFillPaint
+        )
+
+        yutuanHatPath
+            .reset()
+
+        yutuanHatPath
+            .moveTo(
+                w * 0.650f,
+                h * 0.202f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.617f,
+                h * 0.175f,
+                w * 0.585f,
+                h * 0.187f,
+                w * 0.598f,
+                h * 0.228f
+            )
+
+        yutuanHatPath
+            .cubicTo(
+                w * 0.585f,
+                h * 0.260f,
+                w * 0.620f,
+                h * 0.267f,
+                w * 0.650f,
+                h * 0.235f
+            )
+
+        yutuanHatPath
+            .close()
+
+        canvas.drawPath(
+            yutuanHatPath,
+            yutuanHatFillPaint
+        )
+
+        canvas.drawCircle(
+            w *
+                0.650f,
+            h *
+                0.220f,
+            w *
+                0.025f,
+            yutuanHatFillPaint
+        )
+
+        canvas.restoreToCount(
+            save
+        )
+
+        // 2.5D 前景遮挡：
+        // 将雨团原始头顶卷毛局部再绘制一次，压住前帽檐。
+        // 这里 redraw 的仍然是同一个动态 BitmapMesh，不是合成新图片。
+        val occluderBase =
+            Path().apply {
+                moveTo(
+                    w * 0.430f,
+                    h * 0.257f
+                )
+
+                cubicTo(
+                    w * 0.438f,
+                    h * 0.225f,
+                    w * 0.458f,
+                    h * 0.214f,
+                    w * 0.478f,
+                    h * 0.221f
+                )
+
+                cubicTo(
+                    w * 0.492f,
+                    h * 0.197f,
+                    w * 0.530f,
+                    h * 0.202f,
+                    w * 0.542f,
+                    h * 0.230f
+                )
+
+                cubicTo(
+                    w * 0.568f,
+                    h * 0.235f,
+                    w * 0.578f,
+                    h * 0.265f,
+                    w * 0.565f,
+                    h * 0.292f
+                )
+
+                cubicTo(
+                    w * 0.530f,
+                    h * 0.304f,
+                    w * 0.470f,
+                    h * 0.304f,
+                    w * 0.435f,
+                    h * 0.288f
+                )
+
+                close()
+            }
+
+        val occluderScreen =
+            Path()
+
+        occluderBase
+            .transform(
+                yutuanHatMatrix,
+                occluderScreen
+            )
+
+        val clipSave =
+            canvas.save()
+
+        canvas.clipPath(
+            occluderScreen
+        )
+
+        drawIdleMesh(
+            canvas,
+            1f
+        )
+
+        canvas.restoreToCount(
+            clipSave
+        )
     }
 
     private fun drawIdleMesh(canvas: Canvas, alpha: Float) {

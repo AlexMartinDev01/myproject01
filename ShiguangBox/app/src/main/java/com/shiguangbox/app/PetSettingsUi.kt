@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.2.0 芽芽自主巡游 · Locomotion 1.0",
+                        "V2.2.1 自主巡游自然化 · Pause & Look",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -940,13 +940,13 @@ fun PetSettingsScreen(
                                         )
 
                                     message =
-                                        "立即测试完整自主巡游：先观察方向，再起步，途中张望，接近目标减速收步后自然停下"
+                                        "立即测试自然化巡游：先观察出发，长距离会中途停下看看，再继续走并自然减速停下"
                                 },
                                 modifier =
                                     Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    "测试芽芽自主巡游流程（立即）"
+                                    "测试芽芽自然化巡游（立即）"
                                 )
                             }
                         }
@@ -2100,7 +2100,7 @@ fun PetSettingsScreen(
                                     ) {
                                         "当前是“安静”档，自主巡游会暂停"
                                     } else {
-                                        "待机时偶尔先观察方向，再自己走一小段；接近目标会减速，触摸会立即停下"
+                                        "待机时会先观察再出发；较长路程会走几步停下来看看，再继续；接近边缘会先观察，触摸会立即停下"
                                     },
                                     color =
                                         MaterialTheme

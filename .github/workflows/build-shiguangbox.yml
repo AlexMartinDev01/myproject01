@@ -121,7 +121,23 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.4" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.5" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.5 · 桌面氛围试验版"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.5 · 桌面氛围试验版
+
+          - versionCode: $VERSION_CODE
+          - 保留现有 2D 宠物与全部行为逻辑，不修改宠物原图
+          - 移除上一轮雨团 2.5D 帽子技术试验
+          - 新增宠物周围的轻量环境光：白天柔和、夜间偏冷，三只宠物使用不同氛围色
+          - 环境光带轻微呼吸变化，开心、被摸、睡眠等状态会自然调整强弱
+          - 新增少量前后景漂浮光粒子，形成空间层次，不做满屏特效
+          - 粒子使用 Canvas 实时绘制，不新增复杂 UI 或重型素材资源
+          - 当前版本只验证“环境光 + 轻粒子”，脚印、阴影、边缘互动留到后续版本
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.4" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.4 · 2D 宠物主线恢复版"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.4 · 2D 宠物主线恢复版

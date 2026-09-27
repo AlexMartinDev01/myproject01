@@ -3905,8 +3905,11 @@ class PetOverlayService : Service() {
                         when (
                             kind
                         ) {
+                            // 橘团 V2.4.0 停下后需要先完成
+                            // SIDE -> 3/4 -> FRONT 的约 340ms 回正，
+                            // 再进入摇尾巴/观察动作，避免两个动作抢同一张脸。
                             PetKind.ORANGE ->
-                                150L
+                                420L
 
                             PetKind.YAYA ->
                                 220L

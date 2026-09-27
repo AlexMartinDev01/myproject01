@@ -206,6 +206,19 @@ class PetRigView @JvmOverloads constructor(
     private var motionModifier =
         MotionModifier()
 
+    // V2.1.7 Locomotion prototype:
+    // WALK 不作为一次性 PetMotion，而是独立的持续移动层。
+    // 第一版只给芽芽使用，负责“脚步循环 + 身体重心”，
+    // 真正的屏幕位移由 PetOverlayService 同步驱动。
+    private var locomotionActive =
+        false
+
+    private var locomotionDirection =
+        1f
+
+    private var locomotionStartNanos =
+        0L
+
     private val recentMotions =
         mutableListOf<PetMotion>()
 
@@ -411,6 +424,101 @@ class PetRigView @JvmOverloads constructor(
         return true
     }
 
+    fun startWalking(
+        direction: Float
+    ): Boolean {
+        if (
+            petKind !=
+            PetKind.YAYA
+        ) {
+            return false
+        }
+
+        if (
+            state ==
+            State.SLEEP ||
+            state ==
+            State.TIRED ||
+            state ==
+            State.WAKE_UP ||
+            state ==
+            State.DRAGGING
+        ) {
+            return false
+        }
+
+        val now =
+            System.nanoTime()
+
+        if (
+            state !=
+            State.IDLE
+        ) {
+            setState(
+                State.IDLE,
+                now
+            )
+        }
+
+        clearMotion()
+
+        locomotionDirection =
+            if (
+                direction <
+                0f
+            ) {
+                -1f
+            } else {
+                1f
+            }
+
+        locomotionStartNanos =
+            now
+
+        locomotionActive =
+            true
+
+        lastInteractionNanos =
+            now
+
+        blinkStartNanos =
+            0L
+
+        paused =
+            false
+
+        postFrame()
+
+        return true
+    }
+
+    fun stopWalking() {
+        if (
+            !locomotionActive
+        ) {
+            return
+        }
+
+        locomotionActive =
+            false
+
+        locomotionStartNanos =
+            0L
+
+        scheduleNextIdleAction(
+            System.nanoTime()
+        )
+
+        paused =
+            false
+
+        postFrame()
+    }
+
+    fun isWalking():
+        Boolean =
+        locomotionActive
+
     fun currentMotion():
         PetMotion =
         currentMotion
@@ -511,7 +619,8 @@ class PetRigView @JvmOverloads constructor(
         state ==
             State.IDLE &&
             currentMotion ==
-                PetMotion.NONE
+                PetMotion.NONE &&
+            !locomotionActive
 
     fun isSleepingOrTired(): Boolean =
         state == State.SLEEP ||
@@ -519,6 +628,8 @@ class PetRigView @JvmOverloads constructor(
             state == State.WAKE_UP
 
     fun startDragging() {
+        stopWalking()
+
         val now = System.nanoTime()
         lastInteractionNanos = now
         setState(State.DRAGGING, now)
@@ -575,6 +686,10 @@ class PetRigView @JvmOverloads constructor(
         callbackPosted = false
         stateChangeListener = null
         clearMotion()
+        locomotionActive =
+            false
+        locomotionStartNanos =
+            0L
         yutuanRainSystem?.reset()
 
         // Resource bitmaps are intentionally NOT recycled manually.
@@ -596,6 +711,16 @@ class PetRigView @JvmOverloads constructor(
             now
         blinkStartNanos =
             0L
+
+        if (
+            newState !=
+            State.IDLE
+        ) {
+            locomotionActive =
+                false
+            locomotionStartNanos =
+                0L
+        }
 
         if (
             newState !=
@@ -746,6 +871,10 @@ class PetRigView @JvmOverloads constructor(
                     idleSeconds,
                     stateSeconds,
                     blink
+                )
+
+                applyLocomotionToMesh(
+                    now
                 )
 
                 applyCurrentMotionToMesh(
@@ -1832,6 +1961,7 @@ class PetRigView @JvmOverloads constructor(
         now: Long
     ) {
         if (
+            locomotionActive ||
             currentMotion !=
             PetMotion.NONE ||
             blinkStartNanos !=
@@ -2186,6 +2316,312 @@ class PetRigView @JvmOverloads constructor(
 
             else ->
                 0.0
+        }
+    }
+
+    /**
+     * 芽芽 Walking Prototype V1
+     *
+     * 原始素材仍是一张正面 2D 图，因此这里不伪造“侧身大步走”，
+     * 而是利用现有 BitmapMesh 做 Q 版小碎步：
+     * - 左右脚交替轻抬 / 轻移
+     * - 身体重心左右交换
+     * - 头部做很小的反向补偿
+     * - 身体产生极轻的上下踩踏节奏
+     *
+     * 这层只负责“看起来在走”，屏幕上的真实 x 位移由 Service 完成。
+     */
+    private fun applyLocomotionToMesh(
+        now: Long
+    ) {
+        if (
+            !locomotionActive ||
+            petKind !=
+            PetKind.YAYA ||
+            width <=
+            0 ||
+            height <=
+            0
+        ) {
+            return
+        }
+
+        val elapsedSeconds =
+            (
+                now -
+                    locomotionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                ) /
+                1_000_000_000.0
+
+        // 一整个“左一步 + 右一步”约 0.56 秒。
+        // 保持碎步感，避免正面坐姿被强行拉成大跨步。
+        val phase =
+            elapsedSeconds *
+                2.0 *
+                PI /
+                WALK_CYCLE_SECONDS
+
+        val leftSignal =
+            sin(
+                phase
+            )
+
+        val rightSignal =
+            -leftSignal
+
+        val bodySway =
+            sin(
+                phase
+            )
+
+        val bodyBob =
+            abs(
+                sin(
+                    phase
+                )
+            )
+
+        val direction =
+            locomotionDirection
+                .toDouble()
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                var x =
+                    verts[
+                        index
+                    ]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                // 身体核心：重心左右轻换，落脚时略微起伏。
+                val torsoWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.515
+                                ) /
+                                0.33
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.66
+                                    ) /
+                                0.32
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    -bodySway *
+                        0.0065 *
+                        torsoWeight
+
+                y -=
+                    bodyBob *
+                        0.0045 *
+                        torsoWeight
+
+                // 头部做反向稳定，避免整个角色像纸片左右晃。
+                val headWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.51
+                                ) /
+                                0.31
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.39
+                                    ) /
+                                0.29
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    bodySway *
+                        0.0026 *
+                        headWeight
+
+                // 左右腿分别使用现有芽芽腿部绑定区域。
+                for (
+                    legIndex in
+                    0..1
+                ) {
+                    val left =
+                        legIndex ==
+                            0
+
+                    val signal =
+                        if (
+                            left
+                        ) {
+                            leftSignal
+                        } else {
+                            rightSignal
+                        }
+
+                    val centerU =
+                        if (
+                            left
+                        ) {
+                            0.375
+                        } else {
+                            0.680
+                        }
+
+                    val centerV =
+                        0.865
+
+                    val pivotV =
+                        if (
+                            left
+                        ) {
+                            0.785
+                        } else {
+                            0.790
+                        }
+
+                    var legWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        centerU
+                                    ) /
+                                    0.145
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            centerV
+                                        ) /
+                                    0.135
+                                )
+                        )
+
+                    // 从腿根往脚掌逐渐放大，避免腹部被一起拉走。
+                    val lowerProgress =
+                        clamp(
+                            (
+                                v -
+                                    pivotV +
+                                    0.015
+                                ) /
+                                0.19,
+                            0.0,
+                            1.0
+                        )
+
+                    legWeight *=
+                        smoothStep(
+                            lowerProgress
+                        )
+
+                    if (
+                        legWeight >
+                        0.002
+                    ) {
+                        val lift =
+                            maxOf(
+                                0.0,
+                                signal
+                            ) *
+                                0.026
+
+                        val settle =
+                            maxOf(
+                                0.0,
+                                -signal
+                            ) *
+                                0.0032
+
+                        val stride =
+                            signal *
+                                0.014 *
+                                direction
+
+                        x +=
+                            stride *
+                                legWeight
+
+                        y +=
+                            (
+                                -lift +
+                                    settle
+                                ) *
+                                legWeight
+                    }
+                }
+
+                verts[
+                    index
+                ] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
         }
     }
 
@@ -4862,6 +5298,9 @@ class PetRigView @JvmOverloads constructor(
 
     companion object {
         const val AMBIENT_CONTENT_SCALE = 0.76f
+
+        private const val WALK_CYCLE_SECONDS =
+            0.56
 
         private const val WAVE_DURATION_SECONDS = 1.35
         private const val REMINDER_DURATION_SECONDS = 2.70

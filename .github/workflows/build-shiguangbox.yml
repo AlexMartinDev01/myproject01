@@ -121,7 +121,26 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.4.0" ]]; then
+          if [[ "$VERSION_NAME" == "2.4.1" ]]; then
+            RELEASE_TITLE="拾光盒 V2.4.1 · 橘团左向资源修复"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.4.1 · 橘团左向资源修复 / Directional Asset Fix
+
+          - versionCode: $VERSION_CODE
+          - 定位并修复 V2.4.0 中“橘团往左走显示黑影/异常图像，往右走正常”的问题
+          - 根因不是转向判断，也不是 Mesh 步态：旧版左 3/4 WebP 文件无法正常解码，左侧面 WebP 像素内容也已损坏
+          - 删除两张损坏的左向资源，避免 Android 再次解码到异常位图
+          - 右 3/4 与右侧面资源已验证正常，继续作为唯一方向原图
+          - 左 3/4 与左侧面现在在内存中由对应右向原图水平镜像生成，透明通道、清晰度和角色比例与右向完全一致
+          - 左右方向仍分别走原有的 FRONT -> 3/4 -> SIDE 与 SIDE -> 3/4 -> FRONT 过渡逻辑
+          - 保留 V2.4.0 的侧面独立 Mesh 步态、前后脚交替、身体轻起伏、尾巴惯性与头眼微动
+          - 保留 V2.3.2 Soft Foot Plant 顺滑位移和 V2.3.3 Walking Attention
+          - 芽芽与雨团行为不受本次修复影响
+          - “测试橘团转身侧走（立即）”入口继续保留，建议本版重点复测左右两个方向
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.4.0" ]]; then
             RELEASE_TITLE="拾光盒 V2.4.0 · 橘团方向行走"
             cat > release-notes.md <<EOF
           拾光盒 V2.4.0 · 橘团方向行走 / Directional Locomotion

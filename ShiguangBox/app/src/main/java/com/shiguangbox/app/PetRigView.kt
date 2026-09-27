@@ -82,6 +82,53 @@ class PetRigView @JvmOverloads constructor(
             )
     }
 
+    private fun mirrorBitmapHorizontally(
+        source: Bitmap
+    ): Bitmap {
+        val output =
+            Bitmap.createBitmap(
+                source.width,
+                source.height,
+                Bitmap.Config.ARGB_8888
+            )
+
+        output.density =
+            source.density
+
+        val canvas =
+            Canvas(
+                output
+            )
+
+        val mirrorPaint =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG or
+                    Paint.FILTER_BITMAP_FLAG
+            )
+
+        canvas.save()
+
+        canvas.scale(
+            -1f,
+            1f,
+            source.width /
+                2f,
+            source.height /
+                2f
+        )
+
+        canvas.drawBitmap(
+            source,
+            0f,
+            0f,
+            mirrorPaint
+        )
+
+        canvas.restore()
+
+        return output
+    }
+
     private val yutuanBitmap: Bitmap? =
         if (
             petKind ==
@@ -120,22 +167,11 @@ class PetRigView @JvmOverloads constructor(
                 R.drawable.pet_orange_wake
             )
 
-    // V2.4.0 橘团方向资源。
-    // 正面继续使用现有 idleBitmap，避免替换已经稳定的原始橘团形象；
-    // 只有进入明显转身/侧向移动时才切到 3/4 与侧面资源。
-    private val orange3qLeftBitmap: Bitmap? =
-        if (
-            petKind ==
-            PetKind.ORANGE
-        ) {
-            decodePetBitmap(
-                R.drawable.pet_orange_3q_left,
-                R.drawable.pet_orange_idle
-            )
-        } else {
-            null
-        }
-
+    // V2.4.1 橘团方向资源修复：
+    // 实机发现旧版左 3/4 / 左侧面 WebP 文件本身损坏，
+    // Android 解码后会出现黑影/异常色块。现在只加载经过验证的右向资源，
+    // 左向图在内存中由右向图水平镜像生成，从源头保证左右像素质量一致。
+    // 正面仍继续使用现有 idleBitmap，不改变原始橘团形象。
     private val orange3qRightBitmap: Bitmap? =
         if (
             petKind ==
@@ -149,18 +185,13 @@ class PetRigView @JvmOverloads constructor(
             null
         }
 
-    private val orangeSideLeftBitmap: Bitmap? =
-        if (
-            petKind ==
-            PetKind.ORANGE
-        ) {
-            decodePetBitmap(
-                R.drawable.pet_orange_side_left,
-                R.drawable.pet_orange_idle
-            )
-        } else {
-            null
-        }
+    private val orange3qLeftBitmap: Bitmap? =
+        orange3qRightBitmap
+            ?.let {
+                mirrorBitmapHorizontally(
+                    it
+                )
+            }
 
     private val orangeSideRightBitmap: Bitmap? =
         if (
@@ -174,6 +205,14 @@ class PetRigView @JvmOverloads constructor(
         } else {
             null
         }
+
+    private val orangeSideLeftBitmap: Bitmap? =
+        orangeSideRightBitmap
+            ?.let {
+                mirrorBitmapHorizontally(
+                    it
+                )
+            }
 
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG

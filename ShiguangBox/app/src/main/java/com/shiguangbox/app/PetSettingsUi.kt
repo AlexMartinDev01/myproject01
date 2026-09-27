@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.4.0 橘团方向行走 · Directional Locomotion",
+                        "V2.4.1 橘团左向资源修复 · Directional Locomotion",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )

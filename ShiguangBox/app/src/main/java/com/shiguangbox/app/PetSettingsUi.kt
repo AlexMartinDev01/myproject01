@@ -88,6 +88,15 @@ fun PetSettingsScreen(
         )
     }
 
+    var autoRoam by rememberSaveable {
+        mutableStateOf(
+            prefs.getBoolean(
+                "pet_auto_roam",
+                true
+            )
+        )
+    }
+
     var companionEnabled by rememberSaveable {
         mutableStateOf(
             prefs.getBoolean(
@@ -433,6 +442,10 @@ fun PetSettingsScreen(
                 actionLevel.coerceIn(0, 2)
             )
             .putBoolean(
+                "pet_auto_roam",
+                autoRoam
+            )
+            .putBoolean(
                 "pet_companion_enabled",
                 companionEnabled
             )
@@ -509,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.1.9 芽芽 Walking V3 · 拟人观察",
+                        "V2.2.0 芽芽自主巡游 · Locomotion 1.0",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -927,13 +940,13 @@ fun PetSettingsScreen(
                                         )
 
                                     message =
-                                        "芽芽开始 Walking V3：眼睛会先看方向，头再跟过去，耳朵最后产生明显惯性"
+                                        "立即测试完整自主巡游：先观察方向，再起步，途中张望，接近目标减速收步后自然停下"
                                 },
                                 modifier =
                                     Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    "测试芽芽拟人小碎步（Walking V3）"
+                                    "测试芽芽自主巡游流程（立即）"
                                 )
                             }
                         }
@@ -2047,7 +2060,7 @@ fun PetSettingsScreen(
                     Text(
                         when (selectedPet) {
                             PetKind.YAYA ->
-                                "控制随机眨眼、耳朵轻晃、新微动作与中动作出现的频率"
+                                "控制随机眨眼、耳朵轻晃、新微动作与自主巡游出现的频率"
 
                             PetKind.YUTUAN ->
                                 "控制随机眨眼、抬爪、新微动作与中动作出现的频率；真实细雨会持续自然变化"
@@ -2063,6 +2076,56 @@ fun PetSettingsScreen(
                     )
 
                     Spacer(Modifier.height(14.dp))
+
+                    if (
+                        selectedPet ==
+                        PetKind.YAYA
+                    ) {
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+                            Column(
+                                Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    "芽芽自主巡游",
+                                    fontWeight =
+                                        FontWeight.Medium
+                                )
+                                Text(
+                                    if (
+                                        actionLevel ==
+                                        0
+                                    ) {
+                                        "当前是“安静”档，自主巡游会暂停"
+                                    } else {
+                                        "待机时偶尔先观察方向，再自己走一小段；接近目标会减速，触摸会立即停下"
+                                    },
+                                    color =
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
+                            }
+
+                            Switch(
+                                checked =
+                                    autoRoam,
+                                onCheckedChange = {
+                                    autoRoam =
+                                        it
+                                }
+                            )
+                        }
+
+                        Spacer(
+                            Modifier.height(
+                                14.dp
+                            )
+                        )
+                    }
 
                     Row(
                         verticalAlignment =

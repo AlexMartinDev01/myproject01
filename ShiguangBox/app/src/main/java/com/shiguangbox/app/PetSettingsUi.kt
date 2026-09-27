@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.3.2 三宠顺滑步态 · Soft Foot Plant",
+                        "V2.3.3 行走注意力 · Animal-like Gaze",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -940,13 +940,13 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "立即测试橘团顺滑步态：重点看小跑过程中是否连续顺畅，不再出现每一步都明显顿一下"
+                                            "立即测试橘团行走灵动感：重点看眼睛是否先扫向目标、头随后跟过去，并且不是机械左右摆"
 
                                         PetKind.YAYA ->
-                                            "立即测试芽芽顺滑步态：重点看小碎步是否连续，停下观察后重新起步是否没有明显顿挫"
+                                            "立即测试芽芽行走灵动感：重点看眼睛先看、头再转、短暂停留和偶尔回正是否自然"
 
                                         PetKind.YUTUAN ->
-                                            "立即测试雨团顺滑步态：重点看慢速移动是否依然连续，耳朵和云朵围巾是否保持自然滞后"
+                                            "立即测试雨团行走灵动感：重点看慢速走路时视线和头部是否柔和变化，而不是一直盯正前方"
                                     }
                             },
                             modifier =
@@ -955,7 +955,7 @@ fun PetSettingsScreen(
                             Text(
                                 "测试" +
                                     selectedPet.displayName +
-                                    "顺滑巡游（立即）"
+                                    "灵动巡游（立即）"
                             )
                         }
 
@@ -2118,13 +2118,13 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "活泼型：整体连续顺滑前进，只保留很轻的小跑速度起伏；身体弹性和尾巴惯性继续保留"
+                                            "活泼型：顺滑小跑时眼睛会先快速扫视，头随后灵活跟过去；身体弹性和尾巴惯性继续保留"
 
                                         PetKind.YAYA ->
-                                            "观察型：小碎步改为软锁相，不再一脚一顿；眼睛先看、头部跟随、耳朵晚半拍，长路程仍会停下观察"
+                                            "观察型：顺滑小碎步中会随机看前方、回正或侧看；眼睛先到、头随后跟上，耳朵继续晚半拍"
 
                                         PetKind.YUTUAN ->
-                                            "慢吞吞型：保持慢速但连续，不再出现一步一停；长垂耳和云朵围巾继续柔和滞后"
+                                            "慢吞吞型：慢速连续行走时会缓慢转动视线和头部；长垂耳和云朵围巾继续柔和滞后"
                                     }
                                 },
                                 color =

@@ -121,7 +121,26 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.6" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.7" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.7 · 芽芽 Walking V1"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.7 · 芽芽 Walking V1
+
+          - versionCode: $VERSION_CODE
+          - 第一版真实桌宠走动技术验证仅开放给芽芽，不改橘团和雨团
+          - 在现有 28×28 BitmapMesh 绑定基础上新增独立 Locomotion 层，不把 WALK 粗暴塞进一次性 PetMotion
+          - 左右腿使用已有芽芽腿部绑定区域交替轻抬、轻移，腿根稳定、脚掌幅度更明显
+          - 增加身体左右重心交换、轻微上下踩踏和头部反向补偿，减少“整张图片横向滑动”的感觉
+          - PetOverlayService 同步驱动悬浮窗真实 x 位移，步态动画与屏幕移动同时发生
+          - 第一版只做横向 Q 版小碎步，不尝试用正面静态原图伪造大跨步或侧身走路
+          - 新增“测试芽芽小碎步（Walking V1）”按钮，可直接在“我的桌宠”中实机验收
+          - 测试会从当前位置走向屏幕中间；如果已经接近中间，则自动选择空间更充足的一侧走一段
+          - 走完后保留新位置并自然回到待机，不强制重新贴边
+          - 保留 V2.1.6 环境光、粒子、三宠动作、气泡、睡眠、雨团天气和彩虹、生活事件与回忆系统
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.6" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.6 · 可见桌面氛围修复版"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.6 · 可见桌面氛围修复版

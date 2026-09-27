@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.3.0 三宠差异化移动 · Locomotion Profiles",
+                        "V2.3.1 三宠步态精修 · Foot Plant Sync",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -940,13 +940,13 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "立即测试橘团活泼巡游：更快的小跑感、身体弹跳、尾巴惯性，停下后会有更兴奋的反应"
+                                            "立即测试橘团步态同步：重点看抬脚阶段是否少滑、落脚阶段是否真正向前推进，以及最后一步是否稳稳落住"
 
                                         PetKind.YAYA ->
-                                            "立即测试芽芽观察巡游：眼睛先看、头部跟随，长距离会停下看看再继续"
+                                            "立即测试芽芽步态同步：重点看小碎步和屏幕位移是否对得上，长距离停看后重新起步是否还自然"
 
                                         PetKind.YUTUAN ->
-                                            "立即测试雨团慢速巡游：小步慢走、垂耳和云朵围巾晚半拍跟随，途中停顿更久"
+                                            "立即测试雨团步态同步：重点看慢步是否一脚一脚推进，耳朵和云朵围巾是否保持晚半拍惯性"
                                     }
                             },
                             modifier =
@@ -955,7 +955,7 @@ fun PetSettingsScreen(
                             Text(
                                 "测试" +
                                     selectedPet.displayName +
-                                    "差异化巡游（立即）"
+                                    "步态同步巡游（立即）"
                             )
                         }
 
@@ -2118,13 +2118,13 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "活泼型：走得更快、身体弹性更明显，尾巴会跟着步态产生惯性，停下后可能兴奋摇尾巴"
+                                            "活泼型：小跑节奏与真实位移锁相，抬脚时少滑、落脚时明显推进；身体弹性和尾巴惯性更突出"
 
                                         PetKind.YAYA ->
-                                            "观察型：小碎步、眼睛先看、头部跟随、耳朵晚半拍，较长路程会停下来看看"
+                                            "观察型：小碎步与屏幕位移按落脚节奏同步；眼睛先看、头部跟随、耳朵晚半拍，长路程会停下观察"
 
                                         PetKind.YUTUAN ->
-                                            "慢吞吞型：速度更慢、步幅更小，长垂耳和云朵围巾会柔和滞后，停顿时间也更长"
+                                            "慢吞吞型：每一步推进更慢、更有落脚感；长垂耳和云朵围巾柔和滞后，起步与收步也更缓"
                                     }
                                 },
                                 color =

@@ -26,6 +26,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
@@ -78,7 +79,10 @@ class PetOverlayService : Service() {
         val pauseMaxMs: Long,
         val preparationDelayMs: Long,
         val edgePreparationDelayMs: Long,
-        val edgeBufferDp: Int
+        val edgeBufferDp: Int,
+        val swingFraction: Float,
+        val swingTravelShare: Float,
+        val startEndStepWeight: Float
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -99,8 +103,9 @@ class PetOverlayService : Service() {
     private var tapDispatchRunnable: Runnable? = null
     private var edgePeekRunnable: Runnable? = null
 
-    // 芽芽 Locomotion：
-    // PetRigView 负责身体步态，Service 负责真正的桌面坐标与自主巡游决策。
+    // 三宠 Locomotion：
+    // PetRigView 负责身体步态，Service 负责真实桌面坐标与自主巡游决策。
+    // V2.3.1 根位移按半步相位推进：抬脚阶段少移动、落脚/支撑阶段多移动。
     private var walkAnimator:
         ValueAnimator? =
         null
@@ -2084,7 +2089,10 @@ class PetOverlayService : Service() {
                     pauseMaxMs = 760L,
                     preparationDelayMs = 430L,
                     edgePreparationDelayMs = 650L,
-                    edgeBufferDp = 15
+                    edgeBufferDp = 15,
+                    swingFraction = 0.28f,
+                    swingTravelShare = 0.13f,
+                    startEndStepWeight = 0.64f
                 )
 
             PetKind.YAYA ->
@@ -2113,7 +2121,10 @@ class PetOverlayService : Service() {
                     pauseMaxMs = 1_080L,
                     preparationDelayMs = 640L,
                     edgePreparationDelayMs = 900L,
-                    edgeBufferDp = 20
+                    edgeBufferDp = 20,
+                    swingFraction = 0.32f,
+                    swingTravelShare = 0.17f,
+                    startEndStepWeight = 0.58f
                 )
 
             PetKind.YUTUAN ->
@@ -2142,7 +2153,10 @@ class PetOverlayService : Service() {
                     pauseMaxMs = 1_420L,
                     preparationDelayMs = 780L,
                     edgePreparationDelayMs = 1_050L,
-                    edgeBufferDp = 24
+                    edgeBufferDp = 24,
+                    swingFraction = 0.37f,
+                    swingTravelShare = 0.21f,
+                    startEndStepWeight = 0.52f
                 )
         }
 
@@ -3138,6 +3152,231 @@ class PetOverlayService : Service() {
         )
     }
 
+    private fun smoothUnit(
+        value: Float
+    ): Float {
+        val t =
+            value.coerceIn(
+                0f,
+                1f
+            )
+
+        return t *
+            t *
+            (
+                3f -
+                    2f *
+                        t
+                )
+    }
+
+    private fun locomotionHalfStepWeight(
+        index: Int,
+        count: Int,
+        profile:
+            LocomotionProfile
+    ): Float {
+        if (
+            count <=
+            2
+        ) {
+            return 1f
+        }
+
+        val edgeDistance =
+            minOf(
+                index,
+                count -
+                    1 -
+                    index
+            )
+
+        return when (
+            edgeDistance
+        ) {
+            0 ->
+                profile.startEndStepWeight
+
+            1 ->
+                profile.startEndStepWeight +
+                    (
+                        1f -
+                            profile.startEndStepWeight
+                        ) *
+                        0.62f
+
+            else ->
+                1f
+        }
+    }
+
+    /**
+     * 把连续匀速的窗口位移改成“半步锁相”位移：
+     * - 抬脚（swing）阶段只完成较少位移
+     * - 脚落地 / 支撑（stance）阶段完成主要位移
+     * - 第一半步和最后一半步权重降低，自带自然起步与收步
+     *
+     * 整个函数始终单调递增，所以不会为了追步态而出现窗口倒滑。
+     */
+    private fun phaseLockedRootProgress(
+        rawProgress: Float,
+        halfStepCount: Int,
+        profile:
+            LocomotionProfile
+    ): Float {
+        val t =
+            rawProgress.coerceIn(
+                0f,
+                1f
+            )
+
+        if (
+            t <=
+            0f
+        ) {
+            return 0f
+        }
+
+        if (
+            t >=
+            1f
+        ) {
+            return 1f
+        }
+
+        val count =
+            halfStepCount
+                .coerceAtLeast(
+                    1
+                )
+
+        val stepPosition =
+            t *
+                count
+                    .toFloat()
+
+        val stepIndex =
+            kotlin.math
+                .floor(
+                    stepPosition
+                        .toDouble()
+                )
+                .toInt()
+                .coerceIn(
+                    0,
+                    count -
+                        1
+                )
+
+        val local =
+            (
+                stepPosition -
+                    stepIndex
+                        .toFloat()
+                )
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        val swingFraction =
+            profile.swingFraction
+                .coerceIn(
+                    0.18f,
+                    0.48f
+                )
+
+        val swingTravelShare =
+            profile.swingTravelShare
+                .coerceIn(
+                    0.08f,
+                    0.34f
+                )
+
+        val localTravel =
+            if (
+                local <
+                swingFraction
+            ) {
+                swingTravelShare *
+                    smoothUnit(
+                        local /
+                            swingFraction
+                    )
+            } else {
+                swingTravelShare +
+                    (
+                        1f -
+                            swingTravelShare
+                        ) *
+                        smoothUnit(
+                            (
+                                local -
+                                    swingFraction
+                                ) /
+                                (
+                                    1f -
+                                        swingFraction
+                                    )
+                        )
+            }
+
+        var totalWeight =
+            0f
+
+        var completedWeight =
+            0f
+
+        for (
+            i in
+            0 until count
+        ) {
+            val weight =
+                locomotionHalfStepWeight(
+                    index =
+                        i,
+                    count =
+                        count,
+                    profile =
+                        profile
+                )
+
+            totalWeight +=
+                weight
+
+            if (
+                i <
+                stepIndex
+            ) {
+                completedWeight +=
+                    weight
+            }
+        }
+
+        val currentWeight =
+            locomotionHalfStepWeight(
+                index =
+                    stepIndex,
+                count =
+                    count,
+                profile =
+                    profile
+            )
+
+        return (
+            (
+                completedWeight +
+                    currentWeight *
+                        localTravel
+                ) /
+                totalWeight
+            )
+            .coerceIn(
+                0f,
+                1f
+            )
+    }
+
     private fun animatePetWindowWalk(
         pet: PetRigView,
         params:
@@ -3190,25 +3429,77 @@ class PetOverlayService : Service() {
                     1
                 )
 
-        val durationMs =
+        val idealDurationMs =
+            distance
+                .toDouble() /
+                pixelsPerSecond
+                    .toDouble() *
+                1000.0
+
+        val halfStepMs =
             (
-                distance
-                    .toFloat() /
-                    pixelsPerSecond
-                    .toFloat() *
-                    1000f
+                pet.walkingCycleSeconds() *
+                    500.0
+                )
+                .coerceAtLeast(
+                    1.0
+                )
+
+        val maxDurationMs =
+            if (
+                kind ==
+                PetKind.YUTUAN
+            ) {
+                7_000L
+            } else {
+                5_600L
+            }
+
+        val minHalfStepCount =
+            kotlin.math
+                .ceil(
+                    900.0 /
+                        halfStepMs
+                )
+                .toInt()
+                .coerceAtLeast(
+                    2
+                )
+
+        val maxHalfStepCount =
+            kotlin.math
+                .floor(
+                    maxDurationMs
+                        .toDouble() /
+                        halfStepMs
+                )
+                .toInt()
+                .coerceAtLeast(
+                    minHalfStepCount
+                )
+
+        // 让这一段路程恰好结束在“半步完成 / 脚落地”的相位上。
+        val halfStepCount =
+            kotlin.math
+                .round(
+                    idealDurationMs /
+                        halfStepMs
+                )
+                .toInt()
+                .coerceIn(
+                    minHalfStepCount,
+                    maxHalfStepCount
+                )
+
+        val durationMs =
+            kotlin.math
+                .round(
+                    halfStepCount *
+                        halfStepMs
                 )
                 .toLong()
-                .coerceIn(
-                    900L,
-                    if (
-                        kind ==
-                        PetKind.YUTUAN
-                    ) {
-                        7_000L
-                    } else {
-                        5_600L
-                    }
+                .coerceAtLeast(
+                    1L
                 )
 
         var lastRenderedX =
@@ -3238,8 +3529,10 @@ class PetOverlayService : Service() {
                     duration =
                         durationMs
 
+                    // 真实的加速/减速与落脚节奏由 phaseLockedRootProgress 控制，
+                    // 这里必须保持线性时间，否则会再次破坏步态锁相。
                     interpolator =
-                        AccelerateDecelerateInterpolator()
+                        LinearInterpolator()
 
                     addUpdateListener {
                         if (
@@ -3327,8 +3620,29 @@ class PetOverlayService : Service() {
                             )
                         }
 
+                        val rootProgress =
+                            phaseLockedRootProgress(
+                                rawProgress =
+                                    rawProgress,
+                                halfStepCount =
+                                    halfStepCount,
+                                profile =
+                                    profile
+                            )
+
                         val newX =
-                            it.animatedValue as Int
+                            kotlin.math
+                                .round(
+                                    startX
+                                        .toDouble() +
+                                        (
+                                            targetX -
+                                                startX
+                                            ) *
+                                            rootProgress
+                                                .toDouble()
+                                )
+                                .toInt()
 
                         if (
                             newX ==
@@ -3403,6 +3717,28 @@ class PetOverlayService : Service() {
 
                     walkAnimator =
                         null
+
+                    // Animator 最后一帧可能因为整像素去重没有真正提交到目标点，
+                    // 这里强制落在精确目标坐标，同时这时恰好也是半步完成相位。
+                    params.x =
+                        targetX
+
+                    runCatching {
+                        windowManager
+                            .updateViewLayout(
+                                pet,
+                                params
+                            )
+                    }
+
+                    if (
+                        kind ==
+                        PetKind.YUTUAN &&
+                        rainbowView !=
+                        null
+                    ) {
+                        syncYutuanRainbowPosition()
+                    }
 
                     if (
                         pauseAfterSegment &&

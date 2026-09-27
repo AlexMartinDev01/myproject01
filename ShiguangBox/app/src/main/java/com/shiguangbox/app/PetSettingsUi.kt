@@ -509,7 +509,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.1.8 芽芽 Walking V2 · 灵动小碎步",
+                        "V2.1.9 芽芽 Walking V3 · 拟人观察",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -927,13 +927,13 @@ fun PetSettingsScreen(
                                         )
 
                                     message =
-                                        "芽芽开始 Walking V2：步幅更明显，走路时会左右观察，耳朵也会带一点惯性"
+                                        "芽芽开始 Walking V3：眼睛会先看方向，头再跟过去，耳朵最后产生明显惯性"
                                 },
                                 modifier =
                                     Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    "测试芽芽灵动小碎步（Walking V2）"
+                                    "测试芽芽拟人小碎步（Walking V3）"
                                 )
                             }
                         }

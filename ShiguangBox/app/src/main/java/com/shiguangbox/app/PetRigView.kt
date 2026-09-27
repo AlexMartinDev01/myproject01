@@ -402,44 +402,52 @@ class PetRigView @JvmOverloads constructor(
         )
     }
 
-    private val orangeFrontAlphaBounds by
-        lazy {
-            findAlphaBounds(
-                idleBitmap
-            )
-        }
+    // 这些边界在 View 初始化阶段一次性计算。
+    // 不使用 lazy，避免用户第一次触发转身时才扫描像素造成首帧卡顿。
+    private val orangeFrontAlphaBounds =
+        findAlphaBounds(
+            idleBitmap
+        )
 
-    private val orange3qRightAlphaBounds by
-        lazy {
-            findAlphaBounds(
-                orange3qRightBitmap
-                    ?: idleBitmap
-            )
-        }
+    private val orange3qRightAlphaBounds =
+        findAlphaBounds(
+            orange3qRightBitmap
+                ?: idleBitmap
+        )
 
-    private val orange3qLeftAlphaBounds by
-        lazy {
-            findAlphaBounds(
-                orange3qLeftBitmap
-                    ?: idleBitmap
-            )
-        }
+    private val orange3qLeftAlphaBounds =
+        NormalizedAlphaBounds(
+            left =
+                1.0 -
+                    orange3qRightAlphaBounds.right,
+            top =
+                orange3qRightAlphaBounds.top,
+            right =
+                1.0 -
+                    orange3qRightAlphaBounds.left,
+            bottom =
+                orange3qRightAlphaBounds.bottom
+        )
 
-    private val orangeSideRightAlphaBounds by
-        lazy {
-            findAlphaBounds(
-                orangeSideRightBitmap
-                    ?: idleBitmap
-            )
-        }
+    private val orangeSideRightAlphaBounds =
+        findAlphaBounds(
+            orangeSideRightBitmap
+                ?: idleBitmap
+        )
 
-    private val orangeSideLeftAlphaBounds by
-        lazy {
-            findAlphaBounds(
-                orangeSideLeftBitmap
-                    ?: idleBitmap
-            )
-        }
+    private val orangeSideLeftAlphaBounds =
+        NormalizedAlphaBounds(
+            left =
+                1.0 -
+                    orangeSideRightAlphaBounds.right,
+            top =
+                orangeSideRightAlphaBounds.top,
+            right =
+                1.0 -
+                    orangeSideRightAlphaBounds.left,
+            bottom =
+                orangeSideRightAlphaBounds.bottom
+        )
 
     private fun orangeAlphaBoundsFor(
         bitmap: Bitmap

@@ -405,16 +405,38 @@ class PetOverlayService : Service() {
         if (petView != null) return
         if (!Settings.canDrawOverlays(this)) return
 
-        val size = dp(
+        val visualSize = dp(
             prefs.getInt("pet_size_dp", 112)
                 .coerceIn(88, 150)
         )
-        val savedX = prefs.getInt("pet_x", resources.displayMetrics.widthPixels - size - dp(8))
-        val savedY = prefs.getInt("pet_y", resources.displayMetrics.heightPixels / 2)
+
+        // 环境光需要宠物之外的透明空间。
+        // Window 变大，但 PetRigView 内部按相同比例缩放宠物，
+        // 因此用户设置的“宠物大小”视觉上保持不变。
+        val windowSize =
+            (
+                visualSize /
+                    PetRigView.AMBIENT_CONTENT_SCALE
+                )
+                .toInt()
+
+        val savedX =
+            prefs.getInt(
+                "pet_x",
+                resources.displayMetrics.widthPixels -
+                    windowSize -
+                    dp(8)
+            )
+
+        val savedY =
+            prefs.getInt(
+                "pet_y",
+                resources.displayMetrics.heightPixels / 2
+            )
 
         val params = WindowManager.LayoutParams(
-            size,
-            size,
+            windowSize,
+            windowSize,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -459,7 +481,7 @@ class PetOverlayService : Service() {
             dockedSide = when {
                 savedX < 0 -> -1
                 savedX >
-                    resources.displayMetrics.widthPixels - size -> 1
+                    resources.displayMetrics.widthPixels - windowSize -> 1
                 else -> 0
             }
             startIdleAnimation()
@@ -904,14 +926,21 @@ class PetOverlayService : Service() {
             prefs.getInt("pet_alpha_percent", 100)
                 .coerceIn(55, 100) / 100f
 
-        val newSize =
+        val newVisualSize =
             dp(
                 prefs.getInt("pet_size_dp", 112)
                     .coerceIn(88, 150)
             )
 
-        params.width = newSize
-        params.height = newSize
+        val newWindowSize =
+            (
+                newVisualSize /
+                    PetRigView.AMBIENT_CONTENT_SCALE
+                )
+                .toInt()
+
+        params.width = newWindowSize
+        params.height = newWindowSize
 
         val screenW =
             resources.displayMetrics.widthPixels
@@ -921,13 +950,13 @@ class PetOverlayService : Service() {
         params.x =
             params.x.coerceIn(
                 -dp(28),
-                screenW - newSize + dp(28)
+                screenW - newWindowSize + dp(28)
             )
 
         params.y =
             params.y.coerceIn(
                 dp(24),
-                screenH - newSize - dp(28)
+                screenH - newWindowSize - dp(28)
             )
 
         runCatching {
@@ -1503,6 +1532,7 @@ class PetOverlayService : Service() {
         val width =
             (
                 pet.width *
+                    PetRigView.AMBIENT_CONTENT_SCALE *
                     0.82f
                 )
                 .toInt()

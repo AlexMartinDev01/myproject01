@@ -225,6 +225,35 @@ class PetRigView @JvmOverloads constructor(
     private var locomotionStartNanos =
         0L
 
+    // Walking Attention V2.3.3：
+    // 不再用固定正弦让头机械左右摆，而是使用“随机目标 + 眼睛先到 + 头后跟 + 停留”的注意力状态机。
+    private var locomotionLookFrom =
+        0f
+
+    private var locomotionLookTarget =
+        0f
+
+    private var locomotionLookTransitionStartNanos =
+        0L
+
+    private var locomotionEyeTurnDurationNanos =
+        220_000_000L
+
+    private var locomotionHeadTurnDurationNanos =
+        420_000_000L
+
+    private var locomotionNextLookNanos =
+        0L
+
+    private var locomotionEyeLook =
+        0f
+
+    private var locomotionHeadLook =
+        0f
+
+    private var locomotionHeadLift =
+        0f
+
     private val recentMotions =
         mutableListOf<PetMotion>()
 
@@ -474,6 +503,10 @@ class PetRigView @JvmOverloads constructor(
         locomotionStartNanos =
             now
 
+        resetLocomotionAttention(
+            now
+        )
+
         locomotionIntensity =
             1f
 
@@ -509,6 +542,8 @@ class PetRigView @JvmOverloads constructor(
 
         locomotionStartNanos =
             0L
+
+        clearLocomotionAttention()
 
         scheduleNextIdleAction(
             System.nanoTime()
@@ -751,6 +786,7 @@ class PetRigView @JvmOverloads constructor(
             false
         locomotionStartNanos =
             0L
+        clearLocomotionAttention()
         yutuanRainSystem?.reset()
 
         // Resource bitmaps are intentionally NOT recycled manually.
@@ -781,6 +817,7 @@ class PetRigView @JvmOverloads constructor(
                 false
             locomotionStartNanos =
                 0L
+            clearLocomotionAttention()
         }
 
         if (
@@ -2392,6 +2429,443 @@ class PetRigView @JvmOverloads constructor(
      *
      * 这层只负责“看起来在走”，屏幕上的真实 x 位移由 Service 完成。
      */
+    private fun clearLocomotionAttention() {
+        locomotionLookFrom =
+            0f
+        locomotionLookTarget =
+            0f
+        locomotionLookTransitionStartNanos =
+            0L
+        locomotionNextLookNanos =
+            0L
+        locomotionEyeLook =
+            0f
+        locomotionHeadLook =
+            0f
+        locomotionHeadLift =
+            0f
+    }
+
+    private fun resetLocomotionAttention(
+        now: Long
+    ) {
+        locomotionLookFrom =
+            0f
+
+        locomotionLookTarget =
+            locomotionDirection *
+                when (
+                    petKind
+                ) {
+                    PetKind.ORANGE ->
+                        0.62f
+
+                    PetKind.YAYA ->
+                        0.48f
+
+                    PetKind.YUTUAN ->
+                        0.36f
+                }
+
+        locomotionLookTransitionStartNanos =
+            now
+
+        configureLocomotionTurnDurations()
+
+        locomotionNextLookNanos =
+            now +
+                locomotionHeadTurnDurationNanos +
+                randomLocomotionLookHoldNanos()
+    }
+
+    private fun configureLocomotionTurnDurations() {
+        when (
+            petKind
+        ) {
+            PetKind.ORANGE -> {
+                locomotionEyeTurnDurationNanos =
+                    Random.nextLong(
+                        130_000_000L,
+                        210_000_001L
+                    )
+
+                locomotionHeadTurnDurationNanos =
+                    Random.nextLong(
+                        260_000_000L,
+                        390_000_001L
+                    )
+            }
+
+            PetKind.YAYA -> {
+                locomotionEyeTurnDurationNanos =
+                    Random.nextLong(
+                        170_000_000L,
+                        270_000_001L
+                    )
+
+                locomotionHeadTurnDurationNanos =
+                    Random.nextLong(
+                        340_000_000L,
+                        530_000_001L
+                    )
+            }
+
+            PetKind.YUTUAN -> {
+                locomotionEyeTurnDurationNanos =
+                    Random.nextLong(
+                        240_000_000L,
+                        370_000_001L
+                    )
+
+                locomotionHeadTurnDurationNanos =
+                    Random.nextLong(
+                        500_000_000L,
+                        760_000_001L
+                    )
+            }
+        }
+    }
+
+    private fun randomLocomotionLookHoldNanos():
+        Long =
+        when (
+            petKind
+        ) {
+            PetKind.ORANGE ->
+                Random.nextLong(
+                    520_000_000L,
+                    1_050_000_001L
+                )
+
+            PetKind.YAYA ->
+                Random.nextLong(
+                    680_000_000L,
+                    1_360_000_001L
+                )
+
+            PetKind.YUTUAN ->
+                Random.nextLong(
+                    900_000_000L,
+                    1_720_000_001L
+                )
+        }
+
+    private fun chooseNextLocomotionLookTarget():
+        Float {
+        val direction =
+            locomotionDirection
+
+        val roll =
+            Random.nextFloat()
+
+        return when (
+            petKind
+        ) {
+            PetKind.ORANGE ->
+                when {
+                    roll <
+                        0.56f ->
+                        direction *
+                            Random.nextDouble(
+                                0.58,
+                                0.96
+                            )
+                                .toFloat()
+
+                    roll <
+                        0.80f ->
+                        Random.nextDouble(
+                            -0.16,
+                            0.16
+                        )
+                            .toFloat()
+
+                    else ->
+                        -direction *
+                            Random.nextDouble(
+                                0.32,
+                                0.62
+                            )
+                                .toFloat()
+                }
+
+            PetKind.YAYA ->
+                when {
+                    roll <
+                        0.48f ->
+                        direction *
+                            Random.nextDouble(
+                                0.45,
+                                0.84
+                            )
+                                .toFloat()
+
+                    roll <
+                        0.79f ->
+                        Random.nextDouble(
+                            -0.14,
+                            0.14
+                        )
+                            .toFloat()
+
+                    else ->
+                        -direction *
+                            Random.nextDouble(
+                                0.38,
+                                0.70
+                            )
+                                .toFloat()
+                }
+
+            PetKind.YUTUAN ->
+                when {
+                    roll <
+                        0.42f ->
+                        direction *
+                            Random.nextDouble(
+                                0.34,
+                                0.66
+                            )
+                                .toFloat()
+
+                    roll <
+                        0.86f ->
+                        Random.nextDouble(
+                            -0.11,
+                            0.11
+                        )
+                            .toFloat()
+
+                    else ->
+                        -direction *
+                            Random.nextDouble(
+                                0.28,
+                                0.52
+                            )
+                                .toFloat()
+                }
+        }
+    }
+
+    private fun updateLocomotionAttention(
+        now: Long
+    ) {
+        if (
+            !locomotionActive
+        ) {
+            return
+        }
+
+        if (
+            locomotionNextLookNanos <=
+            0L
+        ) {
+            resetLocomotionAttention(
+                now
+            )
+        }
+
+        if (
+            now >=
+            locomotionNextLookNanos
+        ) {
+            // 上一个观察已经完成并停留，下一次从稳定目标继续转。
+            locomotionLookFrom =
+                locomotionLookTarget
+
+            locomotionLookTarget =
+                chooseNextLocomotionLookTarget()
+
+            locomotionLookTransitionStartNanos =
+                now
+
+            configureLocomotionTurnDurations()
+
+            locomotionNextLookNanos =
+                now +
+                    locomotionHeadTurnDurationNanos +
+                    randomLocomotionLookHoldNanos()
+        }
+
+        fun transitionProgress(
+            durationNanos:
+                Long
+        ): Double {
+            if (
+                durationNanos <=
+                0L
+            ) {
+                return 1.0
+            }
+
+            return smoothStep(
+                clamp(
+                    (
+                        now -
+                            locomotionLookTransitionStartNanos
+                        )
+                        .coerceAtLeast(
+                            0L
+                        )
+                        .toDouble() /
+                        durationNanos
+                            .toDouble(),
+                    0.0,
+                    1.0
+                )
+            )
+        }
+
+        val eyeProgress =
+            transitionProgress(
+                locomotionEyeTurnDurationNanos
+            )
+
+        val headProgress =
+            transitionProgress(
+                locomotionHeadTurnDurationNanos
+            )
+
+        val from =
+            locomotionLookFrom
+                .toDouble()
+
+        val target =
+            locomotionLookTarget
+                .toDouble()
+
+        val elapsed =
+            walkingElapsedSeconds(
+                now
+            )
+
+        // 极轻的眼球小扫视，不改变主观察方向，只避免“盯死一个点”。
+        val saccade =
+            when (
+                petKind
+            ) {
+                PetKind.ORANGE ->
+                    0.055 *
+                        sin(
+                            elapsed *
+                                2.0 *
+                                PI /
+                                0.74 +
+                                0.65
+                        )
+
+                PetKind.YAYA ->
+                    0.040 *
+                        sin(
+                            elapsed *
+                                2.0 *
+                                PI /
+                                0.91 +
+                                1.10
+                        )
+
+                PetKind.YUTUAN ->
+                    0.026 *
+                        sin(
+                            elapsed *
+                                2.0 *
+                                PI /
+                                1.24 +
+                                0.35
+                        )
+            }
+
+        locomotionEyeLook =
+            (
+                from +
+                    (
+                        target -
+                            from
+                        ) *
+                        eyeProgress +
+                    saccade
+                )
+                .coerceIn(
+                    -1.0,
+                    1.0
+                )
+                .toFloat()
+
+        locomotionHeadLook =
+            (
+                from +
+                    (
+                        target -
+                            from
+                        ) *
+                        headProgress
+                )
+                .coerceIn(
+                    -1.0,
+                    1.0
+                )
+                .toFloat()
+
+        // 抬头/低头非常轻，只用来打破“头永远锁在同一高度”的僵硬感。
+        locomotionHeadLift =
+            (
+                when (
+                    petKind
+                ) {
+                    PetKind.ORANGE ->
+                        0.62 *
+                            sin(
+                                elapsed *
+                                    2.0 *
+                                    PI /
+                                    1.68 +
+                                    0.40
+                            ) +
+                            0.22 *
+                                sin(
+                                    elapsed *
+                                        2.0 *
+                                        PI /
+                                        0.82 +
+                                        1.30
+                                )
+
+                    PetKind.YAYA ->
+                        0.52 *
+                            sin(
+                                elapsed *
+                                    2.0 *
+                                    PI /
+                                    2.10 +
+                                    0.72
+                            ) +
+                            0.18 *
+                                sin(
+                                    elapsed *
+                                        2.0 *
+                                        PI /
+                                        1.06 +
+                                        1.55
+                                )
+
+                    PetKind.YUTUAN ->
+                        0.42 *
+                            sin(
+                                elapsed *
+                                    2.0 *
+                                    PI /
+                                    2.78 +
+                                    0.18
+                            )
+                }
+                )
+                .coerceIn(
+                    -1.0,
+                    1.0
+                )
+                .toFloat()
+    }
+
     private fun applyLocomotionToMesh(
         now: Long
     ) {
@@ -2404,6 +2878,10 @@ class PetRigView @JvmOverloads constructor(
         ) {
             return
         }
+
+        updateLocomotionAttention(
+            now
+        )
 
         when (
             petKind

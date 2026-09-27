@@ -121,7 +121,29 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.3.2" ]]; then
+          if [[ "$VERSION_NAME" == "2.3.3" ]]; then
+            RELEASE_TITLE="拾光盒 V2.3.3 · 行走注意力"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.3.3 · 行走注意力 / Animal-like Gaze
+
+          - versionCode: $VERSION_CODE
+          - 基于 V2.3.2 顺滑步态继续优化“走路时头和眼睛太死”的问题
+          - 新增 Walking Attention 状态机，不再依赖固定正弦让头机械左右摆
+          - 走路时会随机选择注意力目标：看前进方向、回正、偶尔侧看另一边，三种行为按宠物性格使用不同概率
+          - 每次注意力变化都采用“眼睛先转 -> 头部随后跟上 -> 停留一会 -> 再决定下一次观察”的顺序
+          - 橘团眼神反应最快、观察更频繁；芽芽保持温柔观察节奏；雨团转头和眼神变化最慢、更柔和
+          - 新增极轻微眼球小扫视，停留期间也不会像贴死在一个点上
+          - 三宠头部增加极轻抬头/低头变化，打破走路时头部高度完全固定的僵硬感
+          - 橘团头部增加更明显但克制的轻 3/4 转头，眼睛横向移动幅度同步提高
+          - 芽芽保留原有伪 3/4 转头，并适度提高头部横移、转头和眼神幅度，让实机更容易看见
+          - 雨团增加更柔和的小幅 3/4 转头，避免长垂耳被大角度扯变形
+          - 眨眼仍可在走路期间正常发生，与随机视线/转头叠加
+          - 保留 V2.3.2 Soft Foot Plant，横向移动继续保持连续顺滑，不恢复上一版的一顿一顿
+          - 设置页测试入口更新为“测试[宠物名]灵动巡游（立即）”，方便逐只实机检查头眼是否真正活起来
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.3.2" ]]; then
             RELEASE_TITLE="拾光盒 V2.3.2 · 三宠顺滑步态"
             cat > release-notes.md <<EOF
           拾光盒 V2.3.2 · 三宠顺滑步态 / Soft Foot Plant

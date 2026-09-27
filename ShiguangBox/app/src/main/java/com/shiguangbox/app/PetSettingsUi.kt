@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -24,7 +25,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -35,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun PetSettingsScreen(
@@ -330,6 +336,28 @@ fun PetSettingsScreen(
         label = "pet_scale"
     )
 
+    val ambientPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.28318f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 7200,
+                easing = LinearEasing
+            )
+        ),
+        label = "pet_ambient_phase"
+    )
+
+    val ambientPulse by transition.animateFloat(
+        initialValue = 0.78f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pet_ambient_pulse"
+    )
+
     fun startPet() {
         if (!Settings.canDrawOverlays(context)) {
             overlayLauncher.launch(
@@ -481,7 +509,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.1.4 2D 宠物主线 · 橘团 / 芽芽 / 雨团",
+                        "V2.1.6 桌面氛围版 · 橘团 / 芽芽 / 雨团",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -498,13 +526,183 @@ fun PetSettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(
-                        painter =
-                            selectedPetPainter,
-                        contentDescription =
-                            selectedPet.displayName,
-                        modifier = Modifier.size(180.dp).scale(scale)
-                    )
+                    val ambientColor =
+                        when (
+                            selectedPet
+                        ) {
+                            PetKind.ORANGE ->
+                                Color(
+                                    0xFFFFC778
+                                )
+
+                            PetKind.YAYA ->
+                                Color(
+                                    0xFFA6E7C8
+                                )
+
+                            PetKind.YUTUAN ->
+                                Color(
+                                    0xFFA4D3FF
+                                )
+                        }
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(
+                                    228.dp
+                                )
+                                .drawBehind {
+                                    val center =
+                                        Offset(
+                                            size.width /
+                                                2f,
+                                            size.height *
+                                                0.54f
+                                        )
+
+                                    drawCircle(
+                                        brush =
+                                            Brush.radialGradient(
+                                                colors =
+                                                    listOf(
+                                                        ambientColor.copy(
+                                                            alpha =
+                                                                0.34f *
+                                                                    ambientPulse
+                                                        ),
+                                                        ambientColor.copy(
+                                                            alpha =
+                                                                0.14f *
+                                                                    ambientPulse
+                                                        ),
+                                                        Color.Transparent
+                                                    ),
+                                                center =
+                                                    center,
+                                                radius =
+                                                    size.minDimension *
+                                                        0.48f
+                                            ),
+                                        radius =
+                                            size.minDimension *
+                                                0.48f,
+                                        center =
+                                            center
+                                    )
+
+                                    val particles =
+                                        listOf(
+                                            0.17f to 0.25f,
+                                            0.84f to 0.30f,
+                                            0.12f to 0.55f,
+                                            0.88f to 0.58f,
+                                            0.23f to 0.77f,
+                                            0.78f to 0.76f,
+                                            0.32f to 0.14f,
+                                            0.69f to 0.16f
+                                        )
+
+                                    particles.forEachIndexed {
+                                            index,
+                                            point ->
+                                            val localPhase =
+                                                ambientPhase +
+                                                    index *
+                                                        0.71f
+
+                                            val x =
+                                                size.width *
+                                                    (
+                                                        point.first +
+                                                            0.018f *
+                                                                sin(
+                                                                    localPhase
+                                                                )
+                                                        )
+
+                                            val y =
+                                                size.height *
+                                                    (
+                                                        point.second +
+                                                            0.018f *
+                                                                cos(
+                                                                    localPhase *
+                                                                        0.83f
+                                                                )
+                                                        )
+
+                                            val shimmer =
+                                                0.55f +
+                                                    0.45f *
+                                                        (
+                                                            sin(
+                                                                localPhase *
+                                                                    1.37f
+                                                            ) +
+                                                                1f
+                                                            ) /
+                                                        2f
+
+                                            drawCircle(
+                                                color =
+                                                    ambientColor.copy(
+                                                        alpha =
+                                                            0.18f *
+                                                                shimmer
+                                                    ),
+                                                radius =
+                                                    8.dp.toPx(),
+                                                center =
+                                                    Offset(
+                                                        x,
+                                                        y
+                                                    )
+                                            )
+
+                                            drawCircle(
+                                                color =
+                                                    ambientColor.copy(
+                                                        alpha =
+                                                            0.82f *
+                                                                shimmer
+                                                    ),
+                                                radius =
+                                                    (
+                                                        2.2f +
+                                                            (
+                                                                index %
+                                                                    3
+                                                                ) *
+                                                                0.7f
+                                                        ).dp
+                                                        .toPx(),
+                                                center =
+                                                    Offset(
+                                                        x,
+                                                        y
+                                                    )
+                                            )
+                                        }
+                                },
+                        contentAlignment =
+                            Alignment.Center
+                    ) {
+                        Image(
+                            painter =
+                                selectedPetPainter,
+                            contentDescription =
+                                selectedPet.displayName,
+                            modifier =
+                                Modifier
+                                    .size(
+                                        180.dp
+                                    )
+                                    .scale(
+                                        scale
+                                    )
+                        )
+                    }
                     Text(
                         selectedPet.displayName +
                             " " +

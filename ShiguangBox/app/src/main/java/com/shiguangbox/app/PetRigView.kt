@@ -120,6 +120,61 @@ class PetRigView @JvmOverloads constructor(
                 R.drawable.pet_orange_wake
             )
 
+    // V2.4.0 橘团方向资源。
+    // 正面继续使用现有 idleBitmap，避免替换已经稳定的原始橘团形象；
+    // 只有进入明显转身/侧向移动时才切到 3/4 与侧面资源。
+    private val orange3qLeftBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_orange_3q_left,
+                R.drawable.pet_orange_idle
+            )
+        } else {
+            null
+        }
+
+    private val orange3qRightBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_orange_3q_right,
+                R.drawable.pet_orange_idle
+            )
+        } else {
+            null
+        }
+
+    private val orangeSideLeftBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_orange_side_left,
+                R.drawable.pet_orange_idle
+            )
+        } else {
+            null
+        }
+
+    private val orangeSideRightBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_orange_side_right,
+                R.drawable.pet_orange_idle
+            )
+        } else {
+            null
+        }
+
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
     )
@@ -224,6 +279,19 @@ class PetRigView @JvmOverloads constructor(
 
     private var locomotionStartNanos =
         0L
+
+    // V2.4.0 Directional Locomotion：
+    // amount 0 = 正面，1 = 3/4，2 = 纯侧面。
+    // 结束行走时记录当下 amount，再平滑倒放到 0，
+    // 因此即使用户在刚起步时打断，也不会突然闪成完整侧面。
+    private var orangeDirectionalReturnStartNanos =
+        0L
+
+    private var orangeDirectionalReturnFromAmount =
+        0f
+
+    private var orangeDirectionalReturnDirection =
+        1f
 
     // Walking Attention V2.3.3：
     // 不再用固定正弦让头机械左右摆，而是使用“随机目标 + 眼睛先到 + 头后跟 + 停留”的注意力状态机。
@@ -503,6 +571,16 @@ class PetRigView @JvmOverloads constructor(
         locomotionStartNanos =
             now
 
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            orangeDirectionalReturnStartNanos =
+                0L
+            orangeDirectionalReturnFromAmount =
+                0f
+        }
+
         resetLocomotionAttention(
             now
         )
@@ -534,6 +612,32 @@ class PetRigView @JvmOverloads constructor(
             return
         }
 
+        val now =
+            System.nanoTime()
+
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            orangeDirectionalReturnDirection =
+                locomotionDirection
+
+            orangeDirectionalReturnFromAmount =
+                orangeDirectionalAmountWhileWalking(
+                    now
+                )
+
+            orangeDirectionalReturnStartNanos =
+                if (
+                    orangeDirectionalReturnFromAmount >
+                    0.02f
+                ) {
+                    now
+                } else {
+                    0L
+                }
+        }
+
         locomotionActive =
             false
 
@@ -546,7 +650,7 @@ class PetRigView @JvmOverloads constructor(
         clearLocomotionAttention()
 
         scheduleNextIdleAction(
-            System.nanoTime()
+            now
         )
 
         paused =
@@ -786,6 +890,10 @@ class PetRigView @JvmOverloads constructor(
             false
         locomotionStartNanos =
             0L
+        orangeDirectionalReturnStartNanos =
+            0L
+        orangeDirectionalReturnFromAmount =
+            0f
         clearLocomotionAttention()
         yutuanRainSystem?.reset()
 
@@ -817,6 +925,10 @@ class PetRigView @JvmOverloads constructor(
                 false
             locomotionStartNanos =
                 0L
+            orangeDirectionalReturnStartNanos =
+                0L
+            orangeDirectionalReturnFromAmount =
+                0f
             clearLocomotionAttention()
         }
 
@@ -965,24 +1077,47 @@ class PetRigView @JvmOverloads constructor(
                         motionBlink
                     )
 
-                buildMesh(
-                    idleSeconds,
-                    stateSeconds,
-                    blink
-                )
+                if (
+                    petKind ==
+                    PetKind.ORANGE &&
+                    (
+                        locomotionActive ||
+                        orangeDirectionalReturnStartNanos >
+                        0L
+                    )
+                ) {
+                    drawOrangeDirectionalLocomotion(
+                        canvas =
+                            canvas,
+                        now =
+                            now,
+                        idleSeconds =
+                            idleSeconds,
+                        stateSeconds =
+                            stateSeconds,
+                        blinkAmount =
+                            blink
+                    )
+                } else {
+                    buildMesh(
+                        idleSeconds,
+                        stateSeconds,
+                        blink
+                    )
 
-                applyLocomotionToMesh(
-                    now
-                )
+                    applyLocomotionToMesh(
+                        now
+                    )
 
-                applyCurrentMotionToMesh(
-                    now
-                )
+                    applyCurrentMotionToMesh(
+                        now
+                    )
 
-                drawIdleMesh(
-                    canvas,
-                    1f
-                )
+                    drawIdleMesh(
+                        canvas,
+                        1f
+                    )
+                }
             }
         }
 
@@ -1972,20 +2107,18 @@ class PetRigView @JvmOverloads constructor(
         canvas.restoreToCount(save)
     }
 
-    private fun drawIdleMesh(canvas: Canvas, alpha: Float) {
-        if (alpha <= 0f) return
-        paint.alpha = (255f * alpha.coerceIn(0f, 1f)).toInt()
-        canvas.drawBitmapMesh(
-            idleBitmap,
-            meshWidth,
-            meshHeight,
-            verts,
-            0,
-            null,
-            0,
-            paint
+    private fun drawIdleMesh(
+        canvas: Canvas,
+        alpha: Float
+    ) {
+        drawCurrentMeshBitmap(
+            canvas =
+                canvas,
+            bitmap =
+                idleBitmap,
+            alpha =
+                alpha
         )
-        paint.alpha = 255
     }
 
     private fun updateState(now: Long) {
@@ -5545,6 +5678,1001 @@ class PetRigView @JvmOverloads constructor(
             MIN_BLINK_DELAY_MS,
             MAX_BLINK_DELAY_MS + 1L
         ) * 1_000_000L
+    }
+
+    private fun orangeDirectionalAmountWhileWalking(
+        now: Long
+    ): Float {
+        if (
+            !locomotionActive ||
+            locomotionStartNanos <=
+            0L
+        ) {
+            return 0f
+        }
+
+        val stageNanos =
+            170_000_000.0
+
+        val raw =
+            (
+                now -
+                    locomotionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                )
+                .toDouble() /
+                stageNanos
+
+        return when {
+            raw <=
+                0.0 ->
+                0f
+
+            raw <
+                1.0 ->
+                smoothStep(
+                    raw
+                )
+                    .toFloat()
+
+            raw <
+                2.0 ->
+                (
+                    1.0 +
+                        smoothStep(
+                            raw -
+                                1.0
+                        )
+                    )
+                    .toFloat()
+
+            else ->
+                2f
+        }
+    }
+
+    private fun orangeDirectionalReturnAmount(
+        now: Long
+    ): Float {
+        val start =
+            orangeDirectionalReturnStartNanos
+
+        val from =
+            orangeDirectionalReturnFromAmount
+
+        if (
+            start <=
+            0L ||
+            from <=
+            0f
+        ) {
+            return 0f
+        }
+
+        val durationNanos =
+            (
+                170_000_000.0 *
+                    from
+                        .toDouble()
+                )
+                .toLong()
+                .coerceAtLeast(
+                    1L
+                )
+
+        val p =
+            clamp(
+                (
+                    now -
+                        start
+                    )
+                    .coerceAtLeast(
+                        0L
+                    )
+                    .toDouble() /
+                    durationNanos
+                        .toDouble(),
+                0.0,
+                1.0
+            )
+
+        val eased =
+            smoothStep(
+                p
+            )
+
+        val amount =
+            from *
+                (
+                    1.0 -
+                        eased
+                    )
+                    .toFloat()
+
+        if (
+            p >=
+            1.0
+        ) {
+            orangeDirectionalReturnStartNanos =
+                0L
+            orangeDirectionalReturnFromAmount =
+                0f
+        }
+
+        return amount
+            .coerceIn(
+                0f,
+                2f
+            )
+    }
+
+    private fun orangeThreeQuarterBitmap(
+        direction: Float
+    ): Bitmap =
+        if (
+            direction <
+            0f
+        ) {
+            orange3qLeftBitmap
+                ?: idleBitmap
+        } else {
+            orange3qRightBitmap
+                ?: idleBitmap
+        }
+
+    private fun orangeSideBitmap(
+        direction: Float
+    ): Bitmap =
+        if (
+            direction <
+            0f
+        ) {
+            orangeSideLeftBitmap
+                ?: idleBitmap
+        } else {
+            orangeSideRightBitmap
+                ?: idleBitmap
+        }
+
+    private fun buildNeutralMesh() {
+        val viewW =
+            width.toFloat()
+
+        val viewH =
+            height.toFloat()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toFloat() /
+                    meshHeight
+                        .toFloat()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toFloat() /
+                        meshWidth
+                            .toFloat()
+
+                verts[
+                    index++
+                ] =
+                    u *
+                        viewW
+
+                verts[
+                    index++
+                ] =
+                    v *
+                        viewH
+            }
+        }
+    }
+
+    private fun drawCurrentMeshBitmap(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        alpha: Float
+    ) {
+        if (
+            alpha <=
+            0f
+        ) {
+            return
+        }
+
+        paint.alpha =
+            (
+                255f *
+                    alpha.coerceIn(
+                        0f,
+                        1f
+                    )
+                )
+                .toInt()
+
+        canvas.drawBitmapMesh(
+            bitmap,
+            meshWidth,
+            meshHeight,
+            verts,
+            0,
+            null,
+            0,
+            paint
+        )
+
+        paint.alpha =
+            255
+    }
+
+    private fun buildOrangeDirectionalMesh(
+        now: Long,
+        direction: Float,
+        blinkAmount: Double,
+        sideView: Boolean,
+        walking: Boolean
+    ) {
+        buildNeutralMesh()
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        val elapsedSeconds =
+            if (
+                walking
+            ) {
+                walkingElapsedSeconds(
+                    now
+                )
+            } else {
+                0.0
+            }
+
+        val phase =
+            elapsedSeconds *
+                2.0 *
+                PI /
+                0.48
+
+        val step =
+            if (
+                walking
+            ) {
+                sin(
+                    phase
+                )
+            } else {
+                0.0
+            }
+
+        val bounce =
+            if (
+                walking
+            ) {
+                abs(
+                    sin(
+                        phase
+                    )
+                )
+            } else {
+                0.0
+            }
+
+        val intensity =
+            if (
+                walking
+            ) {
+                locomotionIntensity
+                    .toDouble()
+            } else {
+                0.0
+            }
+
+        val look =
+            if (
+                walking
+            ) {
+                locomotionHeadLook
+                    .toDouble()
+            } else {
+                0.0
+            }
+
+        val eyeLook =
+            if (
+                walking
+            ) {
+                locomotionEyeLook
+                    .toDouble()
+            } else {
+                0.0
+            }
+
+        val headLift =
+            if (
+                walking
+            ) {
+                locomotionHeadLift
+                    .toDouble()
+            } else {
+                0.0
+            }
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight
+                        .toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth
+                            .toDouble()
+
+                var x =
+                    verts[
+                        index
+                    ]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                if (
+                    walking
+                ) {
+                    // 整体连续前进已经由 WindowManager 负责，
+                    // 贴图内部只做很小的重心与上下起伏。
+                    val bodyWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        0.50
+                                    ) /
+                                    0.42
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            0.66
+                                        ) /
+                                    0.39
+                                )
+                        )
+                            .coerceIn(
+                                0.0,
+                                1.0
+                            )
+
+                    x +=
+                        -step *
+                            (
+                                if (
+                                    sideView
+                                ) {
+                                    0.0038
+                                } else {
+                                    0.0028
+                                }
+                                ) *
+                            intensity *
+                            bodyWeight
+
+                    y -=
+                        bounce *
+                            (
+                                if (
+                                    sideView
+                                ) {
+                                    0.0055
+                                } else {
+                                    0.0035
+                                }
+                                ) *
+                            intensity *
+                            bodyWeight
+
+                    val headWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        0.50
+                                    ) /
+                                    0.34
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            0.34
+                                        ) /
+                                    0.27
+                                )
+                        )
+                            .coerceIn(
+                                0.0,
+                                1.0
+                            )
+
+                    // 已经是真实方向图，所以头眼这里只做“活着”的微调，
+                    // 不再用大角度 Mesh 强拗侧脸。
+                    x +=
+                        look *
+                            0.0045 *
+                            headWeight
+
+                    y -=
+                        headLift *
+                            0.0028 *
+                            headWeight
+
+                    val eyeCenterU =
+                        if (
+                            direction <
+                            0f
+                        ) {
+                            if (
+                                sideView
+                            ) {
+                                0.365
+                            } else {
+                                0.405
+                            }
+                        } else {
+                            if (
+                                sideView
+                            ) {
+                                0.635
+                            } else {
+                                0.595
+                            }
+                        }
+
+                    val eyeCenterV =
+                        if (
+                            sideView
+                        ) {
+                            0.355
+                        } else {
+                            0.382
+                        }
+
+                    val eyeWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        eyeCenterU
+                                    ) /
+                                    (
+                                        if (
+                                            sideView
+                                        ) {
+                                            0.070
+                                        } else {
+                                            0.095
+                                        }
+                                    )
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            eyeCenterV
+                                        ) /
+                                    0.065
+                                )
+                        )
+                            .coerceIn(
+                                0.0,
+                                1.0
+                            )
+
+                    x +=
+                        eyeLook *
+                            0.0070 *
+                            eyeWeight
+
+                    if (
+                        blinkAmount >
+                        0.0
+                    ) {
+                        val compression =
+                            0.54 *
+                                blinkAmount *
+                                eyeWeight
+
+                        y =
+                            eyeCenterV +
+                                (
+                                    y -
+                                        eyeCenterV
+                                    ) *
+                                    (
+                                        1.0 -
+                                            compression
+                                        )
+                    }
+
+                    if (
+                        sideView
+                    ) {
+                        // 侧面资产单独绑定底部两组脚，
+                        // 不复用正面橘团的腿部/尾巴蒙版。
+                        for (
+                            legIndex in
+                            0..1
+                        ) {
+                            val frontLeg =
+                                legIndex ==
+                                    0
+
+                            val centerU =
+                                when {
+                                    direction >
+                                        0f &&
+                                        frontLeg ->
+                                        0.625
+
+                                    direction >
+                                        0f ->
+                                        0.455
+
+                                    frontLeg ->
+                                        0.375
+
+                                    else ->
+                                        0.545
+                                }
+
+                            val signal =
+                                if (
+                                    frontLeg
+                                ) {
+                                    step
+                                } else {
+                                    -step
+                                }
+
+                            var legWeight =
+                                exp(
+                                    -square(
+                                        (
+                                            u -
+                                                centerU
+                                            ) /
+                                            0.145
+                                    ) -
+                                        square(
+                                            (
+                                                v -
+                                                    0.875
+                                                ) /
+                                            0.120
+                                        )
+                                )
+
+                            legWeight *=
+                                smoothStep(
+                                    clamp(
+                                        (
+                                            v -
+                                                0.735
+                                            ) /
+                                            0.20,
+                                        0.0,
+                                        1.0
+                                    )
+                                )
+
+                            val lift =
+                                maxOf(
+                                    0.0,
+                                    signal
+                                ) *
+                                    0.021 *
+                                    intensity
+
+                            val stride =
+                                signal *
+                                    0.0105 *
+                                    direction
+                                        .toDouble() *
+                                    intensity
+
+                            x +=
+                                stride *
+                                    legWeight
+
+                            y -=
+                                lift *
+                                    legWeight
+                        }
+
+                        val tailPivotU =
+                            if (
+                                direction >
+                                0f
+                            ) {
+                                0.405
+                            } else {
+                                0.595
+                            }
+
+                        val tailCenterU =
+                            if (
+                                direction >
+                                0f
+                            ) {
+                                0.235
+                            } else {
+                                0.765
+                            }
+
+                        var tailWeight =
+                            exp(
+                                -square(
+                                    (
+                                        u -
+                                            tailCenterU
+                                        ) /
+                                        0.160
+                                ) -
+                                    square(
+                                        (
+                                            v -
+                                                0.690
+                                            ) /
+                                        0.190
+                                    )
+                            )
+
+                        val tailSideMask =
+                            if (
+                                direction >
+                                0f
+                            ) {
+                                1.0 -
+                                    smoothStep(
+                                        clamp(
+                                            (
+                                                u -
+                                                    0.45
+                                                ) /
+                                                0.08,
+                                            0.0,
+                                            1.0
+                                        )
+                                    )
+                            } else {
+                                smoothStep(
+                                    clamp(
+                                        (
+                                            u -
+                                                0.55
+                                            ) /
+                                            0.08,
+                                        0.0,
+                                        1.0
+                                    )
+                                )
+                            }
+
+                        tailWeight *=
+                            tailSideMask
+
+                        if (
+                            tailWeight >
+                            0.003
+                        ) {
+                            val tailLag =
+                                sin(
+                                    phase -
+                                        0.92
+                                )
+
+                            val angle =
+                                tailLag *
+                                    (
+                                        if (
+                                            direction >
+                                            0f
+                                        ) {
+                                            -7.5
+                                        } else {
+                                            7.5
+                                        }
+                                        ) *
+                                    intensity *
+                                    PI /
+                                    180.0
+
+                            val pivotV =
+                                0.715
+
+                            val dx =
+                                x -
+                                    tailPivotU
+
+                            val dy =
+                                y -
+                                    pivotV
+
+                            val rx =
+                                tailPivotU +
+                                    dx *
+                                        cos(
+                                            angle
+                                        ) -
+                                    dy *
+                                        sin(
+                                            angle
+                                        )
+
+                            val ry =
+                                pivotV +
+                                    dx *
+                                        sin(
+                                            angle
+                                        ) +
+                                    dy *
+                                        cos(
+                                            angle
+                                        )
+
+                            x =
+                                x *
+                                    (
+                                        1.0 -
+                                            tailWeight
+                                        ) +
+                                    rx *
+                                        tailWeight
+
+                            y =
+                                y *
+                                    (
+                                        1.0 -
+                                            tailWeight
+                                        ) +
+                                    ry *
+                                        tailWeight
+                        }
+                    }
+                }
+
+                verts[
+                    index
+                ] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
+        }
+    }
+
+    private fun drawOrangeDirectionalLocomotion(
+        canvas: Canvas,
+        now: Long,
+        idleSeconds: Double,
+        stateSeconds: Double,
+        blinkAmount: Double
+    ) {
+        val walking =
+            locomotionActive
+
+        if (
+            walking
+        ) {
+            updateLocomotionAttention(
+                now
+            )
+        }
+
+        val direction =
+            if (
+                walking
+            ) {
+                locomotionDirection
+            } else {
+                orangeDirectionalReturnDirection
+            }
+
+        val amount =
+            if (
+                walking
+            ) {
+                orangeDirectionalAmountWhileWalking(
+                    now
+                )
+            } else {
+                orangeDirectionalReturnAmount(
+                    now
+                )
+            }
+
+        val threeQuarter =
+            orangeThreeQuarterBitmap(
+                direction
+            )
+
+        val side =
+            orangeSideBitmap(
+                direction
+            )
+
+        when {
+            amount <=
+                0.001f -> {
+                buildOrangeMesh(
+                    idleSeconds,
+                    stateSeconds,
+                    blinkAmount
+                )
+
+                applyCurrentMotionToMesh(
+                    now
+                )
+
+                drawIdleMesh(
+                    canvas,
+                    1f
+                )
+            }
+
+            amount <
+                1f -> {
+                val p =
+                    amount.coerceIn(
+                        0f,
+                        1f
+                    )
+
+                buildOrangeMesh(
+                    idleSeconds,
+                    stateSeconds,
+                    blinkAmount
+                )
+
+                if (
+                    walking
+                ) {
+                    applyOrangeLocomotionToMesh(
+                        now
+                    )
+                }
+
+                drawIdleMesh(
+                    canvas,
+                    1f -
+                        p
+                )
+
+                buildOrangeDirectionalMesh(
+                    now =
+                        now,
+                    direction =
+                        direction,
+                    blinkAmount =
+                        blinkAmount,
+                    sideView =
+                        false,
+                    walking =
+                        walking
+                )
+
+                drawCurrentMeshBitmap(
+                    canvas =
+                        canvas,
+                    bitmap =
+                        threeQuarter,
+                    alpha =
+                        p
+                )
+            }
+
+            else -> {
+                val p =
+                    (
+                        amount -
+                            1f
+                        )
+                        .coerceIn(
+                            0f,
+                            1f
+                        )
+
+                buildOrangeDirectionalMesh(
+                    now =
+                        now,
+                    direction =
+                        direction,
+                    blinkAmount =
+                        blinkAmount,
+                    sideView =
+                        false,
+                    walking =
+                        walking
+                )
+
+                drawCurrentMeshBitmap(
+                    canvas =
+                        canvas,
+                    bitmap =
+                        threeQuarter,
+                    alpha =
+                        1f -
+                            p
+                )
+
+                buildOrangeDirectionalMesh(
+                    now =
+                        now,
+                    direction =
+                        direction,
+                    blinkAmount =
+                        blinkAmount,
+                    sideView =
+                        true,
+                    walking =
+                        walking
+                )
+
+                drawCurrentMeshBitmap(
+                    canvas =
+                        canvas,
+                    bitmap =
+                        side,
+                    alpha =
+                        p
+                )
+            }
+        }
     }
 
     private fun buildMesh(

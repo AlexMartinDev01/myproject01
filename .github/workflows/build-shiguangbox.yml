@@ -121,7 +121,27 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.3.1" ]]; then
+          if [[ "$VERSION_NAME" == "2.3.2" ]]; then
+            RELEASE_TITLE="拾光盒 V2.3.2 · 三宠顺滑步态"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.3.2 · 三宠顺滑步态 / Soft Foot Plant
+
+          - versionCode: $VERSION_CODE
+          - 针对 V2.3.1 实机反馈“走路一顿一顿、顿挫明显”进行专项修复
+          - 根因：上一版 Foot Plant Sync 把抬脚阶段位移压得过少、落脚阶段位移集中得过多，虽然减少滑步，但形成明显周期性速度脉冲
+          - 删除“分段式抬脚少走 / 落脚猛推进”的硬锁相，改为 Soft Foot Plant 软锁相
+          - 现在桌宠整体始终连续前进，脚步只叠加很轻的正弦速度起伏，不会再接近停住
+          - 橘团 / 芽芽 / 雨团速度脉冲幅度分别降到 12% / 9% / 7%，三只仍有步态差异，但不再产生机械顿挫
+          - 速度调制采用连续可导曲线，半步边界不再发生速度突然重置
+          - 首尾加入轻量 smoothstep 混合，只做柔和起步与收步，不会把中间巡航拖成一段一段
+          - 步频调制在起点和终点使用平滑包络归零，避免开始和停下瞬间出现额外速度突变
+          - 继续保留 V2.3.1 的步态周期共享与完整半步时长量化，因此最后一步仍尽量落在自然脚步相位
+          - 保留三宠方向预倾、橘团尾巴惯性、芽芽眼神/转头/耳朵滞后、雨团垂耳/围巾二级惯性
+          - 设置页测试入口改为“测试[宠物名]顺滑巡游（立即）”，便于直接对比是否还有一顿一顿的感觉
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.3.1" ]]; then
             RELEASE_TITLE="拾光盒 V2.3.1 · 三宠步态精修"
             cat > release-notes.md <<EOF
           拾光盒 V2.3.1 · 三宠步态精修 / Foot Plant Sync

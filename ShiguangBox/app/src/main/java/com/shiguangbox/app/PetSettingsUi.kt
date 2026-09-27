@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.2.1 自主巡游自然化 · Pause & Look",
+                        "V2.3.0 三宠差异化移动 · Locomotion Profiles",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -915,40 +915,48 @@ fun PetSettingsScreen(
                             Text("测试 1.35 秒挥爪")
                         }
 
-                        if (
-                            selectedPet ==
-                            PetKind.YAYA
-                        ) {
-                            Spacer(
-                                Modifier.height(
-                                    8.dp
-                                )
+                        Spacer(
+                            Modifier.height(
+                                8.dp
                             )
+                        )
 
-                            Button(
-                                onClick = {
-                                    ContextCompat
-                                        .startForegroundService(
+                        Button(
+                            onClick = {
+                                ContextCompat
+                                    .startForegroundService(
+                                        context,
+                                        Intent(
                                             context,
-                                            Intent(
-                                                context,
-                                                PetOverlayService::class.java
-                                            ).setAction(
-                                                PetOverlayService
-                                                    .ACTION_TEST_WALK
-                                            )
+                                            PetOverlayService::class.java
+                                        ).setAction(
+                                            PetOverlayService
+                                                .ACTION_TEST_WALK
                                         )
+                                    )
 
-                                    message =
-                                        "立即测试自然化巡游：先观察出发，长距离会中途停下看看，再继续走并自然减速停下"
-                                },
-                                modifier =
-                                    Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "测试芽芽自然化巡游（立即）"
-                                )
-                            }
+                                message =
+                                    when (
+                                        selectedPet
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            "立即测试橘团活泼巡游：更快的小跑感、身体弹跳、尾巴惯性，停下后会有更兴奋的反应"
+
+                                        PetKind.YAYA ->
+                                            "立即测试芽芽观察巡游：眼睛先看、头部跟随，长距离会停下看看再继续"
+
+                                        PetKind.YUTUAN ->
+                                            "立即测试雨团慢速巡游：小步慢走、垂耳和云朵围巾晚半拍跟随，途中停顿更久"
+                                    }
+                            },
+                            modifier =
+                                Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "测试" +
+                                    selectedPet.displayName +
+                                    "差异化巡游（立即）"
+                            )
                         }
 
                         Spacer(Modifier.height(8.dp))
@@ -961,25 +969,33 @@ fun PetSettingsScreen(
                                         .setAction(PetOverlayService.ACTION_TEST_TAIL)
                                 )
                                 message =
-                                    if (
-                                        selectedPet ==
-                                        PetKind.YAYA
+                                    when (
+                                        selectedPet
                                     ) {
-                                        "已经让芽芽自然晃耳朵啦"
-                                    } else {
-                                        "已经让橘团大幅摇尾巴啦"
+                                        PetKind.YAYA ->
+                                            "已经让芽芽自然晃耳朵啦"
+
+                                        PetKind.YUTUAN ->
+                                            "已经让雨团抖水甩耳啦"
+
+                                        else ->
+                                            "已经让橘团大幅摇尾巴啦"
                                     }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                if (
-                                    selectedPet ==
-                                    PetKind.YAYA
+                                when (
+                                    selectedPet
                                 ) {
-                                    "测试自然耳朵轻晃"
-                                } else {
-                                    "测试大幅摇尾巴"
+                                    PetKind.YAYA ->
+                                        "测试自然耳朵轻晃"
+
+                                    PetKind.YUTUAN ->
+                                        "测试抖水甩耳"
+
+                                    else ->
+                                        "测试大幅摇尾巴"
                                 }
                             )
                         }
@@ -2063,10 +2079,10 @@ fun PetSettingsScreen(
                                 "控制随机眨眼、耳朵轻晃、新微动作与自主巡游出现的频率"
 
                             PetKind.YUTUAN ->
-                                "控制随机眨眼、抬爪、新微动作与中动作出现的频率；真实细雨会持续自然变化"
+                                "控制随机眨眼、抬爪、新微动作与慢速自主巡游的频率；真实细雨会持续自然变化"
 
                             else ->
-                                "控制随机眨眼、摇尾巴、挥爪和新生活动作出现的频率"
+                                "控制随机眨眼、摇尾巴、挥爪、新生活动作与活泼自主巡游的频率"
                         },
                         color =
                             MaterialTheme
@@ -2077,55 +2093,63 @@ fun PetSettingsScreen(
 
                     Spacer(Modifier.height(14.dp))
 
-                    if (
-                        selectedPet ==
-                        PetKind.YAYA
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment =
-                                Alignment.CenterVertically
+                        Column(
+                            Modifier.weight(1f)
                         ) {
-                            Column(
-                                Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    "芽芽自主巡游",
-                                    fontWeight =
-                                        FontWeight.Medium
-                                )
-                                Text(
-                                    if (
-                                        actionLevel ==
-                                        0
-                                    ) {
-                                        "当前是“安静”档，自主巡游会暂停"
-                                    } else {
-                                        "待机时会先观察再出发；较长路程会走几步停下来看看，再继续；接近边缘会先观察，触摸会立即停下"
-                                    },
-                                    color =
-                                        MaterialTheme
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                    fontSize = 12.sp
-                                )
-                            }
+                            Text(
+                                selectedPet.displayName +
+                                    "自主巡游",
+                                fontWeight =
+                                    FontWeight.Medium
+                            )
 
-                            Switch(
-                                checked =
-                                    autoRoam,
-                                onCheckedChange = {
-                                    autoRoam =
-                                        it
-                                }
+                            Text(
+                                if (
+                                    actionLevel ==
+                                    0
+                                ) {
+                                    "当前是“安静”档，自主巡游会暂停"
+                                } else {
+                                    when (
+                                        selectedPet
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            "活泼型：走得更快、身体弹性更明显，尾巴会跟着步态产生惯性，停下后可能兴奋摇尾巴"
+
+                                        PetKind.YAYA ->
+                                            "观察型：小碎步、眼睛先看、头部跟随、耳朵晚半拍，较长路程会停下来看看"
+
+                                        PetKind.YUTUAN ->
+                                            "慢吞吞型：速度更慢、步幅更小，长垂耳和云朵围巾会柔和滞后，停顿时间也更长"
+                                    }
+                                },
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 12.sp
                             )
                         }
 
-                        Spacer(
-                            Modifier.height(
-                                14.dp
-                            )
+                        Switch(
+                            checked =
+                                autoRoam,
+                            onCheckedChange = {
+                                autoRoam =
+                                    it
+                            }
                         )
                     }
+
+                    Spacer(
+                        Modifier.height(
+                            14.dp
+                        )
+                    )
 
                     Row(
                         verticalAlignment =

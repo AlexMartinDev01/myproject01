@@ -6173,7 +6173,8 @@ class PetRigView @JvmOverloads constructor(
                 amount =
                     (
                         1.0 +
-                            sideSpan *
+                            sideSpan
+                                .toDouble() *
                                 (
                                     1.0 -
                                         directionalSmootherStep(
@@ -6227,7 +6228,8 @@ class PetRigView @JvmOverloads constructor(
         ) {
             amount =
                 (
-                    frontSpan *
+                    frontSpan
+                        .toDouble() *
                         (
                             1.0 -
                                 directionalSmootherStep(

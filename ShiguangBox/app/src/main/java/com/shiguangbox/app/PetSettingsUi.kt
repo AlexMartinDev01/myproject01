@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.3.3 行走注意力 · Animal-like Gaze",
+                        "V2.4.0 橘团方向行走 · Directional Locomotion",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -940,7 +940,7 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "立即测试橘团行走灵动感：重点看眼睛是否先扫向目标、头随后跟过去，并且不是机械左右摆"
+                                            "立即测试橘团方向行走：重点看正面 → 3/4 → 侧面是否自然，侧走时是否顺滑，停下后是否经 3/4 回正"
 
                                         PetKind.YAYA ->
                                             "立即测试芽芽行走灵动感：重点看眼睛先看、头再转、短暂停留和偶尔回正是否自然"
@@ -953,9 +953,16 @@ fun PetSettingsScreen(
                                 Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                "测试" +
-                                    selectedPet.displayName +
-                                    "灵动巡游（立即）"
+                                if (
+                                    selectedPet ==
+                                    PetKind.ORANGE
+                                ) {
+                                    "测试橘团转身侧走（立即）"
+                                } else {
+                                    "测试" +
+                                        selectedPet.displayName +
+                                        "灵动巡游（立即）"
+                                }
                             )
                         }
 
@@ -2118,7 +2125,7 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "活泼型：顺滑小跑时眼睛会先快速扫视，头随后灵活跟过去；身体弹性和尾巴惯性继续保留"
+                                            "方向型：先从正面转到 3/4，再进入真实侧面小跑；停下后会从侧面经 3/4 自然回正，保留顺滑步态和尾巴惯性"
 
                                         PetKind.YAYA ->
                                             "观察型：顺滑小碎步中会随机看前方、回正或侧看；眼睛先到、头随后跟上，耳朵继续晚半拍"

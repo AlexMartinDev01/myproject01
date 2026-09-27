@@ -121,7 +121,25 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.7" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.8" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.8 · 芽芽 Walking V2"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.8 · 芽芽 Walking V2
+
+          - versionCode: $VERSION_CODE
+          - 基于 V2.1.7 Walking V1 继续优化芽芽走路灵动感
+          - 左右脚抬起幅度、前后步幅与落脚感整体提高，但仍保持 Q 版小碎步，不强拉正面静态素材
+          - 身体左右重心和上下踩踏幅度同步增强，减少“平移滑过去”的感觉
+          - 新增独立慢节奏左右观察：走路时头部会自然看左、回中、再看右，不再只做固定防抖
+          - 头部观察叠加轻微转动，让视线变化更有空间感
+          - 新增耳朵走路惯性：耳朵会比身体晚半拍轻晃，避免角色像一整张硬纸片
+          - 步态周期由 0.56 秒调整为 0.60 秒，并将屏幕移动速度从 48dp/s 降到 42dp/s，让脚步更容易被看清
+          - 继续使用 Locomotion 独立层，不影响原有 PetMotion、气泡、睡眠、天气与生活事件系统
+          - “我的桌宠”测试按钮升级为“测试芽芽灵动小碎步（Walking V2）”
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.7" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.7 · 芽芽 Walking V1"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.7 · 芽芽 Walking V1

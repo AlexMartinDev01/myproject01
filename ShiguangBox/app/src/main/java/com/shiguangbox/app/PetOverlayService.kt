@@ -53,6 +53,34 @@ class PetOverlayService : Service() {
         val score: Int
     )
 
+    private data class LocomotionProfile(
+        val initialDelayMinMs: Long,
+        val initialDelayMaxMs: Long,
+        val normalDelayMinMs: Long,
+        val normalDelayMaxMs: Long,
+        val activeDelayMinMs: Long,
+        val activeDelayMaxMs: Long,
+        val afterInteractionMinMs: Long,
+        val afterInteractionMaxMs: Long,
+        val minimumGapNormalMs: Long,
+        val minimumGapActiveMs: Long,
+        val speedNaturalDp: Int,
+        val speedActiveDp: Int,
+        val speedManualDp: Int,
+        val moveMinDp: Int,
+        val moveMaxDp: Int,
+        val interactionMoveMinDp: Int,
+        val interactionMoveMaxDp: Int,
+        val stayNearChance: Float,
+        val pauseChanceNatural: Float,
+        val pauseChanceActive: Float,
+        val pauseMinMs: Long,
+        val pauseMaxMs: Long,
+        val preparationDelayMs: Long,
+        val edgePreparationDelayMs: Long,
+        val edgeBufferDp: Int
+    )
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val handler = Handler(Looper.getMainLooper())
 
@@ -283,7 +311,7 @@ class PetOverlayService : Service() {
             }
             ACTION_TEST_WALK -> {
                 ensurePetView()
-                startYayaWalkDemo()
+                startPetWalkDemo()
             }
             ACTION_TEST_BEHAVIOR_SEQUENCE -> {
                 ensurePetView()
@@ -2024,6 +2052,100 @@ class PetOverlayService : Service() {
             true
         )
 
+    private fun locomotionProfile(
+        kind: PetKind
+    ): LocomotionProfile =
+        when (
+            kind
+        ) {
+            PetKind.ORANGE ->
+                LocomotionProfile(
+                    initialDelayMinMs = 20_000L,
+                    initialDelayMaxMs = 34_000L,
+                    normalDelayMinMs = 38_000L,
+                    normalDelayMaxMs = 64_000L,
+                    activeDelayMinMs = 28_000L,
+                    activeDelayMaxMs = 46_000L,
+                    afterInteractionMinMs = 46_000L,
+                    afterInteractionMaxMs = 68_000L,
+                    minimumGapNormalMs = 34_000L,
+                    minimumGapActiveMs = 24_000L,
+                    speedNaturalDp = 50,
+                    speedActiveDp = 56,
+                    speedManualDp = 52,
+                    moveMinDp = 126,
+                    moveMaxDp = 205,
+                    interactionMoveMinDp = 82,
+                    interactionMoveMaxDp = 128,
+                    stayNearChance = 0.14f,
+                    pauseChanceNatural = 0.34f,
+                    pauseChanceActive = 0.24f,
+                    pauseMinMs = 460L,
+                    pauseMaxMs = 760L,
+                    preparationDelayMs = 430L,
+                    edgePreparationDelayMs = 650L,
+                    edgeBufferDp = 15
+                )
+
+            PetKind.YAYA ->
+                LocomotionProfile(
+                    initialDelayMinMs = 26_000L,
+                    initialDelayMaxMs = 42_000L,
+                    normalDelayMinMs = 52_000L,
+                    normalDelayMaxMs = 88_000L,
+                    activeDelayMinMs = 34_000L,
+                    activeDelayMaxMs = 58_000L,
+                    afterInteractionMinMs = 55_000L,
+                    afterInteractionMaxMs = 80_000L,
+                    minimumGapNormalMs = 45_000L,
+                    minimumGapActiveMs = 28_000L,
+                    speedNaturalDp = 40,
+                    speedActiveDp = 46,
+                    speedManualDp = 42,
+                    moveMinDp = 108,
+                    moveMaxDp = 180,
+                    interactionMoveMinDp = 72,
+                    interactionMoveMaxDp = 116,
+                    stayNearChance = 0.24f,
+                    pauseChanceNatural = 0.58f,
+                    pauseChanceActive = 0.72f,
+                    pauseMinMs = 680L,
+                    pauseMaxMs = 1_080L,
+                    preparationDelayMs = 640L,
+                    edgePreparationDelayMs = 900L,
+                    edgeBufferDp = 20
+                )
+
+            PetKind.YUTUAN ->
+                LocomotionProfile(
+                    initialDelayMinMs = 30_000L,
+                    initialDelayMaxMs = 48_000L,
+                    normalDelayMinMs = 62_000L,
+                    normalDelayMaxMs = 100_000L,
+                    activeDelayMinMs = 48_000L,
+                    activeDelayMaxMs = 78_000L,
+                    afterInteractionMinMs = 68_000L,
+                    afterInteractionMaxMs = 98_000L,
+                    minimumGapNormalMs = 54_000L,
+                    minimumGapActiveMs = 40_000L,
+                    speedNaturalDp = 30,
+                    speedActiveDp = 35,
+                    speedManualDp = 32,
+                    moveMinDp = 84,
+                    moveMaxDp = 148,
+                    interactionMoveMinDp = 62,
+                    interactionMoveMaxDp = 96,
+                    stayNearChance = 0.32f,
+                    pauseChanceNatural = 0.76f,
+                    pauseChanceActive = 0.66f,
+                    pauseMinMs = 900L,
+                    pauseMaxMs = 1_420L,
+                    preparationDelayMs = 780L,
+                    edgePreparationDelayMs = 1_050L,
+                    edgeBufferDp = 24
+                )
+        }
+
     private fun scheduleAutonomousRoam(
         initial: Boolean = false,
         afterInteraction: Boolean = false,
@@ -2035,12 +2157,18 @@ class PetOverlayService : Service() {
             petView ?: return
 
         if (
-            pet.currentPetId() !=
-            PetKind.YAYA.id ||
             !autonomousRoamEnabled()
         ) {
             return
         }
+
+        val kind =
+            selectedPetKind()
+
+        val profile =
+            locomotionProfile(
+                kind
+            )
 
         val actionLevel =
             prefs.getInt(
@@ -2052,7 +2180,6 @@ class PetOverlayService : Service() {
                     2
                 )
 
-        // “安静”档位不自动巡游，只保留原来的轻动作。
         if (
             actionLevel ==
             0
@@ -2080,15 +2207,17 @@ class PetOverlayService : Service() {
                 afterInteraction ->
                     kotlin.random.Random
                         .nextLong(
-                            55_000L,
-                            80_001L
+                            profile.afterInteractionMinMs,
+                            profile.afterInteractionMaxMs +
+                                1L
                         )
 
                 initial ->
                     kotlin.random.Random
                         .nextLong(
-                            26_000L,
-                            42_001L
+                            profile.initialDelayMinMs,
+                            profile.initialDelayMaxMs +
+                                1L
                         )
 
                 delayOverrideMs !=
@@ -2099,15 +2228,17 @@ class PetOverlayService : Service() {
                     2 ->
                     kotlin.random.Random
                         .nextLong(
-                            34_000L,
-                            58_001L
+                            profile.activeDelayMinMs,
+                            profile.activeDelayMaxMs +
+                                1L
                         )
 
                 else ->
                     kotlin.random.Random
                         .nextLong(
-                            52_000L,
-                            88_001L
+                            profile.normalDelayMinMs,
+                            profile.normalDelayMaxMs +
+                                1L
                         )
             }
 
@@ -2116,9 +2247,9 @@ class PetOverlayService : Service() {
                 actionLevel >=
                 2
             ) {
-                28_000L
+                profile.minimumGapActiveMs
             } else {
-                45_000L
+                profile.minimumGapNormalMs
             }
 
         val remainingGap =
@@ -2171,8 +2302,11 @@ class PetOverlayService : Service() {
                 }
 
                 val targetX =
-                    chooseAutonomousYayaTarget(
-                        params
+                    chooseAutonomousPetTarget(
+                        params =
+                            params,
+                        kind =
+                            kind
                     )
 
                 if (
@@ -2190,7 +2324,7 @@ class PetOverlayService : Service() {
                     return@Runnable
                 }
 
-                startYayaWalkSequence(
+                startPetWalkSequence(
                     targetX =
                         targetX,
                     autonomous =
@@ -2215,8 +2349,6 @@ class PetOverlayService : Service() {
             petView ?: return false
 
         if (
-            pet.currentPetId() !=
-            PetKind.YAYA.id ||
             !autonomousRoamEnabled() ||
             prefs.getInt(
                 "pet_action_level",
@@ -2268,18 +2400,20 @@ class PetOverlayService : Service() {
         return true
     }
 
-    /**
-     * 从当前位置选择一个安全的横向目标。
-     * 靠近边缘时必定向屏幕内部走；
-     * 在中间区域则更倾向空间较大的一侧，但保留少量随机性。
-     */
-    private fun chooseAutonomousYayaTarget(
+    private fun chooseAutonomousPetTarget(
         params:
             WindowManager.LayoutParams,
+        kind:
+            PetKind,
         respectRecentInteraction:
             Boolean =
             true
     ): Int? {
+        val profile =
+            locomotionProfile(
+                kind
+            )
+
         val screenW =
             resources
                 .displayMetrics
@@ -2302,13 +2436,11 @@ class PetOverlayService : Service() {
                     safeLeft
                 )
 
-        // V2.2.1 不把自主目标直接放在最边缘。
-        // 留一点“呼吸区”，这样到边缘时会先观察再回到屏幕内部。
         val travelLeft =
             (
                 safeLeft +
                     dp(
-                        20
+                        profile.edgeBufferDp
                     )
                 )
                 .coerceAtMost(
@@ -2319,7 +2451,7 @@ class PetOverlayService : Service() {
             (
                 safeRight -
                     dp(
-                        20
+                        profile.edgeBufferDp
                     )
                 )
                 .coerceAtLeast(
@@ -2384,13 +2516,11 @@ class PetOverlayService : Service() {
                     60L *
                     1000L
 
-        // 刚被用户摸过/点过时，芽芽更愿意原地陪一会儿。
-        // 这次巡游直接放弃，下一轮再判断。
         if (
             recentlyInteracted &&
             kotlin.random.Random
                 .nextFloat() <
-            0.24f
+            profile.stayNearChance
         ) {
             return null
         }
@@ -2416,10 +2546,24 @@ class PetOverlayService : Service() {
                             -1
                         }
 
+                    val roomBias =
+                        when (
+                            kind
+                        ) {
+                            PetKind.ORANGE ->
+                                0.58f
+
+                            PetKind.YAYA ->
+                                0.66f
+
+                            PetKind.YUTUAN ->
+                                0.72f
+                        }
+
                     if (
                         kotlin.random.Random
                             .nextFloat() <
-                        0.66f
+                        roomBias
                     ) {
                         moreRoomDirection
                     } else {
@@ -2446,9 +2590,13 @@ class PetOverlayService : Service() {
                 if (
                     recentlyInteracted
                 ) {
-                    62
+                    profile.interactionMoveMinDp
                 } else {
-                    86
+                    (
+                        profile.moveMinDp *
+                            0.72f
+                        )
+                        .toInt()
                 }
             )
 
@@ -2474,8 +2622,6 @@ class PetOverlayService : Service() {
             return null
         }
 
-        // 刚互动完只在附近挪一小段；
-        // 平时才允许更明显的自主巡游。
         val desiredDistance =
             dp(
                 if (
@@ -2483,14 +2629,16 @@ class PetOverlayService : Service() {
                 ) {
                     kotlin.random.Random
                         .nextInt(
-                            72,
-                            117
+                            profile.interactionMoveMinDp,
+                            profile.interactionMoveMaxDp +
+                                1
                         )
                 } else {
                     kotlin.random.Random
                         .nextInt(
-                            108,
-                            181
+                            profile.moveMinDp,
+                            profile.moveMaxDp +
+                                1
                         )
                 }
             )
@@ -2513,22 +2661,15 @@ class PetOverlayService : Service() {
             )
     }
 
-    private fun startYayaWalkDemo() {
+    private fun startPetWalkDemo() {
         val pet =
             petView ?: return
 
         val params =
             petParams ?: return
 
-        if (
-            pet.currentPetId() !=
-            PetKind.YAYA.id
-        ) {
-            showTransientBubble(
-                "自主巡游第一版先只开放给芽芽，切换到芽芽再试试～"
-            )
-            return
-        }
+        val kind =
+            selectedPetKind()
 
         cancelAutonomousRoamSchedule()
         cancelLifeChain()
@@ -2545,9 +2686,11 @@ class PetOverlayService : Service() {
         )
 
         val targetX =
-            chooseAutonomousYayaTarget(
+            chooseAutonomousPetTarget(
                 params =
                     params,
+                kind =
+                    kind,
                 respectRecentInteraction =
                     false
             )
@@ -2557,16 +2700,20 @@ class PetOverlayService : Service() {
             null
         ) {
             showTransientBubble(
-                "这里可走空间有点小，把芽芽拖到更开阔的位置再试一次～"
+                "这里可走空间有点小，把" +
+                    kind.displayName +
+                    "拖到更开阔的位置再试一次～"
             )
+
             scheduleAutonomousRoam(
                 afterInteraction =
                     true
             )
+
             return
         }
 
-        startYayaWalkSequence(
+        startPetWalkSequence(
             targetX =
                 targetX,
             autonomous =
@@ -2576,11 +2723,7 @@ class PetOverlayService : Service() {
         )
     }
 
-    /**
-     * 完整的一次行走：
-     * 观察方向 -> 起步 -> 巡航 -> 减速收步 -> 落地 -> 再观察。
-     */
-    private fun startYayaWalkSequence(
+    private fun startPetWalkSequence(
         targetX: Int,
         autonomous: Boolean,
         showFailureBubble: Boolean
@@ -2591,12 +2734,13 @@ class PetOverlayService : Service() {
         val params =
             petParams ?: return
 
-        if (
-            pet.currentPetId() !=
-            PetKind.YAYA.id
-        ) {
-            return
-        }
+        val kind =
+            selectedPetKind()
+
+        val profile =
+            locomotionProfile(
+                kind
+            )
 
         cancelWalkDemo()
 
@@ -2641,14 +2785,15 @@ class PetOverlayService : Service() {
         if (
             distance <
             dp(
-                52
+                48
             )
         ) {
             if (
                 showFailureBubble
             ) {
                 showTransientBubble(
-                    "这次距离太短啦，芽芽先不挪了～"
+                    kind.displayName +
+                        "觉得这次不用挪那么一点点～"
                 )
             }
 
@@ -2710,15 +2855,30 @@ class PetOverlayService : Service() {
         val token =
             locomotionSequenceToken
 
-        // 靠边时先“看清楚再回头”，中间区域则用轻微歪头作为起步准备。
-        // 这样不会出现碰到边缘后瞬间硬掉头的感觉。
         val preparationMotion =
-            if (
-                startingNearEdge
+            when (
+                kind
             ) {
-                PetMotion.LOOK_AROUND
-            } else {
-                PetMotion.HEAD_TILT
+                PetKind.ORANGE ->
+                    if (
+                        startingNearEdge
+                    ) {
+                        PetMotion.LOOK_AROUND
+                    } else {
+                        PetMotion.HEAD_TILT
+                    }
+
+                PetKind.YAYA ->
+                    if (
+                        startingNearEdge
+                    ) {
+                        PetMotion.LOOK_AROUND
+                    } else {
+                        PetMotion.HEAD_TILT
+                    }
+
+                PetKind.YUTUAN ->
+                    PetMotion.LOOK_AROUND
             }
 
         val prepared =
@@ -2726,20 +2886,42 @@ class PetOverlayService : Service() {
                 preparationMotion,
                 MotionModifier(
                     intensity =
-                        if (
-                            startingNearEdge
+                        when (
+                            kind
                         ) {
-                            0.94f
-                        } else {
-                            1.08f
+                            PetKind.ORANGE ->
+                                1.02f
+
+                            PetKind.YAYA ->
+                                if (
+                                    startingNearEdge
+                                ) {
+                                    0.94f
+                                } else {
+                                    1.08f
+                                }
+
+                            PetKind.YUTUAN ->
+                                0.78f
                         },
                     speed =
-                        if (
-                            startingNearEdge
+                        when (
+                            kind
                         ) {
-                            0.82f
-                        } else {
-                            0.92f
+                            PetKind.ORANGE ->
+                                1.08f
+
+                            PetKind.YAYA ->
+                                if (
+                                    startingNearEdge
+                                ) {
+                                    0.82f
+                                } else {
+                                    0.92f
+                                }
+
+                            PetKind.YUTUAN ->
+                                0.72f
                         },
                     direction =
                         direction
@@ -2753,9 +2935,9 @@ class PetOverlayService : Service() {
                 if (
                     startingNearEdge
                 ) {
-                    900L
+                    profile.edgePreparationDelayMs
                 } else {
-                    640L
+                    profile.preparationDelayMs
                 }
             } else {
                 180L
@@ -2804,7 +2986,8 @@ class PetOverlayService : Service() {
                         showFailureBubble
                     ) {
                         showTransientBubble(
-                            "芽芽现在正在做别的动作，等一下再走～"
+                            kind.displayName +
+                                "现在正在做别的动作，等一下再走～"
                         )
                     }
 
@@ -2825,7 +3008,18 @@ class PetOverlayService : Service() {
                 }
 
                 pet.setWalkingIntensity(
-                    0.48f
+                    when (
+                        kind
+                    ) {
+                        PetKind.ORANGE ->
+                            0.58f
+
+                        PetKind.YAYA ->
+                            0.48f
+
+                        PetKind.YUTUAN ->
+                            0.44f
+                    }
                 )
 
                 val actionLevel =
@@ -2838,25 +3032,37 @@ class PetOverlayService : Service() {
                             2
                         )
 
-                // V2.2.1：较长的一次巡游不再一口气走到底。
-                // 自主模式随机停一次；手动测试则固定展示一次中途观察，方便验收。
+                val pauseChance =
+                    if (
+                        actionLevel >=
+                        2
+                    ) {
+                        profile.pauseChanceActive
+                    } else {
+                        profile.pauseChanceNatural
+                    }
+
                 val pauseMidway =
                     distance >=
                         dp(
-                            118
+                            when (
+                                kind
+                            ) {
+                                PetKind.ORANGE ->
+                                    142
+
+                                PetKind.YAYA ->
+                                    118
+
+                                PetKind.YUTUAN ->
+                                    100
+                            }
                         ) &&
                         (
                             !autonomous ||
                                 kotlin.random.Random
                                     .nextFloat() <
-                                if (
-                                    actionLevel >=
-                                    2
-                                ) {
-                                    0.72f
-                                } else {
-                                    0.58f
-                                }
+                                pauseChance
                             )
 
                 val firstTargetX =
@@ -2864,29 +3070,48 @@ class PetOverlayService : Service() {
                         pauseMidway
                     ) {
                         val ratio =
-                            kotlin.random.Random
-                                .nextInt(
-                                    44,
-                                    62
-                                ) /
-                                100f
+                            when (
+                                kind
+                            ) {
+                                PetKind.ORANGE ->
+                                    kotlin.random.Random
+                                        .nextInt(
+                                            48,
+                                            66
+                                        ) /
+                                        100f
 
-                        (
-                            startX +
+                                PetKind.YAYA ->
+                                    kotlin.random.Random
+                                        .nextInt(
+                                            44,
+                                            62
+                                        ) /
+                                        100f
+
+                                PetKind.YUTUAN ->
+                                    kotlin.random.Random
+                                        .nextInt(
+                                            40,
+                                            58
+                                        ) /
+                                        100f
+                            }
+
+                        startX +
+                            (
                                 (
-                                    (
-                                        clampedTargetX -
-                                            startX
-                                        ) *
-                                        ratio
-                                    )
-                                    .toInt()
-                            )
+                                    clampedTargetX -
+                                        startX
+                                    ) *
+                                    ratio
+                                )
+                                .toInt()
                     } else {
                         clampedTargetX
                     }
 
-                animateYayaWindowWalk(
+                animatePetWindowWalk(
                     pet =
                         pet,
                     params =
@@ -2899,6 +3124,8 @@ class PetOverlayService : Service() {
                         clampedTargetX,
                     direction =
                         direction,
+                    kind =
+                        kind,
                     autonomous =
                         autonomous,
                     token =
@@ -2911,7 +3138,7 @@ class PetOverlayService : Service() {
         )
     }
 
-    private fun animateYayaWindowWalk(
+    private fun animatePetWindowWalk(
         pet: PetRigView,
         params:
             WindowManager.LayoutParams,
@@ -2919,10 +3146,16 @@ class PetOverlayService : Service() {
         targetX: Int,
         finalTargetX: Int,
         direction: Float,
+        kind: PetKind,
         autonomous: Boolean,
         token: Int,
         pauseAfterSegment: Boolean
     ) {
+        val profile =
+            locomotionProfile(
+                kind
+            )
+
         val distance =
             kotlin.math.abs(
                 targetX -
@@ -2943,14 +3176,14 @@ class PetOverlayService : Service() {
             dp(
                 when {
                     !autonomous ->
-                        42
+                        profile.speedManualDp
 
                     actionLevel >=
                         2 ->
-                        46
+                        profile.speedActiveDp
 
                     else ->
-                        40
+                        profile.speedNaturalDp
                 }
             )
                 .coerceAtLeast(
@@ -2968,14 +3201,32 @@ class PetOverlayService : Service() {
                 .toLong()
                 .coerceIn(
                     900L,
-                    5_200L
+                    if (
+                        kind ==
+                        PetKind.YUTUAN
+                    ) {
+                        7_000L
+                    } else {
+                        5_600L
+                    }
                 )
 
         var lastRenderedX =
             startX
 
         var lastGaitIntensity =
-            0.48f
+            when (
+                kind
+            ) {
+                PetKind.ORANGE ->
+                    0.58f
+
+                PetKind.YAYA ->
+                    0.48f
+
+                PetKind.YUTUAN ->
+                    0.44f
+            }
 
         val animator =
             ValueAnimator
@@ -3010,12 +3261,29 @@ class PetOverlayService : Service() {
                                     1f
                                 )
 
+                        val baseIntensity =
+                            when (
+                                kind
+                            ) {
+                                PetKind.ORANGE ->
+                                    0.58f
+
+                                PetKind.YAYA ->
+                                    0.48f
+
+                                PetKind.YUTUAN ->
+                                    0.44f
+                            }
+
                         val gaitIntensity =
                             when {
                                 rawProgress <
                                     0.16f ->
-                                    0.48f +
-                                        0.52f *
+                                    baseIntensity +
+                                        (
+                                            1f -
+                                                baseIntensity
+                                            ) *
                                             (
                                                 rawProgress /
                                                     0.16f
@@ -3024,7 +3292,10 @@ class PetOverlayService : Service() {
                                 rawProgress >
                                     0.80f ->
                                     1f -
-                                        0.52f *
+                                        (
+                                            1f -
+                                                baseIntensity
+                                            ) *
                                             (
                                                 (
                                                     rawProgress -
@@ -3037,11 +3308,10 @@ class PetOverlayService : Service() {
                                     1f
                             }
                                 .coerceIn(
-                                    0.46f,
+                                    baseIntensity,
                                     1f
                                 )
 
-                        // 不必每一帧都重复触发 PetRigView 的强度刷新。
                         if (
                             kotlin.math.abs(
                                 gaitIntensity -
@@ -3060,8 +3330,6 @@ class PetOverlayService : Service() {
                         val newX =
                             it.animatedValue as Int
 
-                        // ValueAnimator 连续帧有时仍落在同一个整数像素，
-                        // 这种情况下跳过 WindowManager 更新，减少无意义 IPC。
                         if (
                             newX ==
                             lastRenderedX
@@ -3083,8 +3351,21 @@ class PetOverlayService : Service() {
                                 )
                         }
 
-                        // 芽芽巡游期间不会挂雨团彩虹；
-                        // 自主巡游又要求当前没有气泡，因此这里不再做无意义同步。
+                        if (
+                            speechBubble !=
+                            null
+                        ) {
+                            syncSpeechBubblePosition()
+                        }
+
+                        if (
+                            kind ==
+                            PetKind.YUTUAN &&
+                            rainbowView !=
+                            null
+                        ) {
+                            syncYutuanRainbowPosition()
+                        }
                     }
                 }
 
@@ -3123,15 +3404,11 @@ class PetOverlayService : Service() {
                     walkAnimator =
                         null
 
-                    // 中途停下：真正收脚 -> 看看周围 -> 再继续。
                     if (
                         pauseAfterSegment &&
                         targetX !=
                         finalTargetX
                     ) {
-                        pet.setWalkingIntensity(
-                            0.46f
-                        )
                         pet.stopWalking()
 
                         prefs
@@ -3146,13 +3423,49 @@ class PetOverlayService : Service() {
                             )
                             .apply()
 
+                        val pauseMotion =
+                            when (
+                                kind
+                            ) {
+                                PetKind.ORANGE ->
+                                    PetMotion.HEAD_TILT
+
+                                PetKind.YAYA ->
+                                    PetMotion.LOOK_AROUND
+
+                                PetKind.YUTUAN ->
+                                    PetMotion.LOOK_AROUND
+                            }
+
                         pet.playMotion(
-                            PetMotion.LOOK_AROUND,
+                            pauseMotion,
                             MotionModifier(
                                 intensity =
-                                    0.86f,
+                                    when (
+                                        kind
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            0.96f
+
+                                        PetKind.YAYA ->
+                                            0.86f
+
+                                        PetKind.YUTUAN ->
+                                            0.68f
+                                    },
                                 speed =
-                                    0.78f,
+                                    when (
+                                        kind
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            1.10f
+
+                                        PetKind.YAYA ->
+                                            0.78f
+
+                                        PetKind.YUTUAN ->
+                                            0.68f
+                                    },
                                 direction =
                                     direction
                             )
@@ -3161,8 +3474,9 @@ class PetOverlayService : Service() {
                         val pauseMs =
                             kotlin.random.Random
                                 .nextLong(
-                                    680L,
-                                    1_080L
+                                    profile.pauseMinMs,
+                                    profile.pauseMaxMs +
+                                        1L
                                 )
 
                         handler.postDelayed(
@@ -3209,10 +3523,21 @@ class PetOverlayService : Service() {
                                 }
 
                                 pet.setWalkingIntensity(
-                                    0.52f
+                                    when (
+                                        kind
+                                    ) {
+                                        PetKind.ORANGE ->
+                                            0.62f
+
+                                        PetKind.YAYA ->
+                                            0.52f
+
+                                        PetKind.YUTUAN ->
+                                            0.46f
+                                    }
                                 )
 
-                                animateYayaWindowWalk(
+                                animatePetWindowWalk(
                                     pet =
                                         pet,
                                     params =
@@ -3225,6 +3550,8 @@ class PetOverlayService : Service() {
                                         finalTargetX,
                                     direction =
                                         direction,
+                                    kind =
+                                        kind,
                                     autonomous =
                                         autonomous,
                                     token =
@@ -3239,9 +3566,6 @@ class PetOverlayService : Service() {
                         return
                     }
 
-                    pet.setWalkingIntensity(
-                        0.46f
-                    )
                     pet.stopWalking()
 
                     autonomousRoamInProgress =
@@ -3259,7 +3583,12 @@ class PetOverlayService : Service() {
                         )
                         .apply()
 
-                    playLandingBounce()
+                    playLocomotionLanding(
+                        pet =
+                            pet,
+                        kind =
+                            kind
+                    )
 
                     handler.postDelayed(
                         {
@@ -3274,26 +3603,77 @@ class PetOverlayService : Service() {
                                 PetRigView.State.IDLE &&
                                 !pet.isWalking()
                             ) {
-                                pet.playMotion(
-                                    PetMotion.LOOK_AROUND,
-                                    MotionModifier(
-                                        intensity =
-                                            if (
-                                                autonomous
-                                            ) {
-                                                0.74f
-                                            } else {
-                                                0.86f
-                                            },
-                                        speed =
-                                            0.90f,
-                                        direction =
-                                            direction
-                                    )
-                                )
+                                when (
+                                    kind
+                                ) {
+                                    PetKind.ORANGE -> {
+                                        if (
+                                            kotlin.random.Random
+                                                .nextFloat() <
+                                            0.58f
+                                        ) {
+                                            pet.playTailWag()
+                                        } else {
+                                            pet.playMotion(
+                                                PetMotion.LOOK_AROUND,
+                                                MotionModifier(
+                                                    intensity =
+                                                        0.92f,
+                                                    speed =
+                                                        1.05f,
+                                                    direction =
+                                                        direction
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    PetKind.YAYA ->
+                                        pet.playMotion(
+                                            PetMotion.LOOK_AROUND,
+                                            MotionModifier(
+                                                intensity =
+                                                    if (
+                                                        autonomous
+                                                    ) {
+                                                        0.74f
+                                                    } else {
+                                                        0.86f
+                                                    },
+                                                speed =
+                                                    0.90f,
+                                                direction =
+                                                    direction
+                                            )
+                                        )
+
+                                    PetKind.YUTUAN ->
+                                        pet.playMotion(
+                                            PetMotion.LOOK_AROUND,
+                                            MotionModifier(
+                                                intensity =
+                                                    0.62f,
+                                                speed =
+                                                    0.70f,
+                                                direction =
+                                                    direction
+                                            )
+                                        )
+                                }
                             }
                         },
-                        220L
+                        when (
+                            kind
+                        ) {
+                            PetKind.ORANGE ->
+                                150L
+
+                            PetKind.YAYA ->
+                                220L
+
+                            PetKind.YUTUAN ->
+                                320L
+                        }
                     )
 
                     if (
@@ -3340,6 +3720,88 @@ class PetOverlayService : Service() {
         )
 
         animator.start()
+    }
+
+    private fun playLocomotionLanding(
+        pet: PetRigView,
+        kind: PetKind
+    ) {
+        when (
+            kind
+        ) {
+            PetKind.ORANGE ->
+                AnimatorSet().apply {
+                    duration =
+                        230L
+
+                    playTogether(
+                        ObjectAnimator.ofFloat(
+                            pet,
+                            View.TRANSLATION_Y,
+                            0f,
+                            -dp(
+                                4
+                            )
+                                .toFloat(),
+                            dp(
+                                2
+                            )
+                                .toFloat(),
+                            0f
+                        ),
+                        ObjectAnimator.ofFloat(
+                            pet,
+                            View.SCALE_X,
+                            1f,
+                            1.045f,
+                            0.99f,
+                            1f
+                        ),
+                        ObjectAnimator.ofFloat(
+                            pet,
+                            View.SCALE_Y,
+                            1f,
+                            0.96f,
+                            1.02f,
+                            1f
+                        )
+                    )
+
+                    start()
+                }
+
+            PetKind.YAYA ->
+                playLandingBounce()
+
+            PetKind.YUTUAN ->
+                pet.animate()
+                    .translationY(
+                        dp(
+                            1
+                        )
+                            .toFloat()
+                    )
+                    .scaleY(
+                        0.985f
+                    )
+                    .setDuration(
+                        150L
+                    )
+                    .withEndAction {
+                        pet.animate()
+                            .translationY(
+                                0f
+                            )
+                            .scaleY(
+                                1f
+                            )
+                            .setDuration(
+                                190L
+                            )
+                            .start()
+                    }
+                    .start()
+        }
     }
 
     /**
@@ -3882,16 +4344,12 @@ class PetOverlayService : Service() {
         // 提醒、心情、陪伴气泡的优先级高于自主巡游。
         // 如果芽芽正在走，先自然停下再说话，避免“边走边硬弹气泡”。
         val interruptedRoam =
-            selectedPetKind() ==
-                PetKind.YAYA &&
-                (
-                    walkAnimator !=
-                    null ||
-                    autonomousRoamInProgress ||
-                    petView
-                        ?.isWalking() ==
-                    true
-                    )
+            walkAnimator !=
+                null ||
+                autonomousRoamInProgress ||
+                petView
+                    ?.isWalking() ==
+                true
 
         if (
             interruptedRoam

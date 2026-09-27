@@ -2539,6 +2539,8 @@ class PetRigView @JvmOverloads constructor(
                         headWeight
 
                 // 再围绕头部中心做更明显的“转头/侧看”。
+                // 这里不是纯平面歪头：先做一点横向压缩与侧移，
+                // 模拟从正脸转成轻微 3/4 视角，再叠加少量旋转。
                 if (
                     headWeight >
                     0.002
@@ -2549,18 +2551,51 @@ class PetRigView @JvmOverloads constructor(
                     val headCenterV =
                         0.39
 
+                    val turnAmount =
+                        abs(
+                            headLook
+                        )
+
+                    val dx0 =
+                        x -
+                            headCenterU
+
+                    val dy0 =
+                        y -
+                            headCenterV
+
+                    val yawScaleX =
+                        1.0 -
+                            0.052 *
+                                turnAmount
+
+                    val yawX =
+                        headCenterU +
+                            dx0 *
+                                yawScaleX +
+                            headLook *
+                                0.0095
+
+                    // 转头时脸部有极轻的纵向错位，
+                    // 避免只像整张圆形头像横移。
+                    val yawY =
+                        y +
+                            headLook *
+                                dx0 *
+                                0.018
+
                     val angle =
                         headLook *
-                            6.2 *
+                            4.8 *
                             PI /
                             180.0
 
                     val dx =
-                        x -
+                        yawX -
                             headCenterU
 
                     val dy =
-                        y -
+                        yawY -
                             headCenterV
 
                     val rx =

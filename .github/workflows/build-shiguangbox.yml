@@ -121,7 +121,23 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.5" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.6" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.6 · 可见桌面氛围修复版"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.6 · 可见桌面氛围修复版
+
+          - versionCode: $VERSION_CODE
+          - 修复 V2.1.5 环境光和粒子几乎不可见的问题
+          - 悬浮桌宠窗口增加透明氛围留白，但宠物本身视觉大小保持不变
+          - 环境光亮度与粒子尺寸重新校准，确保实际手机上可见但不过分抢眼
+          - 三只宠物继续使用各自氛围色：橘团暖金、芽芽薄荷绿、雨团冷蓝
+          - “我的桌宠”页面新增实时环境光和漂浮粒子预览，打开页面即可直接确认效果
+          - 雨团天气和彩虹尺寸继续按宠物实际视觉尺寸计算，不随氛围窗口被错误放大
+          - 保留全部 2D 宠物动作、气泡、天气、睡眠、生活事件与回忆系统
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.5" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.5 · 桌面氛围试验版"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.5 · 桌面氛围试验版

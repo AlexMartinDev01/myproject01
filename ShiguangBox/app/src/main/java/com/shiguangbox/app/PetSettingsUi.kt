@@ -618,7 +618,9 @@ fun PetSettingsScreen(
                                                             0.018f *
                                                                 sin(
                                                                     localPhase
+                                                                        .toDouble()
                                                                 )
+                                                                    .toFloat()
                                                         )
 
                                             val y =
@@ -627,9 +629,13 @@ fun PetSettingsScreen(
                                                         point.second +
                                                             0.018f *
                                                                 cos(
-                                                                    localPhase *
-                                                                        0.83f
+                                                                    (
+                                                                        localPhase *
+                                                                            0.83f
+                                                                        )
+                                                                        .toDouble()
                                                                 )
+                                                                    .toFloat()
                                                         )
 
                                             val shimmer =
@@ -637,9 +643,13 @@ fun PetSettingsScreen(
                                                     0.45f *
                                                         (
                                                             sin(
-                                                                localPhase *
-                                                                    1.37f
-                                                            ) +
+                                                                (
+                                                                    localPhase *
+                                                                        1.37f
+                                                                    )
+                                                                    .toDouble()
+                                                            )
+                                                                .toFloat() +
                                                                 1f
                                                             ) /
                                                         2f

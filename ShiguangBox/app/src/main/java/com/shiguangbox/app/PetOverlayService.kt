@@ -80,9 +80,7 @@ class PetOverlayService : Service() {
         val preparationDelayMs: Long,
         val edgePreparationDelayMs: Long,
         val edgeBufferDp: Int,
-        val swingFraction: Float,
-        val swingTravelShare: Float,
-        val startEndStepWeight: Float
+        val rootPulseAmplitude: Float
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -105,7 +103,8 @@ class PetOverlayService : Service() {
 
     // 三宠 Locomotion：
     // PetRigView 负责身体步态，Service 负责真实桌面坐标与自主巡游决策。
-    // V2.3.1 根位移按半步相位推进：抬脚阶段少移动、落脚/支撑阶段多移动。
+    // V2.3.2 使用“软锁相”：整体连续前进，只保留轻微的步频速度起伏，
+    // 不再把大部分位移集中到落脚阶段，避免一顿一顿的机械感。
     private var walkAnimator:
         ValueAnimator? =
         null
@@ -2090,9 +2089,7 @@ class PetOverlayService : Service() {
                     preparationDelayMs = 430L,
                     edgePreparationDelayMs = 650L,
                     edgeBufferDp = 15,
-                    swingFraction = 0.28f,
-                    swingTravelShare = 0.13f,
-                    startEndStepWeight = 0.64f
+                    rootPulseAmplitude = 0.12f
                 )
 
             PetKind.YAYA ->
@@ -2122,9 +2119,7 @@ class PetOverlayService : Service() {
                     preparationDelayMs = 640L,
                     edgePreparationDelayMs = 900L,
                     edgeBufferDp = 20,
-                    swingFraction = 0.32f,
-                    swingTravelShare = 0.17f,
-                    startEndStepWeight = 0.58f
+                    rootPulseAmplitude = 0.09f
                 )
 
             PetKind.YUTUAN ->
@@ -2154,9 +2149,7 @@ class PetOverlayService : Service() {
                     preparationDelayMs = 780L,
                     edgePreparationDelayMs = 1_050L,
                     edgeBufferDp = 24,
-                    swingFraction = 0.37f,
-                    swingTravelShare = 0.21f,
-                    startEndStepWeight = 0.52f
+                    rootPulseAmplitude = 0.07f
                 )
         }
 
@@ -3170,55 +3163,19 @@ class PetOverlayService : Service() {
                 )
     }
 
-    private fun locomotionHalfStepWeight(
-        index: Int,
-        count: Int,
-        profile:
-            LocomotionProfile
-    ): Float {
-        if (
-            count <=
-            2
-        ) {
-            return 1f
-        }
-
-        val edgeDistance =
-            minOf(
-                index,
-                count -
-                    1 -
-                    index
-            )
-
-        return when (
-            edgeDistance
-        ) {
-            0 ->
-                profile.startEndStepWeight
-
-            1 ->
-                profile.startEndStepWeight +
-                    (
-                        1f -
-                            profile.startEndStepWeight
-                        ) *
-                        0.62f
-
-            else ->
-                1f
-        }
-    }
-
     /**
-     * 把连续匀速的窗口位移改成“半步锁相”位移：
-     * - 抬脚（swing）阶段只完成较少位移
-     * - 脚落地 / 支撑（stance）阶段完成主要位移
-     * - 第一半步和最后一半步权重降低，自带自然起步与收步
+     * V2.3.2 Soft Foot Plant Sync
      *
-     * 整个函数始终单调递增，所以不会为了追步态而出现窗口倒滑。
+     * 上一版把一半步拆成“抬脚少走 / 落脚猛推进”两段，
+     * 虽然减少了滑步，但肉眼能看到速度脉冲。
+     *
+     * 这里改成接近线性的连续根位移，只叠加非常轻的正弦速度变化：
+     * - 脚接近落地时略快一点
+     * - 脚抬到最高时略慢一点
+     * - 最低速度始终远离 0，不会形成停顿
+     * - 首尾使用轻微全局缓动，且脉冲包络在首尾归零
      */
-    private fun phaseLockedRootProgress(
+    private fun softPhaseLockedRootProgress(
         rawProgress: Float,
         halfStepCount: Int,
         profile:
@@ -3249,128 +3206,75 @@ class PetOverlayService : Service() {
                 .coerceAtLeast(
                     1
                 )
+                .toFloat()
 
-        val stepPosition =
-            t *
-                count
-                    .toFloat()
+        // 只混入 12% 的全局 smoothstep，
+        // 保证起步/收步柔和，但主体仍然接近匀速。
+        val smoothBase =
+            smoothUnit(
+                t
+            )
 
-        val stepIndex =
-            kotlin.math
-                .floor(
-                    stepPosition
-                        .toDouble()
-                )
-                .toInt()
-                .coerceIn(
-                    0,
-                    count -
-                        1
-                )
+        val base =
+            t +
+                (
+                    smoothBase -
+                        t
+                    ) *
+                    0.12f
 
-        val local =
-            (
-                stepPosition -
-                    stepIndex
-                        .toFloat()
-                )
+        val amplitude =
+            profile.rootPulseAmplitude
                 .coerceIn(
                     0f,
-                    1f
+                    0.18f
                 )
 
-        val swingFraction =
-            profile.swingFraction
-                .coerceIn(
-                    0.18f,
-                    0.48f
+        val omega =
+            (
+                2.0 *
+                    Math.PI *
+                    count
+                        .toDouble()
                 )
 
-        val swingTravelShare =
-            profile.swingTravelShare
-                .coerceIn(
-                    0.08f,
-                    0.34f
+        // 首尾包络归零：不会因为步频调制导致突然起步或突然刹停。
+        val envelope =
+            kotlin.math
+                .sin(
+                    Math.PI *
+                        t
+                            .toDouble()
                 )
+                .let {
+                    it *
+                        it
+                }
 
-        val localTravel =
+        val pulse =
             if (
-                local <
-                swingFraction
+                amplitude <=
+                0f
             ) {
-                swingTravelShare *
-                    smoothUnit(
-                        local /
-                            swingFraction
-                    )
+                0.0
             } else {
-                swingTravelShare +
-                    (
-                        1f -
-                            swingTravelShare
-                        ) *
-                        smoothUnit(
-                            (
-                                local -
-                                    swingFraction
-                                ) /
-                                (
-                                    1f -
-                                        swingFraction
-                                    )
-                        )
+                amplitude
+                    .toDouble() *
+                    envelope *
+                    kotlin.math.sin(
+                        omega *
+                            t
+                                .toDouble()
+                    ) /
+                    omega
             }
-
-        var totalWeight =
-            0f
-
-        var completedWeight =
-            0f
-
-        for (
-            i in
-            0 until count
-        ) {
-            val weight =
-                locomotionHalfStepWeight(
-                    index =
-                        i,
-                    count =
-                        count,
-                    profile =
-                        profile
-                )
-
-            totalWeight +=
-                weight
-
-            if (
-                i <
-                stepIndex
-            ) {
-                completedWeight +=
-                    weight
-            }
-        }
-
-        val currentWeight =
-            locomotionHalfStepWeight(
-                index =
-                    stepIndex,
-                count =
-                    count,
-                profile =
-                    profile
-            )
 
         return (
-            (
-                completedWeight +
-                    currentWeight *
-                        localTravel
-                ) /
-                totalWeight
+            base
+                .toDouble() +
+                pulse
             )
+            .toFloat()
             .coerceIn(
                 0f,
                 1f
@@ -3529,8 +3433,8 @@ class PetOverlayService : Service() {
                     duration =
                         durationMs
 
-                    // 真实的加速/减速与落脚节奏由 phaseLockedRootProgress 控制，
-                    // 这里必须保持线性时间，否则会再次破坏步态锁相。
+                    // 使用线性时间源，Soft Foot Plant Sync 自己只做轻微连续调制，
+                    // 避免再次叠加插值器造成速度忽快忽慢。
                     interpolator =
                         LinearInterpolator()
 
@@ -3621,7 +3525,7 @@ class PetOverlayService : Service() {
                         }
 
                         val rootProgress =
-                            phaseLockedRootProgress(
+                            softPhaseLockedRootProgress(
                                 rawProgress =
                                     rawProgress,
                                 halfStepCount =

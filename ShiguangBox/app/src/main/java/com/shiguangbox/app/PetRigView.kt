@@ -2356,9 +2356,10 @@ class PetRigView @JvmOverloads constructor(
                 ) /
                 1_000_000_000.0
 
-        // Walking V2：
-        // 保持 Q 版小碎步，但比 V1 稍微放大腿部动作，
-        // 同时加入更慢的“观察节奏”，避免头部机械跟随脚步。
+        // Walking V3:
+        // 让“走路”和“观察”变成两套不同节奏。
+        // 脚步是快节奏，注意力转移是慢节奏：
+        // 眼睛先看 -> 头跟过去 -> 停留 -> 回中 -> 看另一侧。
         val phase =
             elapsedSeconds *
                 2.0 *
@@ -2385,34 +2386,41 @@ class PetRigView @JvmOverloads constructor(
                 )
             )
 
-        // 头部观察不是每一步都左右摆，而是用更慢的独立节奏。
-        // 两个低频波叠加后，会出现“看一边 -> 回中 -> 再看另一边”的自然变化。
-        val lookPrimary =
+        val lookPhase =
+            elapsedSeconds *
+                2.0 *
+                PI /
+                WALK_LOOK_PERIOD_SECONDS
+
+        // 头部观察：放大后做钳位，形成短暂“停住看”的平台，
+        // 比普通正弦来回晃更像主动张望。
+        val headLookRaw =
             sin(
-                elapsedSeconds *
-                    2.0 *
-                    PI /
-                    WALK_LOOK_PERIOD_SECONDS
+                lookPhase
             )
 
-        val lookSecondary =
-            0.28 *
-                sin(
-                    elapsedSeconds *
-                        2.0 *
-                        PI /
-                        (
-                            WALK_LOOK_PERIOD_SECONDS *
-                                0.53
-                            ) +
-                        1.15
+        val headLook =
+            (
+                headLookRaw *
+                    1.42
+                )
+                .coerceIn(
+                    -1.0,
+                    1.0
                 )
 
-        val lookAmount =
+        // 眼睛比头部提前约 0.18~0.22 秒转向，
+        // 模拟人和动物常见的“视线先到，头随后跟上”。
+        val eyeLookRaw =
+            sin(
+                lookPhase +
+                    0.46
+            )
+
+        val eyeLook =
             (
-                lookPrimary *
-                    0.72 +
-                    lookSecondary
+                eyeLookRaw *
+                    1.58
                 )
                 .coerceIn(
                     -1.0,
@@ -2463,8 +2471,7 @@ class PetRigView @JvmOverloads constructor(
                         .toDouble() /
                         viewH
 
-                // 1. 身体重心：
-                // V2 比 V1 稍微明显，但仍控制在“毛绒玩偶自然摇晃”的范围。
+                // 1) 身体：保持 V2 的明显步幅，但再增加一点重心感。
                 val torsoWeight =
                     exp(
                         -square(
@@ -2489,16 +2496,15 @@ class PetRigView @JvmOverloads constructor(
 
                 x +=
                     -bodySway *
-                        0.0090 *
+                        0.0105 *
                         torsoWeight
 
                 y -=
                     bodyBob *
-                        0.0065 *
+                        0.0072 *
                         torsoWeight
 
-                // 2. 头部：
-                // 先做步态反向稳定，再叠加独立的左右观察。
+                // 2) 头部：步态稳定 + 主动左右观察。
                 val headWeight =
                     exp(
                         -square(
@@ -2506,14 +2512,14 @@ class PetRigView @JvmOverloads constructor(
                                 u -
                                     0.51
                                 ) /
-                                0.31
+                                0.315
                         ) -
                             square(
                                 (
                                     v -
                                         0.39
                                     ) /
-                                0.29
+                                0.295
                             )
                     )
                         .coerceIn(
@@ -2523,15 +2529,16 @@ class PetRigView @JvmOverloads constructor(
 
                 x +=
                     bodySway *
-                        0.0032 *
+                        0.0035 *
                         headWeight
 
+                // 整个头先有明显的横向偏移。
                 x +=
-                    lookAmount *
-                        0.0085 *
+                    headLook *
+                        0.0155 *
                         headWeight
 
-                // 轻微转头/歪头，幅度很小，主要让“看左右”有立体感。
+                // 再围绕头部中心做更明显的“转头/侧看”。
                 if (
                     headWeight >
                     0.002
@@ -2543,8 +2550,8 @@ class PetRigView @JvmOverloads constructor(
                         0.39
 
                     val angle =
-                        lookAmount *
-                            3.1 *
+                        headLook *
+                            6.2 *
                             PI /
                             180.0
 
@@ -2597,8 +2604,74 @@ class PetRigView @JvmOverloads constructor(
                                 headWeight
                 }
 
-                // 3. 耳朵惯性：
-                // 芽芽原本已经有独立耳朵绑定，这里只叠加一点“晚半拍”的走路惯性。
+                // 3) 眼睛：独立于头部提前移动。
+                // 用比眨眼更紧的局部蒙版，只拉动眼睛附近，
+                // 避免整张脸被一起扯动。
+                val leftEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.415
+                                ) /
+                                0.043
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.447
+                                    ) /
+                                0.037
+                            )
+                    )
+
+                val rightEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.642
+                                ) /
+                                0.043
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.438
+                                    ) /
+                                0.037
+                            )
+                    )
+
+                val eyeWeight =
+                    clamp(
+                        leftEyeWeight +
+                            rightEyeWeight,
+                        0.0,
+                        1.0
+                    )
+
+                if (
+                    eyeWeight >
+                    0.002
+                ) {
+                    // 视线移动幅度比 V2 头部补偿明显得多。
+                    // 眼睛与头部同向，但领先一个相位。
+                    x +=
+                        eyeLook *
+                            0.0185 *
+                            eyeWeight
+
+                    // 看向两侧时略微抬一点眼神，让表情更有“观察”感。
+                    y -=
+                        abs(
+                            eyeLook
+                        ) *
+                            0.0028 *
+                            eyeWeight
+                }
+
+                // 4) 耳朵：改成真正的“转动 + 滞后”，而不只是几像素平移。
                 for (
                     earIndex in
                     0..1
@@ -2606,6 +2679,24 @@ class PetRigView @JvmOverloads constructor(
                     val left =
                         earIndex ==
                             0
+
+                    val pivotU =
+                        if (
+                            left
+                        ) {
+                            0.292
+                        } else {
+                            0.755
+                        }
+
+                    val pivotV =
+                        if (
+                            left
+                        ) {
+                            0.382
+                        } else {
+                            0.395
+                        }
 
                     val centerU =
                         if (
@@ -2625,58 +2716,166 @@ class PetRigView @JvmOverloads constructor(
                             0.575
                         }
 
-                    val earWeight =
+                    val radiusU =
+                        if (
+                            left
+                        ) {
+                            0.148
+                        } else {
+                            0.132
+                        }
+
+                    val radiusV =
+                        if (
+                            left
+                        ) {
+                            0.235
+                        } else {
+                            0.225
+                        }
+
+                    var earWeight =
                         exp(
                             -square(
                                 (
                                     u -
                                         centerU
                                     ) /
-                                    0.145
+                                    radiusU
                             ) -
                                 square(
                                     (
                                         v -
                                             centerV
                                         ) /
-                                    0.205
+                                    radiusV
                                 )
                         )
-                            .coerceIn(
-                                0.0,
-                                1.0
+
+                    val sourceDx =
+                        u -
+                            pivotU
+
+                    val sourceDy =
+                        v -
+                            pivotV
+
+                    val distanceFromRoot =
+                        hypot(
+                            sourceDx,
+                            sourceDy
+                        )
+
+                    earWeight *=
+                        clamp(
+                            (
+                                distanceFromRoot -
+                                    0.025
+                                ) /
+                                0.30,
+                            0.0,
+                            1.0
+                        )
+
+                    if (
+                        earWeight >
+                        0.002
+                    ) {
+                        // 脚步惯性：比身体晚约半拍。
+                        val stepLag =
+                            sin(
+                                phase -
+                                    0.90 +
+                                    (
+                                        if (
+                                            left
+                                        ) {
+                                            0.10
+                                        } else {
+                                            -0.10
+                                        }
+                                        )
                             )
 
-                    val earLag =
-                        sin(
-                            phase -
-                                0.62 +
+                        // 转头惯性：头转过去时耳朵会略向反方向拖一下。
+                        val lookLag =
+                            -headLook *
                                 (
                                     if (
                                         left
                                     ) {
-                                        0.08
+                                        1.0
                                     } else {
-                                        -0.08
+                                        0.92
                                     }
                                     )
-                        )
 
-                    x +=
-                        -earLag *
-                            0.0046 *
-                            earWeight
+                        val earAngleDegrees =
+                            stepLag *
+                                7.2 +
+                                lookLag *
+                                4.6
 
-                    y +=
-                        abs(
-                            earLag
-                        ) *
-                            0.0024 *
-                            earWeight
+                        val earAngle =
+                            earAngleDegrees *
+                                PI /
+                                180.0
+
+                        val dx =
+                            x -
+                                pivotU
+
+                        val dy =
+                            y -
+                                pivotV
+
+                        val rx =
+                            pivotU +
+                                dx *
+                                    cos(
+                                        earAngle
+                                    ) -
+                                dy *
+                                    sin(
+                                        earAngle
+                                    )
+
+                        val ry =
+                            pivotV +
+                                dx *
+                                    sin(
+                                        earAngle
+                                    ) +
+                                dy *
+                                    cos(
+                                        earAngle
+                                    ) +
+                                abs(
+                                    stepLag
+                                ) *
+                                    0.0045
+
+                        x =
+                            x *
+                                (
+                                    1.0 -
+                                        earWeight
+                                    ) +
+                                rx *
+                                    earWeight
+
+                        y =
+                            y *
+                                (
+                                    1.0 -
+                                        earWeight
+                                    ) +
+                                ry *
+                                    earWeight
+                    }
                 }
 
-                // 4. 左右腿：
-                // V2 提高抬脚与前后步幅，仍然从腿根向脚掌渐进放大。
+                // 5) 左右腿：维持 V2 已经比较明显的步幅。
                 for (
                     legIndex in
                     0..1
@@ -2759,22 +2958,20 @@ class PetRigView @JvmOverloads constructor(
                                 0.0,
                                 signal
                             ) *
-                                0.038
+                                0.040
 
                         val settle =
                             maxOf(
                                 0.0,
                                 -signal
                             ) *
-                                0.0045
+                                0.0048
 
                         val stride =
                             signal *
-                                0.021 *
+                                0.022 *
                                 direction
 
-                        // 脚掌在抬起时稍微向外展开一点，
-                        // 避免两只脚只在同一条竖线上上下抽动。
                         val outward =
                             maxOf(
                                 0.0,
@@ -2784,9 +2981,9 @@ class PetRigView @JvmOverloads constructor(
                                     if (
                                         left
                                     ) {
-                                        -0.0045
+                                        -0.0048
                                     } else {
-                                        0.0045
+                                        0.0048
                                     }
                                     )
 
@@ -5509,7 +5706,7 @@ class PetRigView @JvmOverloads constructor(
             0.60
 
         private const val WALK_LOOK_PERIOD_SECONDS =
-            3.25
+            2.70
 
         private const val WAVE_DURATION_SECONDS = 1.35
         private const val REMINDER_DURATION_SECONDS = 2.70

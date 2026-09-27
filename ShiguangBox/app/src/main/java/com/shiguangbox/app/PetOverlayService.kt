@@ -3879,6 +3879,31 @@ class PetOverlayService : Service() {
         durationMs: Long,
         preferBelow: Boolean = false
     ) {
+        // 提醒、心情、陪伴气泡的优先级高于自主巡游。
+        // 如果芽芽正在走，先自然停下再说话，避免“边走边硬弹气泡”。
+        val interruptedRoam =
+            selectedPetKind() ==
+                PetKind.YAYA &&
+                (
+                    walkAnimator !=
+                    null ||
+                    autonomousRoamInProgress ||
+                    petView
+                        ?.isWalking() ==
+                    true
+                    )
+
+        if (
+            interruptedRoam
+        ) {
+            cancelWalkDemo()
+
+            scheduleAutonomousRoam(
+                delayOverrideMs =
+                    46_000L
+            )
+        }
+
         val pet =
             petParams ?: return
 

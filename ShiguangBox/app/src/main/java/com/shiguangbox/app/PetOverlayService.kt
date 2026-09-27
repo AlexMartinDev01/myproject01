@@ -2005,28 +2005,444 @@ class PetOverlayService : Service() {
         }
     }
 
-    private fun cancelWalkDemo() {
-        val animator =
-            walkAnimator
+    private fun cancelAutonomousRoamSchedule() {
+        autonomousRoamRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
 
-        walkAnimator =
+        autonomousRoamRunnable =
             null
+    }
 
-        animator
-            ?.removeAllListeners()
+    private fun autonomousRoamEnabled():
+        Boolean =
+        prefs.getBoolean(
+            "pet_auto_roam",
+            true
+        )
 
-        animator
-            ?.cancel()
+    private fun scheduleAutonomousRoam(
+        initial: Boolean = false,
+        afterInteraction: Boolean = false,
+        delayOverrideMs: Long? = null
+    ) {
+        cancelAutonomousRoamSchedule()
 
-        petView
-            ?.stopWalking()
+        val pet =
+            petView ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YAYA.id ||
+            !autonomousRoamEnabled()
+        ) {
+            return
+        }
+
+        val actionLevel =
+            prefs.getInt(
+                "pet_action_level",
+                1
+            )
+                .coerceIn(
+                    0,
+                    2
+                )
+
+        // “安静”档位不自动巡游，只保留原来的轻动作。
+        if (
+            actionLevel ==
+            0
+        ) {
+            return
+        }
+
+        val now =
+            System.currentTimeMillis()
+
+        val requestedDelay =
+            when {
+                isCompanionQuietNight() ->
+                    kotlin.random.Random
+                        .nextLong(
+                            7L *
+                                60L *
+                                1000L,
+                            11L *
+                                60L *
+                                1000L +
+                                1L
+                        )
+
+                afterInteraction ->
+                    kotlin.random.Random
+                        .nextLong(
+                            55_000L,
+                            80_001L
+                        )
+
+                initial ->
+                    kotlin.random.Random
+                        .nextLong(
+                            26_000L,
+                            42_001L
+                        )
+
+                delayOverrideMs !=
+                    null ->
+                    delayOverrideMs
+
+                actionLevel >=
+                    2 ->
+                    kotlin.random.Random
+                        .nextLong(
+                            34_000L,
+                            58_001L
+                        )
+
+                else ->
+                    kotlin.random.Random
+                        .nextLong(
+                            52_000L,
+                            88_001L
+                        )
+            }
+
+        val minimumGap =
+            if (
+                actionLevel >=
+                2
+            ) {
+                28_000L
+            } else {
+                45_000L
+            }
+
+        val remainingGap =
+            (
+                lastAutonomousRoamAt +
+                    minimumGap -
+                    now
+                )
+                .coerceAtLeast(
+                    0L
+                )
+
+        val delay =
+            maxOf(
+                requestedDelay,
+                remainingGap
+            )
+
+        val runnable =
+            Runnable {
+                autonomousRoamRunnable =
+                    null
+
+                if (
+                    !canAutonomousRoamNow()
+                ) {
+                    scheduleAutonomousRoam(
+                        delayOverrideMs =
+                            kotlin.random.Random
+                                .nextLong(
+                                    18_000L,
+                                    30_001L
+                                )
+                    )
+                    return@Runnable
+                }
+
+                val params =
+                    petParams
+
+                if (
+                    params ==
+                    null
+                ) {
+                    scheduleAutonomousRoam(
+                        delayOverrideMs =
+                            24_000L
+                    )
+                    return@Runnable
+                }
+
+                val targetX =
+                    chooseAutonomousYayaTarget(
+                        params
+                    )
+
+                if (
+                    targetX ==
+                    null
+                ) {
+                    scheduleAutonomousRoam(
+                        delayOverrideMs =
+                            kotlin.random.Random
+                                .nextLong(
+                                    22_000L,
+                                    36_001L
+                                )
+                    )
+                    return@Runnable
+                }
+
+                startYayaWalkSequence(
+                    targetX =
+                        targetX,
+                    autonomous =
+                        true,
+                    showFailureBubble =
+                        false
+                )
+            }
+
+        autonomousRoamRunnable =
+            runnable
+
+        handler.postDelayed(
+            runnable,
+            delay
+        )
+    }
+
+    private fun canAutonomousRoamNow():
+        Boolean {
+        val pet =
+            petView ?: return false
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YAYA.id ||
+            !autonomousRoamEnabled() ||
+            prefs.getInt(
+                "pet_action_level",
+                1
+            ) <=
+            0 ||
+            isCompanionQuietNight()
+        ) {
+            return false
+        }
+
+        if (
+            pet.visibility !=
+            View.VISIBLE ||
+            panelView !=
+            null ||
+            speechBubble !=
+            null ||
+            walkAnimator !=
+            null ||
+            autonomousRoamInProgress ||
+            pet.isWalking() ||
+            pet.currentState() !=
+            PetRigView.State.IDLE ||
+            pet.currentMotion() !=
+            PetMotion.NONE ||
+            lifeChainActiveUntil >
+            System.currentTimeMillis()
+        ) {
+            return false
+        }
+
+        val lastInteractionAt =
+            prefs.getLong(
+                "pet_last_interaction_at",
+                0L
+            )
+
+        if (
+            lastInteractionAt >
+            0L &&
+            System.currentTimeMillis() -
+                lastInteractionAt <
+            20_000L
+        ) {
+            return false
+        }
+
+        return true
     }
 
     /**
-     * 第一版只验证芽芽横向小碎步：
-     * 1) PetRigView 负责腿/身体步态；
-     * 2) WindowManager 负责真实横向位移；
-     * 3) 走到目标后停止并保存新位置，不自动贴边。
+     * 从当前位置选择一个安全的横向目标。
+     * 靠近边缘时必定向屏幕内部走；
+     * 在中间区域则更倾向空间较大的一侧，但保留少量随机性。
+     */
+    private fun chooseAutonomousYayaTarget(
+        params:
+            WindowManager.LayoutParams
+    ): Int? {
+        val screenW =
+            resources
+                .displayMetrics
+                .widthPixels
+
+        val safeLeft =
+            dp(
+                8
+            )
+
+        val safeRight =
+            (
+                screenW -
+                    params.width -
+                    dp(
+                        8
+                    )
+                )
+                .coerceAtLeast(
+                    safeLeft
+                )
+
+        if (
+            safeRight <=
+            safeLeft
+        ) {
+            return null
+        }
+
+        val currentX =
+            params.x
+
+        val roomReferenceX =
+            currentX
+                .coerceIn(
+                    safeLeft,
+                    safeRight
+                )
+
+        val roomLeft =
+            roomReferenceX -
+                safeLeft
+
+        val roomRight =
+            safeRight -
+                roomReferenceX
+
+        val nearLeft =
+            currentX <
+                safeLeft ||
+                roomLeft <=
+                dp(
+                    46
+                )
+
+        val nearRight =
+            currentX >
+                safeRight ||
+                roomRight <=
+                dp(
+                    46
+                )
+
+        var direction =
+            when {
+                nearLeft &&
+                    !nearRight ->
+                    1
+
+                nearRight &&
+                    !nearLeft ->
+                    -1
+
+                else -> {
+                    val moreRoomDirection =
+                        if (
+                            roomRight >=
+                            roomLeft
+                        ) {
+                            1
+                        } else {
+                            -1
+                        }
+
+                    if (
+                        kotlin.random.Random
+                            .nextFloat() <
+                        0.64f
+                    ) {
+                        moreRoomDirection
+                    } else {
+                        -moreRoomDirection
+                    }
+                }
+            }
+
+        fun roomFor(
+            candidateDirection:
+                Int
+        ): Int =
+            if (
+                candidateDirection >
+                0
+            ) {
+                roomRight
+            } else {
+                roomLeft
+            }
+
+        val minimumDistance =
+            dp(
+                88
+            )
+
+        if (
+            roomFor(
+                direction
+            ) <
+            minimumDistance
+        ) {
+            direction =
+                -direction
+        }
+
+        val availableRoom =
+            roomFor(
+                direction
+            )
+
+        if (
+            availableRoom <
+            minimumDistance
+        ) {
+            return null
+        }
+
+        val desiredDistance =
+            dp(
+                kotlin.random.Random
+                    .nextInt(
+                        108,
+                        181
+                    )
+            )
+
+        val distance =
+            minOf(
+                desiredDistance,
+                availableRoom
+            )
+
+        val target =
+            roomReferenceX +
+                direction *
+                    distance
+
+        return target
+            .coerceIn(
+                safeLeft,
+                safeRight
+            )
+    }
+
+    /**
+     * 用户主动点击测试时，也走完整的 V2.2.0 流程，
+     * 而不是使用另一套“演示专用”逻辑。
      */
     private fun startYayaWalkDemo() {
         val pet =
@@ -2040,11 +2456,12 @@ class PetOverlayService : Service() {
             PetKind.YAYA.id
         ) {
             showTransientBubble(
-                "第一版走路 Demo 先只开放给芽芽，切换到芽芽再试试～"
+                "自主巡游第一版先只开放给芽芽，切换到芽芽再试试～"
             )
             return
         }
 
+        cancelAutonomousRoamSchedule()
         cancelLifeChain()
         cancelBehaviorSequence(
             resetMotion =
@@ -2058,122 +2475,129 @@ class PetOverlayService : Service() {
                 true
         )
 
-        pet.startIdle()
+        val targetX =
+            chooseAutonomousYayaTarget(
+                params
+            )
+
+        if (
+            targetX ==
+            null
+        ) {
+            showTransientBubble(
+                "这里可走空间有点小，把芽芽拖到更开阔的位置再试一次～"
+            )
+            scheduleAutonomousRoam(
+                afterInteraction =
+                    true
+            )
+            return
+        }
+
+        startYayaWalkSequence(
+            targetX =
+                targetX,
+            autonomous =
+                false,
+            showFailureBubble =
+                true
+        )
+    }
+
+    /**
+     * 完整的一次行走：
+     * 观察方向 -> 起步 -> 巡航 -> 减速收步 -> 落地 -> 再观察。
+     */
+    private fun startYayaWalkSequence(
+        targetX: Int,
+        autonomous: Boolean,
+        showFailureBubble: Boolean
+    ) {
+        val pet =
+            petView ?: return
+
+        val params =
+            petParams ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YAYA.id
+        ) {
+            return
+        }
+
+        cancelWalkDemo()
 
         val screenW =
             resources
                 .displayMetrics
                 .widthPixels
 
-        val windowW =
-            params.width
-
         val safeLeft =
             dp(
-                6
+                8
             )
 
         val safeRight =
             (
                 screenW -
-                    windowW -
+                    params.width -
                     dp(
-                        6
+                        8
                     )
                 )
                 .coerceAtLeast(
                     safeLeft
                 )
 
-        val startX =
-            params.x
+        val clampedTargetX =
+            targetX
                 .coerceIn(
                     safeLeft,
                     safeRight
                 )
 
-        val centerX =
-            (
-                screenW -
-                    windowW
-                ) /
-                2
-
-        val centerDistance =
-            kotlin.math.abs(
-                startX -
-                    centerX
-            )
-
-        val demoDistance =
-            dp(
-                150
-            )
-
-        val targetX =
-            if (
-                centerDistance >=
-                dp(
-                    86
-                )
-            ) {
-                centerX
-                    .coerceIn(
-                        safeLeft,
-                        safeRight
-                    )
-            } else {
-                val roomRight =
-                    safeRight -
-                        startX
-
-                val roomLeft =
-                    startX -
-                        safeLeft
-
-                if (
-                    roomRight >=
-                    roomLeft
-                ) {
-                    (
-                        startX +
-                            demoDistance
-                        )
-                        .coerceAtMost(
-                            safeRight
-                        )
-                } else {
-                    (
-                        startX -
-                            demoDistance
-                        )
-                        .coerceAtLeast(
-                            safeLeft
-                        )
-                }
-            }
+        val startX =
+            params.x
 
         val distance =
             kotlin.math.abs(
-                targetX -
+                clampedTargetX -
                     startX
             )
 
         if (
             distance <
             dp(
-                42
+                52
             )
         ) {
-            showTransientBubble(
-                "这里空间有点小，把芽芽拖到更开阔的位置再试一次～"
+            if (
+                showFailureBubble
+            ) {
+                showTransientBubble(
+                    "这次距离太短啦，芽芽先不挪了～"
+                )
+            }
+
+            scheduleAutonomousRoam(
+                afterInteraction =
+                    !autonomous,
+                delayOverrideMs =
+                    if (
+                        autonomous
+                    ) {
+                        22_000L
+                    } else {
+                        null
+                    }
             )
             return
         }
 
         val direction =
             if (
-                targetX >=
+                clampedTargetX >=
                 startX
             ) {
                 1f
@@ -2181,23 +2605,178 @@ class PetOverlayService : Service() {
                 -1f
             }
 
-        if (
-            !pet.startWalking(
-                direction
-            )
-        ) {
-            showTransientBubble(
-                "芽芽现在正在做别的动作，等一下再走～"
-            )
-            return
-        }
+        pet.startIdle()
+
+        edgePeekRunnable
+            ?.let {
+                handler.removeCallbacks(
+                    it
+                )
+            }
+
+        edgePeekRunnable =
+            null
 
         dockedSide =
             0
 
+        autonomousRoamInProgress =
+            autonomous
+
+        val token =
+            locomotionSequenceToken
+
+        // 出发前先朝目标方向看一下。
+        // 真正开始走后，Walking V3 会继续执行“眼睛先看、头再跟”的观察。
+        val prepared =
+            pet.playMotion(
+                PetMotion.HEAD_TILT,
+                MotionModifier(
+                    intensity =
+                        1.08f,
+                    speed =
+                        0.92f,
+                    direction =
+                        direction
+                )
+            )
+
+        val preparationDelay =
+            if (
+                prepared
+            ) {
+                640L
+            } else {
+                180L
+            }
+
+        handler.postDelayed(
+            {
+                if (
+                    token !=
+                    locomotionSequenceToken ||
+                    petView !==
+                    pet ||
+                    panelView !=
+                    null ||
+                    pet.currentState() !=
+                    PetRigView.State.IDLE
+                ) {
+                    autonomousRoamInProgress =
+                        false
+
+                    scheduleAutonomousRoam(
+                        afterInteraction =
+                            !autonomous,
+                        delayOverrideMs =
+                            if (
+                                autonomous
+                            ) {
+                                24_000L
+                            } else {
+                                null
+                            }
+                    )
+
+                    return@postDelayed
+                }
+
+                if (
+                    !pet.startWalking(
+                        direction
+                    )
+                ) {
+                    autonomousRoamInProgress =
+                        false
+
+                    if (
+                        showFailureBubble
+                    ) {
+                        showTransientBubble(
+                            "芽芽现在正在做别的动作，等一下再走～"
+                        )
+                    }
+
+                    scheduleAutonomousRoam(
+                        afterInteraction =
+                            !autonomous,
+                        delayOverrideMs =
+                            if (
+                                autonomous
+                            ) {
+                                24_000L
+                            } else {
+                                null
+                            }
+                    )
+
+                    return@postDelayed
+                }
+
+                pet.setWalkingIntensity(
+                    0.48f
+                )
+
+                animateYayaWindowWalk(
+                    pet =
+                        pet,
+                    params =
+                        params,
+                    startX =
+                        startX,
+                    targetX =
+                        clampedTargetX,
+                    direction =
+                        direction,
+                    autonomous =
+                        autonomous,
+                    token =
+                        token
+                )
+            },
+            preparationDelay
+        )
+    }
+
+    private fun animateYayaWindowWalk(
+        pet: PetRigView,
+        params:
+            WindowManager.LayoutParams,
+        startX: Int,
+        targetX: Int,
+        direction: Float,
+        autonomous: Boolean,
+        token: Int
+    ) {
+        val distance =
+            kotlin.math.abs(
+                targetX -
+                    startX
+            )
+
+        val actionLevel =
+            prefs.getInt(
+                "pet_action_level",
+                1
+            )
+                .coerceIn(
+                    0,
+                    2
+                )
+
         val pixelsPerSecond =
             dp(
-                48
+                when {
+                    !autonomous ->
+                        42
+
+                    actionLevel >=
+                        2 ->
+                        46
+
+                    else ->
+                        40
+                }
             )
                 .coerceAtLeast(
                     1
@@ -2213,8 +2792,8 @@ class PetOverlayService : Service() {
                 )
                 .toLong()
                 .coerceIn(
-                    1_850L,
-                    4_800L
+                    1_900L,
+                    6_200L
                 )
 
         val animator =
@@ -2228,11 +2807,65 @@ class PetOverlayService : Service() {
                         durationMs
 
                     interpolator =
-                        LinearInterpolator()
+                        AccelerateDecelerateInterpolator()
 
                     addUpdateListener {
+                        if (
+                            token !=
+                            locomotionSequenceToken
+                        ) {
+                            return@addUpdateListener
+                        }
+
                         params.x =
                             it.animatedValue as Int
+
+                        val rawProgress =
+                            (
+                                it.currentPlayTime
+                                    .toFloat() /
+                                    durationMs
+                                        .toFloat()
+                                )
+                                .coerceIn(
+                                    0f,
+                                    1f
+                                )
+
+                        val gaitIntensity =
+                            when {
+                                rawProgress <
+                                    0.16f ->
+                                    0.48f +
+                                        0.52f *
+                                            (
+                                                rawProgress /
+                                                    0.16f
+                                                )
+
+                                rawProgress >
+                                    0.80f ->
+                                    1f -
+                                        0.52f *
+                                            (
+                                                (
+                                                    rawProgress -
+                                                        0.80f
+                                                    ) /
+                                                    0.20f
+                                                )
+
+                                else ->
+                                    1f
+                            }
+                                .coerceIn(
+                                    0.46f,
+                                    1f
+                                )
+
+                        pet.setWalkingIntensity(
+                            gaitIntensity
+                        )
 
                         runCatching {
                             windowManager
@@ -2258,7 +2891,8 @@ class PetOverlayService : Service() {
                     false
 
                 private fun finish(
-                    animation: Animator
+                    animation:
+                        Animator
                 ) {
                     if (
                         finished
@@ -2271,7 +2905,9 @@ class PetOverlayService : Service() {
 
                     if (
                         walkAnimator !==
-                        animation
+                        animation ||
+                        token !=
+                        locomotionSequenceToken
                     ) {
                         return
                     }
@@ -2279,7 +2915,13 @@ class PetOverlayService : Service() {
                     walkAnimator =
                         null
 
+                    pet.setWalkingIntensity(
+                        0.46f
+                    )
                     pet.stopWalking()
+
+                    autonomousRoamInProgress =
+                        false
 
                     prefs
                         .edit()
@@ -2293,32 +2935,69 @@ class PetOverlayService : Service() {
                         )
                         .apply()
 
-                    // 走完只做非常轻的落脚回稳，不再强制吸到屏幕边缘。
-                    pet.animate()
-                        .translationY(
-                            dp(
-                                2
+                    playLandingBounce()
+
+                    handler.postDelayed(
+                        {
+                            if (
+                                token ==
+                                locomotionSequenceToken &&
+                                petView ===
+                                pet &&
+                                panelView ==
+                                null &&
+                                pet.currentState() ==
+                                PetRigView.State.IDLE &&
+                                !pet.isWalking()
+                            ) {
+                                pet.playMotion(
+                                    PetMotion.LOOK_AROUND,
+                                    MotionModifier(
+                                        intensity =
+                                            if (
+                                                autonomous
+                                            ) {
+                                                0.72f
+                                            } else {
+                                                0.82f
+                                            },
+                                        speed =
+                                            0.92f,
+                                        direction =
+                                            direction
+                                    )
+                                )
+                            }
+                        },
+                        220L
+                    )
+
+                    if (
+                        autonomous
+                    ) {
+                        lastAutonomousRoamAt =
+                            System.currentTimeMillis()
+
+                        prefs
+                            .edit()
+                            .putLong(
+                                "pet_last_auto_roam_at",
+                                lastAutonomousRoamAt
                             )
-                                .toFloat()
+                            .apply()
+
+                        scheduleAutonomousRoam()
+                    } else {
+                        scheduleAutonomousRoam(
+                            delayOverrideMs =
+                                32_000L
                         )
-                        .setDuration(
-                            90L
-                        )
-                        .withEndAction {
-                            pet.animate()
-                                .translationY(
-                                    0f
-                                )
-                                .setDuration(
-                                    130L
-                                )
-                                .start()
-                        }
-                        .start()
+                    }
                 }
 
                 override fun onAnimationEnd(
-                    animation: Animator
+                    animation:
+                        Animator
                 ) {
                     finish(
                         animation
@@ -2326,7 +3005,8 @@ class PetOverlayService : Service() {
                 }
 
                 override fun onAnimationCancel(
-                    animation: Animator
+                    animation:
+                        Animator
                 ) {
                     finish(
                         animation
@@ -2336,6 +3016,59 @@ class PetOverlayService : Service() {
         )
 
         animator.start()
+    }
+
+    /**
+     * 既负责取消测试走路，也负责取消自主巡游的准备/移动阶段。
+     * token 会让已经排队的“准备起步”回调自动失效。
+     */
+    private fun cancelWalkDemo() {
+        locomotionSequenceToken +=
+            1
+
+        autonomousRoamInProgress =
+            false
+
+        val animator =
+            walkAnimator
+
+        walkAnimator =
+            null
+
+        animator
+            ?.removeAllListeners()
+
+        animator
+            ?.cancel()
+
+        petView
+            ?.let {
+                it.stopWalking()
+
+                if (
+                    it.currentState() ==
+                    PetRigView.State.IDLE &&
+                    it.currentMotion() !=
+                    PetMotion.NONE
+                ) {
+                    it.startIdle()
+                }
+            }
+
+        petParams
+            ?.let { params ->
+                prefs
+                    .edit()
+                    .putInt(
+                        "pet_x",
+                        params.x
+                    )
+                    .putInt(
+                        "pet_y",
+                        params.y
+                    )
+                    .apply()
+            }
     }
 
     private fun startIdleAnimation() {

@@ -1,5 +1,7 @@
 package com.shiguangbox.app
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
@@ -23,6 +25,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
@@ -67,6 +70,12 @@ class PetOverlayService : Service() {
     private var lastTapAt = 0L
     private var tapDispatchRunnable: Runnable? = null
     private var edgePeekRunnable: Runnable? = null
+
+    // V2.1.7 芽芽小碎步 Demo：
+    // View 内做步态，Service 只负责真实屏幕位移。
+    private var walkAnimator:
+        ValueAnimator? =
+        null
 
     private var speechBubble:
         PetSpeechBubbleView? = null
@@ -253,6 +262,10 @@ class PetOverlayService : Service() {
                 ensurePetView()
                 playMotionShowcase()
             }
+            ACTION_TEST_WALK -> {
+                ensurePetView()
+                startYayaWalkDemo()
+            }
             ACTION_TEST_BEHAVIOR_SEQUENCE -> {
                 ensurePetView()
                 showBehaviorSequencePreview()
@@ -325,6 +338,7 @@ class PetOverlayService : Service() {
         stopYutuanWeatherCycle(
             resetRain = false
         )
+        cancelWalkDemo()
         handler.removeCallbacksAndMessages(null)
         closePanel()
         hideSpeechBubble(
@@ -565,6 +579,7 @@ class PetOverlayService : Service() {
         ): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    cancelWalkDemo()
                     cancelLifeChain()
 
                     recordPetInteraction(
@@ -895,6 +910,8 @@ class PetOverlayService : Service() {
     }
 
     private fun applyPetSettings() {
+        cancelWalkDemo()
+
         val pet = petView ?: return
 
         val selectedId =
@@ -997,6 +1014,7 @@ class PetOverlayService : Service() {
     }
 
     private fun recreatePetViewForSelection() {
+        cancelWalkDemo()
         closePanel()
         hideSpeechBubble(
             immediate = true
@@ -1947,6 +1965,339 @@ class PetOverlayService : Service() {
             )
             start()
         }
+    }
+
+    private fun cancelWalkDemo() {
+        val animator =
+            walkAnimator
+
+        walkAnimator =
+            null
+
+        animator
+            ?.removeAllListeners()
+
+        animator
+            ?.cancel()
+
+        petView
+            ?.stopWalking()
+    }
+
+    /**
+     * 第一版只验证芽芽横向小碎步：
+     * 1) PetRigView 负责腿/身体步态；
+     * 2) WindowManager 负责真实横向位移；
+     * 3) 走到目标后停止并保存新位置，不自动贴边。
+     */
+    private fun startYayaWalkDemo() {
+        val pet =
+            petView ?: return
+
+        val params =
+            petParams ?: return
+
+        if (
+            pet.currentPetId() !=
+            PetKind.YAYA.id
+        ) {
+            showTransientBubble(
+                "第一版走路 Demo 先只开放给芽芽，切换到芽芽再试试～"
+            )
+            return
+        }
+
+        cancelLifeChain()
+        cancelBehaviorSequence(
+            resetMotion =
+                true
+        )
+        cancelWalkDemo()
+
+        closePanel()
+        hideSpeechBubble(
+            immediate =
+                true
+        )
+
+        pet.startIdle()
+
+        val screenW =
+            resources
+                .displayMetrics
+                .widthPixels
+
+        val windowW =
+            params.width
+
+        val safeLeft =
+            dp(
+                6
+            )
+
+        val safeRight =
+            (
+                screenW -
+                    windowW -
+                    dp(
+                        6
+                    )
+                )
+                .coerceAtLeast(
+                    safeLeft
+                )
+
+        val startX =
+            params.x
+                .coerceIn(
+                    safeLeft,
+                    safeRight
+                )
+
+        val centerX =
+            (
+                screenW -
+                    windowW
+                ) /
+                2
+
+        val centerDistance =
+            kotlin.math.abs(
+                startX -
+                    centerX
+            )
+
+        val demoDistance =
+            dp(
+                150
+            )
+
+        val targetX =
+            if (
+                centerDistance >=
+                dp(
+                    86
+                )
+            ) {
+                centerX
+                    .coerceIn(
+                        safeLeft,
+                        safeRight
+                    )
+            } else {
+                val roomRight =
+                    safeRight -
+                        startX
+
+                val roomLeft =
+                    startX -
+                        safeLeft
+
+                if (
+                    roomRight >=
+                    roomLeft
+                ) {
+                    (
+                        startX +
+                            demoDistance
+                        )
+                        .coerceAtMost(
+                            safeRight
+                        )
+                } else {
+                    (
+                        startX -
+                            demoDistance
+                        )
+                        .coerceAtLeast(
+                            safeLeft
+                        )
+                }
+            }
+
+        val distance =
+            kotlin.math.abs(
+                targetX -
+                    startX
+            )
+
+        if (
+            distance <
+            dp(
+                42
+            )
+        ) {
+            showTransientBubble(
+                "这里空间有点小，把芽芽拖到更开阔的位置再试一次～"
+            )
+            return
+        }
+
+        val direction =
+            if (
+                targetX >=
+                startX
+            ) {
+                1f
+            } else {
+                -1f
+            }
+
+        if (
+            !pet.startWalking(
+                direction
+            )
+        ) {
+            showTransientBubble(
+                "芽芽现在正在做别的动作，等一下再走～"
+            )
+            return
+        }
+
+        dockedSide =
+            0
+
+        val pixelsPerSecond =
+            dp(
+                48
+            )
+                .coerceAtLeast(
+                    1
+                )
+
+        val durationMs =
+            (
+                distance
+                    .toFloat() /
+                    pixelsPerSecond
+                    .toFloat() *
+                    1000f
+                )
+                .toLong()
+                .coerceIn(
+                    1_850L,
+                    4_800L
+                )
+
+        val animator =
+            ValueAnimator
+                .ofInt(
+                    startX,
+                    targetX
+                )
+                .apply {
+                    duration =
+                        durationMs
+
+                    interpolator =
+                        LinearInterpolator()
+
+                    addUpdateListener {
+                        params.x =
+                            it.animatedValue as Int
+
+                        runCatching {
+                            windowManager
+                                .updateViewLayout(
+                                    pet,
+                                    params
+                                )
+                        }
+
+                        syncSpeechBubblePosition()
+                        syncYutuanRainbowPosition()
+                    }
+                }
+
+        walkAnimator =
+            animator
+
+        animator.addListener(
+            object :
+                AnimatorListenerAdapter() {
+
+                private var finished =
+                    false
+
+                private fun finish(
+                    animation: Animator
+                ) {
+                    if (
+                        finished
+                    ) {
+                        return
+                    }
+
+                    finished =
+                        true
+
+                    if (
+                        walkAnimator !==
+                        animation
+                    ) {
+                        return
+                    }
+
+                    walkAnimator =
+                        null
+
+                    pet.stopWalking()
+
+                    prefs
+                        .edit()
+                        .putInt(
+                            "pet_x",
+                            params.x
+                        )
+                        .putInt(
+                            "pet_y",
+                            params.y
+                        )
+                        .apply()
+
+                    // 走完只做非常轻的落脚回稳，不再强制吸到屏幕边缘。
+                    pet.animate()
+                        .translationY(
+                            dp(
+                                2
+                            )
+                                .toFloat()
+                        )
+                        .setDuration(
+                            90L
+                        )
+                        .withEndAction {
+                            pet.animate()
+                                .translationY(
+                                    0f
+                                )
+                                .setDuration(
+                                    130L
+                                )
+                                .start()
+                        }
+                        .start()
+                }
+
+                override fun onAnimationEnd(
+                    animation: Animator
+                ) {
+                    finish(
+                        animation
+                    )
+                }
+
+                override fun onAnimationCancel(
+                    animation: Animator
+                ) {
+                    finish(
+                        animation
+                    )
+                }
+            }
+        )
+
+        animator.start()
     }
 
     private fun startIdleAnimation() {
@@ -5314,6 +5665,8 @@ class PetOverlayService : Service() {
             "com.shiguangbox.app.pet.TEST_MOTION"
         const val ACTION_TEST_MOTION_SHOWCASE =
             "com.shiguangbox.app.pet.TEST_MOTION_SHOWCASE"
+        const val ACTION_TEST_WALK =
+            "com.shiguangbox.app.pet.TEST_WALK"
         const val ACTION_TEST_BEHAVIOR_SEQUENCE =
             "com.shiguangbox.app.pet.TEST_BEHAVIOR_SEQUENCE"
         const val ACTION_TEST_WORLD_EVENT =

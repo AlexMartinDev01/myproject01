@@ -434,13 +434,6 @@ class PetRigView @JvmOverloads constructor(
         direction: Float
     ): Boolean {
         if (
-            petKind !=
-            PetKind.YAYA
-        ) {
-            return false
-        }
-
-        if (
             state ==
             State.SLEEP ||
             state ==
@@ -2366,8 +2359,6 @@ class PetRigView @JvmOverloads constructor(
     ) {
         if (
             !locomotionActive ||
-            petKind !=
-            PetKind.YAYA ||
             width <=
             0 ||
             height <=
@@ -2376,6 +2367,29 @@ class PetRigView @JvmOverloads constructor(
             return
         }
 
+        when (
+            petKind
+        ) {
+            PetKind.ORANGE ->
+                applyOrangeLocomotionToMesh(
+                    now
+                )
+
+            PetKind.YAYA ->
+                applyYayaLocomotionToMesh(
+                    now
+                )
+
+            PetKind.YUTUAN ->
+                applyYutuanLocomotionToMesh(
+                    now
+                )
+        }
+    }
+
+    private fun applyYayaLocomotionToMesh(
+        now: Long
+    ) {
         val elapsedSeconds =
             (
                 now -
@@ -3079,6 +3093,1046 @@ class PetRigView @JvmOverloads constructor(
                                 ) *
                                 legWeight
                     }
+                }
+
+                verts[
+                    index
+                ] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
+        }
+    }
+
+    /**
+     * 橘团：活泼型步态。
+     * 正面静态素材不强行伪造成侧身跑，而是用更明显的弹跳重心、
+     * 左右下肢交替、视线前探和尾巴反向惯性，形成“小跑两步”的感觉。
+     */
+    private fun applyOrangeLocomotionToMesh(
+        now: Long
+    ) {
+        val elapsedSeconds =
+            (
+                now -
+                    locomotionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                ) /
+                1_000_000_000.0
+
+        val phase =
+            elapsedSeconds *
+                2.0 *
+                PI /
+                0.48
+
+        val step =
+            sin(
+                phase
+            )
+
+        val oppositeStep =
+            -step
+
+        val bounce =
+            abs(
+                sin(
+                    phase
+                )
+            )
+
+        val direction =
+            locomotionDirection
+                .toDouble()
+
+        val intensity =
+            locomotionIntensity
+                .toDouble()
+
+        val gaze =
+            (
+                direction *
+                    0.72 +
+                    sin(
+                        elapsedSeconds *
+                            2.0 *
+                            PI /
+                            2.15
+                    ) *
+                        0.28
+                )
+                .coerceIn(
+                    -1.0,
+                    1.0
+                )
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                var x =
+                    verts[
+                        index
+                    ]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                val bodyWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.36
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.68
+                                    ) /
+                                0.33
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    -step *
+                        0.0125 *
+                        intensity *
+                        bodyWeight
+
+                y -=
+                    bounce *
+                        0.0105 *
+                        intensity *
+                        bodyWeight
+
+                val headWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.505
+                                ) /
+                                0.315
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.355
+                                    ) /
+                                0.285
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    gaze *
+                        0.0105 *
+                        headWeight +
+                        step *
+                            0.0035 *
+                            intensity *
+                            headWeight
+
+                // 眼睛更主动看向行走方向，偶尔扫一眼另一侧。
+                val leftEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.400
+                                ) /
+                                0.050
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.392
+                                    ) /
+                                0.045
+                            )
+                    )
+
+                val rightEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.606
+                                ) /
+                                0.050
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.392
+                                    ) /
+                                0.045
+                            )
+                    )
+
+                val eyeWeight =
+                    clamp(
+                        leftEyeWeight +
+                            rightEyeWeight,
+                        0.0,
+                        1.0
+                    )
+
+                x +=
+                    gaze *
+                        0.0145 *
+                        eyeWeight
+
+                // 橘团尾巴跟身体反向甩，并比身体晚一点到位。
+                val tailPivotU =
+                    0.355
+
+                val tailPivotV =
+                    0.735
+
+                var tailWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.205
+                                ) /
+                                0.118
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.690
+                                    ) /
+                                0.150
+                            )
+                    )
+
+                val tailHorizontalMask =
+                    1.0 -
+                        smoothStep(
+                            clamp(
+                                (
+                                    u -
+                                        0.335
+                                    ) /
+                                    0.060,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                val tailVerticalMask =
+                    smoothStep(
+                        clamp(
+                            (
+                                v -
+                                    0.535
+                                ) /
+                                0.085,
+                            0.0,
+                            1.0
+                        )
+                    )
+
+                tailWeight *=
+                    tailHorizontalMask *
+                        tailVerticalMask
+
+                if (
+                    tailWeight >
+                    0.002
+                ) {
+                    val tailLag =
+                        sin(
+                            phase -
+                                0.92
+                        )
+
+                    val angle =
+                        (
+                            -step *
+                                8.0 +
+                                tailLag *
+                                    9.5
+                            ) *
+                            intensity *
+                            PI /
+                            180.0
+
+                    val dx =
+                        x -
+                            tailPivotU
+
+                    val dy =
+                        y -
+                            tailPivotV
+
+                    val rx =
+                        tailPivotU +
+                            dx *
+                                cos(
+                                    angle
+                                ) -
+                            dy *
+                                sin(
+                                    angle
+                                )
+
+                    val ry =
+                        tailPivotV +
+                            dx *
+                                sin(
+                                    angle
+                                ) +
+                            dy *
+                                cos(
+                                    angle
+                                )
+
+                    x =
+                        x *
+                            (
+                                1.0 -
+                                    tailWeight
+                                ) +
+                            rx *
+                                tailWeight
+
+                    y =
+                        y *
+                            (
+                                1.0 -
+                                    tailWeight
+                                ) +
+                            ry *
+                                tailWeight
+                }
+
+                // 底部两侧做轻量交替抬起，避免整张图只是上下弹。
+                for (
+                    legIndex in
+                    0..1
+                ) {
+                    val left =
+                        legIndex ==
+                            0
+
+                    val signal =
+                        if (
+                            left
+                        ) {
+                            step
+                        } else {
+                            oppositeStep
+                        }
+
+                    val centerU =
+                        if (
+                            left
+                        ) {
+                            0.405
+                        } else {
+                            0.635
+                        }
+
+                    var legWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        centerU
+                                    ) /
+                                    0.155
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            0.865
+                                        ) /
+                                    0.125
+                                )
+                        )
+
+                    legWeight *=
+                        smoothStep(
+                            clamp(
+                                (
+                                    v -
+                                        0.735
+                                    ) /
+                                    0.20,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                    val lift =
+                        maxOf(
+                            0.0,
+                            signal
+                        ) *
+                            0.029 *
+                            intensity
+
+                    val stride =
+                        signal *
+                            0.016 *
+                            direction *
+                            intensity
+
+                    x +=
+                        stride *
+                            legWeight
+
+                    y -=
+                        lift *
+                            legWeight
+                }
+
+                verts[
+                    index
+                ] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
+        }
+    }
+
+    /**
+     * 雨团：慢吞吞的软步态。
+     * 身体位移幅度较小，垂耳和云朵围巾明显晚半拍，
+     * 让它看起来不是“缩小版芽芽”，而是更慢、更软、更有情绪。
+     */
+    private fun applyYutuanLocomotionToMesh(
+        now: Long
+    ) {
+        val elapsedSeconds =
+            (
+                now -
+                    locomotionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                ) /
+                1_000_000_000.0
+
+        val phase =
+            elapsedSeconds *
+                2.0 *
+                PI /
+                0.76
+
+        val step =
+            sin(
+                phase
+            )
+
+        val oppositeStep =
+            -step
+
+        val sway =
+            sin(
+                phase
+            )
+
+        val bob =
+            abs(
+                sin(
+                    phase
+                )
+            )
+
+        val look =
+            sin(
+                elapsedSeconds *
+                    2.0 *
+                    PI /
+                    3.8
+            )
+
+        val direction =
+            locomotionDirection
+                .toDouble()
+
+        val intensity =
+            locomotionIntensity
+                .toDouble()
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                var x =
+                    verts[
+                        index
+                    ]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                val bodyWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.36
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.69
+                                    ) /
+                                0.34
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    -sway *
+                        0.0075 *
+                        intensity *
+                        bodyWeight
+
+                y -=
+                    bob *
+                        0.0048 *
+                        intensity *
+                        bodyWeight
+
+                val headWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.36
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.32
+                                    ) /
+                                0.29
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    look *
+                        0.0075 *
+                        headWeight +
+                        sway *
+                            0.0020 *
+                            intensity *
+                            headWeight
+
+                // 雨团视线也会看路，但明显比芽芽慢。
+                val leftEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.395
+                                ) /
+                                0.047
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.365
+                                    ) /
+                                0.041
+                            )
+                    )
+
+                val rightEyeWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.610
+                                ) /
+                                0.047
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.365
+                                    ) /
+                                0.041
+                            )
+                    )
+
+                val eyeWeight =
+                    clamp(
+                        leftEyeWeight +
+                            rightEyeWeight,
+                        0.0,
+                        1.0
+                    )
+
+                x +=
+                    (
+                        direction *
+                            0.007 +
+                            look *
+                                0.006
+                        ) *
+                        eyeWeight
+
+                // 两只长垂耳比身体慢半拍，幅度不大但延迟明显。
+                for (
+                    earIndex in
+                    0..1
+                ) {
+                    val left =
+                        earIndex ==
+                            0
+
+                    val pivotU =
+                        if (
+                            left
+                        ) {
+                            0.315
+                        } else {
+                            0.690
+                        }
+
+                    val pivotV =
+                        0.300
+
+                    val centerU =
+                        if (
+                            left
+                        ) {
+                            0.190
+                        } else {
+                            0.815
+                        }
+
+                    var earWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        centerU
+                                    ) /
+                                    0.170
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            0.355
+                                        ) /
+                                    0.185
+                                )
+                        )
+
+                    val distance =
+                        hypot(
+                            u -
+                                pivotU,
+                            v -
+                                pivotV
+                        )
+
+                    earWeight *=
+                        smoothStep(
+                            clamp(
+                                (
+                                    distance -
+                                        0.025
+                                    ) /
+                                    0.235,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                    if (
+                        earWeight >
+                        0.002
+                    ) {
+                        val lag =
+                            sin(
+                                phase -
+                                    1.12 +
+                                    if (
+                                        left
+                                    ) {
+                                        0.10
+                                    } else {
+                                        -0.10
+                                    }
+                            )
+
+                        val angle =
+                            lag *
+                                (
+                                    if (
+                                        left
+                                    ) {
+                                        8.0
+                                    } else {
+                                        -8.0
+                                    }
+                                    ) *
+                                intensity *
+                                PI /
+                                180.0
+
+                        val dx =
+                            x -
+                                pivotU
+
+                        val dy =
+                            y -
+                                pivotV
+
+                        val rx =
+                            pivotU +
+                                dx *
+                                    cos(
+                                        angle
+                                    ) -
+                                dy *
+                                    sin(
+                                        angle
+                                    )
+
+                        val ry =
+                            pivotV +
+                                dx *
+                                    sin(
+                                        angle
+                                    ) +
+                                dy *
+                                    cos(
+                                        angle
+                                    ) +
+                                abs(
+                                    lag
+                                ) *
+                                    0.0030 *
+                                    intensity
+
+                        x =
+                            x *
+                                (
+                                    1.0 -
+                                        earWeight
+                                    ) +
+                                rx *
+                                    earWeight
+
+                        y =
+                            y *
+                                (
+                                    1.0 -
+                                        earWeight
+                                    ) +
+                                ry *
+                                    earWeight
+                    }
+                }
+
+                // 云朵围巾尾端是雨团最明显的二级惯性。
+                val scarfPivotU =
+                    0.705
+
+                val scarfPivotV =
+                    0.595
+
+                var scarfWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.805
+                                ) /
+                                0.105
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.650
+                                    ) /
+                                0.155
+                            )
+                    )
+
+                scarfWeight *=
+                    smoothStep(
+                        clamp(
+                            (
+                                u -
+                                    0.690
+                                ) /
+                                0.180,
+                            0.0,
+                            1.0
+                        )
+                    )
+
+                if (
+                    scarfWeight >
+                    0.002
+                ) {
+                    val scarfLag =
+                        sin(
+                            phase -
+                                1.42
+                        )
+
+                    val angle =
+                        (
+                            -sway *
+                                4.0 +
+                                scarfLag *
+                                    7.5
+                            ) *
+                            intensity *
+                            PI /
+                            180.0
+
+                    val dx =
+                        x -
+                            scarfPivotU
+
+                    val dy =
+                        y -
+                            scarfPivotV
+
+                    val rx =
+                        scarfPivotU +
+                            dx *
+                                cos(
+                                    angle
+                                ) -
+                            dy *
+                                sin(
+                                    angle
+                                )
+
+                    val ry =
+                        scarfPivotV +
+                            dx *
+                                sin(
+                                    angle
+                                ) +
+                            dy *
+                                cos(
+                                    angle
+                                )
+
+                    x =
+                        x *
+                            (
+                                1.0 -
+                                    scarfWeight
+                                ) +
+                            rx *
+                                scarfWeight
+
+                    y =
+                        y *
+                            (
+                                1.0 -
+                                    scarfWeight
+                                ) +
+                            ry *
+                                scarfWeight
+                }
+
+                // 底部小步幅交替，整体比芽芽更慢、更轻。
+                for (
+                    legIndex in
+                    0..1
+                ) {
+                    val left =
+                        legIndex ==
+                            0
+
+                    val signal =
+                        if (
+                            left
+                        ) {
+                            step
+                        } else {
+                            oppositeStep
+                        }
+
+                    val centerU =
+                        if (
+                            left
+                        ) {
+                            0.395
+                        } else {
+                            0.625
+                        }
+
+                    var legWeight =
+                        exp(
+                            -square(
+                                (
+                                    u -
+                                        centerU
+                                    ) /
+                                    0.155
+                            ) -
+                                square(
+                                    (
+                                        v -
+                                            0.875
+                                        ) /
+                                    0.120
+                                )
+                        )
+
+                    legWeight *=
+                        smoothStep(
+                            clamp(
+                                (
+                                    v -
+                                        0.745
+                                    ) /
+                                    0.19,
+                                0.0,
+                                1.0
+                            )
+                        )
+
+                    val lift =
+                        maxOf(
+                            0.0,
+                            signal
+                        ) *
+                            0.020 *
+                            intensity
+
+                    val stride =
+                        signal *
+                            0.0105 *
+                            direction *
+                            intensity
+
+                    x +=
+                        stride *
+                            legWeight
+
+                    y -=
+                        lift *
+                            legWeight
                 }
 
                 verts[

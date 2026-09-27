@@ -672,6 +672,16 @@ class PetRigView @JvmOverloads constructor(
             frontLayer = false
         )
 
+        val petContentSave =
+            canvas.save()
+
+        canvas.scale(
+            AMBIENT_CONTENT_SCALE,
+            AMBIENT_CONTENT_SCALE,
+            width / 2f,
+            height / 2f
+        )
+
         if (
             petKind ==
             PetKind.YUTUAN
@@ -761,6 +771,10 @@ class PetRigView @JvmOverloads constructor(
                 stateSeconds = stateSeconds
             )
         }
+
+        canvas.restoreToCount(
+            petContentSave
+        )
 
         drawAmbientParticles(
             canvas = canvas,
@@ -866,18 +880,18 @@ class PetRigView @JvmOverloads constructor(
             if (
                 night
             ) {
-                92
+                132
             } else {
-                72
+                104
             }
 
         val middleAlpha =
             if (
                 night
             ) {
-                34
+                58
             } else {
-                25
+                42
             }
 
         ambientGlowShader =
@@ -1156,9 +1170,9 @@ class PetRigView @JvmOverloads constructor(
                 if (
                     night
                 ) {
-                    150
+                    192
                 } else {
-                    108
+                    154
                 }
 
             val layerAlpha =
@@ -1194,12 +1208,12 @@ class PetRigView @JvmOverloads constructor(
             val radius =
                 minDimension *
                     (
-                        0.0060f +
+                        0.0100f +
                             (
                                 index %
                                     3
                                 ) *
-                                0.0015f
+                                0.0022f
                         )
 
             // 很淡的外圈，让粒子像光点，而不是实心圆珠。
@@ -1219,7 +1233,7 @@ class PetRigView @JvmOverloads constructor(
                 x,
                 y,
                 radius *
-                    2.35f,
+                    2.70f,
                 ambientParticlePaint
             )
 
@@ -4847,6 +4861,8 @@ class PetRigView @JvmOverloads constructor(
     )
 
     companion object {
+        const val AMBIENT_CONTENT_SCALE = 0.76f
+
         private const val WAVE_DURATION_SECONDS = 1.35
         private const val REMINDER_DURATION_SECONDS = 2.70
         private const val HAPPY_DURATION_SECONDS = 1.15

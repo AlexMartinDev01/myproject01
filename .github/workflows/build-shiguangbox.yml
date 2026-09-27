@@ -121,7 +121,26 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.1.8" ]]; then
+          if [[ "$VERSION_NAME" == "2.1.9" ]]; then
+            RELEASE_TITLE="拾光盒 V2.1.9 · 芽芽 Walking V3"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.1.9 · 芽芽 Walking V3
+
+          - versionCode: $VERSION_CODE
+          - 基于 V2.1.8 继续增强芽芽走路时的拟人化观察与耳朵惯性
+          - 眼睛和头部拆成不同时间轴：眼睛先看向目标方向，头部随后跟随
+          - 眼睛新增独立左右局部位移，视线方向会和转头方向保持一致
+          - 头部观察幅度明显提高，并加入短暂停留感，避免只是轻微来回晃
+          - 新增轻度伪 3/4 转头：头部横向略压缩、脸部中心侧移，再叠加少量旋转，比单纯歪头更像真正侧看
+          - 耳朵从简单几像素平移升级为围绕耳根旋转，并同时受脚步惯性和转头惯性影响
+          - 耳朵惯性幅度明显增强，头转过去后耳朵会晚半拍跟随
+          - 观察周期调整为 2.70 秒，普通一次走路测试中能明显看到左右两侧观察
+          - 保留 V2.1.8 的明显步幅、身体重心、真实横向位移和 42dp/s 行走速度
+          - “我的桌宠”测试按钮升级为“测试芽芽拟人小碎步（Walking V3）”
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.1.8" ]]; then
             RELEASE_TITLE="拾光盒 V2.1.8 · 芽芽 Walking V2"
             cat > release-notes.md <<EOF
           拾光盒 V2.1.8 · 芽芽 Walking V2

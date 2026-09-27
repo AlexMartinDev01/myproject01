@@ -25,7 +25,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
-import android.view.animation.LinearInterpolator
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
@@ -71,11 +71,24 @@ class PetOverlayService : Service() {
     private var tapDispatchRunnable: Runnable? = null
     private var edgePeekRunnable: Runnable? = null
 
-    // V2.1.7 芽芽小碎步 Demo：
-    // View 内做步态，Service 只负责真实屏幕位移。
+    // 芽芽 Locomotion：
+    // PetRigView 负责身体步态，Service 负责真正的桌面坐标与自主巡游决策。
     private var walkAnimator:
         ValueAnimator? =
         null
+
+    private var locomotionSequenceToken =
+        0
+
+    private var autonomousRoamRunnable:
+        Runnable? =
+        null
+
+    private var autonomousRoamInProgress =
+        false
+
+    private var lastAutonomousRoamAt =
+        0L
 
     private var speechBubble:
         PetSpeechBubbleView? = null
@@ -130,6 +143,12 @@ class PetOverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(WindowManager::class.java)
         prefs = getSharedPreferences("shiguangbox_settings", Context.MODE_PRIVATE)
+
+        lastAutonomousRoamAt =
+            prefs.getLong(
+                "pet_last_auto_roam_at",
+                0L
+            )
 
         previousPetSessionEndedAt =
             prefs.getLong(
@@ -338,6 +357,7 @@ class PetOverlayService : Service() {
         stopYutuanWeatherCycle(
             resetRain = false
         )
+        cancelAutonomousRoamSchedule()
         cancelWalkDemo()
         handler.removeCallbacksAndMessages(null)
         closePanel()
@@ -504,6 +524,10 @@ class PetOverlayService : Service() {
             maybeShowDailyGreeting()
             scheduleContextBubble()
             startYutuanWeatherCycle()
+            scheduleAutonomousRoam(
+                initial =
+                    true
+            )
         }
     }
 
@@ -579,6 +603,7 @@ class PetOverlayService : Service() {
         ): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    cancelAutonomousRoamSchedule()
                     cancelWalkDemo()
                     cancelLifeChain()
 
@@ -693,6 +718,12 @@ class PetOverlayService : Service() {
 
                         else -> petView?.resumeMotion()
                     }
+
+                    scheduleAutonomousRoam(
+                        afterInteraction =
+                            true
+                    )
+
                     return true
                 }
             }
@@ -910,6 +941,7 @@ class PetOverlayService : Service() {
     }
 
     private fun applyPetSettings() {
+        cancelAutonomousRoamSchedule()
         cancelWalkDemo()
 
         val pet = petView ?: return
@@ -1011,9 +1043,15 @@ class PetOverlayService : Service() {
             contextBubbleRunnable =
                 null
         }
+
+        scheduleAutonomousRoam(
+            initial =
+                true
+        )
     }
 
     private fun recreatePetViewForSelection() {
+        cancelAutonomousRoamSchedule()
         cancelWalkDemo()
         closePanel()
         hideSpeechBubble(

@@ -509,7 +509,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.1.6 桌面氛围版 · 橘团 / 芽芽 / 雨团",
+                        "V2.1.7 芽芽 Walking V1 · 2D Mesh 小碎步",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -900,6 +900,42 @@ fun PetSettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("测试 1.35 秒挥爪")
+                        }
+
+                        if (
+                            selectedPet ==
+                            PetKind.YAYA
+                        ) {
+                            Spacer(
+                                Modifier.height(
+                                    8.dp
+                                )
+                            )
+
+                            Button(
+                                onClick = {
+                                    ContextCompat
+                                        .startForegroundService(
+                                            context,
+                                            Intent(
+                                                context,
+                                                PetOverlayService::class.java
+                                            ).setAction(
+                                                PetOverlayService
+                                                    .ACTION_TEST_WALK
+                                            )
+                                        )
+
+                                    message =
+                                        "芽芽开始第一版小碎步测试啦：看左右脚、身体重心和真实位移是否自然"
+                                },
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "测试芽芽小碎步（Walking V1）"
+                                )
+                            }
                         }
 
                         Spacer(Modifier.height(8.dp))

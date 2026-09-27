@@ -216,6 +216,12 @@ class PetRigView @JvmOverloads constructor(
     private var locomotionDirection =
         1f
 
+    // 由 Overlay 的真实位移进度驱动。
+    // 起步/刹车阶段降低到约 0.5，巡航阶段保持 1.0，
+    // 这样窗口减速时脚步也会同步收小，不会原地“空踩”。
+    private var locomotionIntensity =
+        1f
+
     private var locomotionStartNanos =
         0L
 
@@ -475,6 +481,9 @@ class PetRigView @JvmOverloads constructor(
         locomotionStartNanos =
             now
 
+        locomotionIntensity =
+            1f
+
         locomotionActive =
             true
 
@@ -502,6 +511,9 @@ class PetRigView @JvmOverloads constructor(
         locomotionActive =
             false
 
+        locomotionIntensity =
+            1f
+
         locomotionStartNanos =
             0L
 
@@ -518,6 +530,24 @@ class PetRigView @JvmOverloads constructor(
     fun isWalking():
         Boolean =
         locomotionActive
+
+    fun setWalkingIntensity(
+        intensity: Float
+    ) {
+        locomotionIntensity =
+            intensity.coerceIn(
+                0.42f,
+                1.12f
+            )
+
+        if (
+            locomotionActive
+        ) {
+            paused =
+                false
+            postFrame()
+        }
+    }
 
     fun currentMotion():
         PetMotion =
@@ -2431,6 +2461,10 @@ class PetRigView @JvmOverloads constructor(
             locomotionDirection
                 .toDouble()
 
+        val gaitIntensity =
+            locomotionIntensity
+                .toDouble()
+
         val viewW =
             width.toDouble()
 
@@ -2497,11 +2531,13 @@ class PetRigView @JvmOverloads constructor(
                 x +=
                     -bodySway *
                         0.0105 *
+                        gaitIntensity *
                         torsoWeight
 
                 y -=
                     bodyBob *
                         0.0072 *
+                        gaitIntensity *
                         torsoWeight
 
                 // 2) 头部：步态稳定 + 主动左右观察。
@@ -2530,6 +2566,7 @@ class PetRigView @JvmOverloads constructor(
                 x +=
                     bodySway *
                         0.0035 *
+                        gaitIntensity *
                         headWeight
 
                 // 整个头先有明显的横向偏移。
@@ -2847,9 +2884,10 @@ class PetRigView @JvmOverloads constructor(
 
                         val earAngleDegrees =
                             stepLag *
-                                7.2 +
+                                7.2 *
+                                gaitIntensity +
                                 lookLag *
-                                4.6
+                                    4.6
 
                         val earAngle =
                             earAngleDegrees *
@@ -2888,7 +2926,8 @@ class PetRigView @JvmOverloads constructor(
                                 abs(
                                     stepLag
                                 ) *
-                                    0.0045
+                                    0.0045 *
+                                    gaitIntensity
 
                         x =
                             x *
@@ -2993,19 +3032,22 @@ class PetRigView @JvmOverloads constructor(
                                 0.0,
                                 signal
                             ) *
-                                0.040
+                                0.040 *
+                                gaitIntensity
 
                         val settle =
                             maxOf(
                                 0.0,
                                 -signal
                             ) *
-                                0.0048
+                                0.0048 *
+                                gaitIntensity
 
                         val stride =
                             signal *
                                 0.022 *
-                                direction
+                                direction *
+                                gaitIntensity
 
                         val outward =
                             maxOf(
@@ -3020,7 +3062,8 @@ class PetRigView @JvmOverloads constructor(
                                     } else {
                                         0.0048
                                     }
-                                    )
+                                    ) *
+                                gaitIntensity
 
                         x +=
                             (

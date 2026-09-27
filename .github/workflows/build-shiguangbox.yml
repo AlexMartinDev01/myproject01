@@ -121,7 +121,29 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.3.3" ]]; then
+          if [[ "$VERSION_NAME" == "2.4.0" ]]; then
+            RELEASE_TITLE="拾光盒 V2.4.0 · 橘团方向行走"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.4.0 · 橘团方向行走 / Directional Locomotion
+
+          - versionCode: $VERSION_CODE
+          - 正式接入橘团四张新增透明方向资产：左 3/4、右 3/4、左侧面、右侧面
+          - 正面继续使用原有稳定的橘团主图，不替换角色身份与既有待机效果
+          - 橘团向左/右移动时不再一直正面对着用户横向平移
+          - 起步新增 FRONT -> 3/4 -> SIDE 两段方向过渡，每段约 170ms，并使用交叉淡化减少换图跳变
+          - 停步新增 SIDE -> 3/4 -> FRONT 回正流程；即使在刚起步阶段被用户打断，也会从当前转身进度平滑回正，不会突然闪成纯侧面
+          - 侧面走路使用独立 Mesh 绑定，不复用原正面橘团的腿、尾巴和脸部蒙版
+          - 侧面步态加入前后脚交替、轻量身体起伏、尾巴滞后惯性与轻微头眼活动
+          - 3/4 过渡阶段只保留克制的身体/头眼微动，避免生成方向图被大幅拉扯
+          - 继续保留 V2.3.2 Soft Foot Plant 的顺滑屏幕位移，不恢复一顿一顿的硬锁相
+          - 继续保留 V2.3.3 Walking Attention；方向图负责大角度转身，Mesh 只负责小角度头眼灵动
+          - 橘团停下后的摇尾巴/观察反应延后到回正完成后再触发，避免方向过渡与后续动作冲突
+          - 芽芽与雨团本版不切方向图，继续沿用已稳定的现有步态与注意力系统
+          - “我的桌宠”页新增“测试橘团转身侧走（立即）”，便于直接实机验收正面、3/4、侧面的完整切换
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.3.3" ]]; then
             RELEASE_TITLE="拾光盒 V2.3.3 · 行走注意力"
             cat > release-notes.md <<EOF
           拾光盒 V2.3.3 · 行走注意力 / Animal-like Gaze

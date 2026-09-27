@@ -2946,46 +2946,17 @@ class PetRigView @JvmOverloads constructor(
                 )
             )
 
-        val lookPhase =
-            elapsedSeconds *
-                2.0 *
-                PI /
-                WALK_LOOK_PERIOD_SECONDS
-
-        // 头部观察：放大后做钳位，形成短暂“停住看”的平台，
-        // 比普通正弦来回晃更像主动张望。
-        val headLookRaw =
-            sin(
-                lookPhase
-            )
-
         val headLook =
-            (
-                headLookRaw *
-                    1.42
-                )
-                .coerceIn(
-                    -1.0,
-                    1.0
-                )
-
-        // 眼睛比头部提前约 0.18~0.22 秒转向，
-        // 模拟人和动物常见的“视线先到，头随后跟上”。
-        val eyeLookRaw =
-            sin(
-                lookPhase +
-                    0.46
-            )
+            locomotionHeadLook
+                .toDouble()
 
         val eyeLook =
-            (
-                eyeLookRaw *
-                    1.58
-                )
-                .coerceIn(
-                    -1.0,
-                    1.0
-                )
+            locomotionEyeLook
+                .toDouble()
+
+        val headLift =
+            locomotionHeadLift
+                .toDouble()
 
         val direction =
             locomotionDirection
@@ -3122,10 +3093,15 @@ class PetRigView @JvmOverloads constructor(
                         ) *
                         headWeight
 
-                // 整个头先有明显的横向偏移。
+                // 整个头先跟随注意力目标，再叠加极轻抬头/低头。
                 x +=
                     headLook *
-                        0.0155 *
+                        0.0180 *
+                        headWeight
+
+                y -=
+                    headLift *
+                        0.0042 *
                         headWeight
 
                 // 再围绕头部中心做更明显的“转头/侧看”。
@@ -3156,7 +3132,7 @@ class PetRigView @JvmOverloads constructor(
 
                     val yawScaleX =
                         1.0 -
-                            0.052 *
+                            0.056 *
                                 turnAmount
 
                     val yawX =
@@ -3164,7 +3140,7 @@ class PetRigView @JvmOverloads constructor(
                             dx0 *
                                 yawScaleX +
                             headLook *
-                                0.0095
+                                0.0110
 
                     // 转头时脸部有极轻的纵向错位，
                     // 避免只像整张圆形头像横移。
@@ -3176,7 +3152,7 @@ class PetRigView @JvmOverloads constructor(
 
                     val angle =
                         headLook *
-                            4.8 *
+                            5.4 *
                             PI /
                             180.0
 
@@ -3284,15 +3260,19 @@ class PetRigView @JvmOverloads constructor(
                     // 眼睛与头部同向，但领先一个相位。
                     x +=
                         eyeLook *
-                            0.0185 *
+                            0.0220 *
                             eyeWeight
 
                     // 看向两侧时略微抬一点眼神，让表情更有“观察”感。
                     y -=
-                        abs(
-                            eyeLook
-                        ) *
-                            0.0028 *
+                        (
+                            abs(
+                                eyeLook
+                            ) *
+                                0.0026 +
+                                headLift *
+                                    0.0012
+                            ) *
                             eyeWeight
                 }
 
@@ -3706,22 +3686,17 @@ class PetRigView @JvmOverloads constructor(
             locomotionIntensity
                 .toDouble()
 
-        val gaze =
-            (
-                direction *
-                    0.72 +
-                    sin(
-                        elapsedSeconds *
-                            2.0 *
-                            PI /
-                            2.15
-                    ) *
-                        0.28
-                )
-                .coerceIn(
-                    -1.0,
-                    1.0
-                )
+        val headLook =
+            locomotionHeadLook
+                .toDouble()
+
+        val eyeLook =
+            locomotionEyeLook
+                .toDouble()
+
+        val headLift =
+            locomotionHeadLift
+                .toDouble()
 
         val viewW =
             width.toDouble()
@@ -3839,8 +3814,8 @@ class PetRigView @JvmOverloads constructor(
                         )
 
                 x +=
-                    gaze *
-                        0.0105 *
+                    headLook *
+                        0.0145 *
                         headWeight +
                         step *
                             0.0035 *
@@ -3850,7 +3825,103 @@ class PetRigView @JvmOverloads constructor(
                             0.0040 *
                             headWeight
 
-                // 眼睛更主动看向行走方向，偶尔扫一眼另一侧。
+                y -=
+                    headLift *
+                        0.0038 *
+                        headWeight
+
+                // 橘团转头比芽芽更快、更警觉：
+                // 用轻量横向压缩 + 侧移 + 小角度旋转模拟 3/4 侧看。
+                if (
+                    headWeight >
+                    0.002
+                ) {
+                    val headCenterU =
+                        0.505
+
+                    val headCenterV =
+                        0.355
+
+                    val turnAmount =
+                        abs(
+                            headLook
+                        )
+
+                    val dx0 =
+                        x -
+                            headCenterU
+
+                    val dy0 =
+                        y -
+                            headCenterV
+
+                    val yawScaleX =
+                        1.0 -
+                            0.034 *
+                                turnAmount
+
+                    val yawX =
+                        headCenterU +
+                            dx0 *
+                                yawScaleX +
+                            headLook *
+                                0.0072
+
+                    val angle =
+                        headLook *
+                            3.6 *
+                            PI /
+                            180.0
+
+                    val dx =
+                        yawX -
+                            headCenterU
+
+                    val dy =
+                        dy0
+
+                    val rx =
+                        headCenterU +
+                            dx *
+                                cos(
+                                    angle
+                                ) -
+                            dy *
+                                sin(
+                                    angle
+                                )
+
+                    val ry =
+                        headCenterV +
+                            dx *
+                                sin(
+                                    angle
+                                ) +
+                            dy *
+                                cos(
+                                    angle
+                                )
+
+                    x =
+                        x *
+                            (
+                                1.0 -
+                                    headWeight
+                                ) +
+                            rx *
+                                headWeight
+
+                    y =
+                        y *
+                            (
+                                1.0 -
+                                    headWeight
+                                ) +
+                            ry *
+                                headWeight
+                }
+
+                // 眼睛先扫向新目标，再等头跟过来。
                 val leftEyeWeight =
                     exp(
                         -square(
@@ -3896,8 +3967,19 @@ class PetRigView @JvmOverloads constructor(
                     )
 
                 x +=
-                    gaze *
-                        0.0145 *
+                    eyeLook *
+                        0.0205 *
+                        eyeWeight
+
+                y -=
+                    (
+                        headLift *
+                            0.0018 +
+                            abs(
+                                eyeLook
+                            ) *
+                                0.0012
+                        ) *
                         eyeWeight
 
                 // 橘团尾巴跟身体反向甩，并比身体晚一点到位。
@@ -4176,13 +4258,17 @@ class PetRigView @JvmOverloads constructor(
                 )
             )
 
-        val look =
-            sin(
-                elapsedSeconds *
-                    2.0 *
-                    PI /
-                    3.8
-            )
+        val headLook =
+            locomotionHeadLook
+                .toDouble()
+
+        val eyeLook =
+            locomotionEyeLook
+                .toDouble()
+
+        val headLift =
+            locomotionHeadLift
+                .toDouble()
 
         val direction =
             locomotionDirection
@@ -4308,8 +4394,8 @@ class PetRigView @JvmOverloads constructor(
                         )
 
                 x +=
-                    look *
-                        0.0075 *
+                    headLook *
+                        0.0105 *
                         headWeight +
                         sway *
                             0.0020 *
@@ -4319,7 +4405,99 @@ class PetRigView @JvmOverloads constructor(
                             0.0024 *
                             headWeight
 
-                // 雨团视线也会看路，但明显比芽芽慢。
+                y -=
+                    headLift *
+                        0.0030 *
+                        headWeight
+
+                // 雨团转头更慢、更软，只做很轻的 3/4 偏转，避免长耳被扯变形。
+                if (
+                    headWeight >
+                    0.002
+                ) {
+                    val headCenterU =
+                        0.50
+
+                    val headCenterV =
+                        0.32
+
+                    val turnAmount =
+                        abs(
+                            headLook
+                        )
+
+                    val dx0 =
+                        x -
+                            headCenterU
+
+                    val dy0 =
+                        y -
+                            headCenterV
+
+                    val yawScaleX =
+                        1.0 -
+                            0.024 *
+                                turnAmount
+
+                    val yawX =
+                        headCenterU +
+                            dx0 *
+                                yawScaleX +
+                            headLook *
+                                0.0052
+
+                    val angle =
+                        headLook *
+                            2.7 *
+                            PI /
+                            180.0
+
+                    val dx =
+                        yawX -
+                            headCenterU
+
+                    val rx =
+                        headCenterU +
+                            dx *
+                                cos(
+                                    angle
+                                ) -
+                            dy0 *
+                                sin(
+                                    angle
+                                )
+
+                    val ry =
+                        headCenterV +
+                            dx *
+                                sin(
+                                    angle
+                                ) +
+                            dy0 *
+                                cos(
+                                    angle
+                                )
+
+                    x =
+                        x *
+                            (
+                                1.0 -
+                                    headWeight
+                                ) +
+                            rx *
+                                headWeight
+
+                    y =
+                        y *
+                            (
+                                1.0 -
+                                    headWeight
+                                ) +
+                            ry *
+                                headWeight
+                }
+
+                // 雨团眼睛先慢慢扫过去，头随后才到。
                 val leftEyeWeight =
                     exp(
                         -square(
@@ -4365,11 +4543,18 @@ class PetRigView @JvmOverloads constructor(
                     )
 
                 x +=
+                    eyeLook *
+                        0.0140 *
+                        eyeWeight
+
+                y -=
                     (
-                        direction *
-                            0.007 +
-                            look *
-                                0.006
+                        headLift *
+                            0.0014 +
+                            abs(
+                                eyeLook
+                            ) *
+                                0.0008
                         ) *
                         eyeWeight
 

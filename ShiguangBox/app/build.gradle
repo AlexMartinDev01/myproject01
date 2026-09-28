@@ -32,8 +32,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 80
-        versionName '2.5.99'
+        versionCode 82
+        versionName '2.5.101'
     }
 
     signingConfigs {

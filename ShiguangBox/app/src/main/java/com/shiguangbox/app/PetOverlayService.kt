@@ -3406,14 +3406,17 @@ class PetOverlayService : Service() {
                     1L
                 )
 
-        // 橘团先完成大约 60%~70% 的身体转向再开始明显位移。
-        // 这能消除“边换立绘边横向滑”的 PPT 感。
+        // Turn -> Walk continuity:
+        // Orange starts root translation at roughly 72% of the 0->90° turn
+        // (90ms anticipation + about 375ms of the 520ms turn).
+        // The first root movement then ramps from zero velocity instead of
+        // suddenly entering near-cruise motion.
         val turnLeadMs =
             if (
                 kind ==
                 PetKind.ORANGE
             ) {
-                390L
+                465L
             } else {
                 0L
             }
@@ -3482,6 +3485,39 @@ class PetOverlayService : Service() {
                                     0f,
                                     1f
                                 )
+
+                        val rootInputProgress =
+                            if (
+                                kind ==
+                                PetKind.ORANGE
+                            ) {
+                                // Zero-velocity launch over the first ~180ms.
+                                // At the end of the launch window this rejoins
+                                // rawProgress with matching value and no jump.
+                                val launchBlend =
+                                    smoothUnit(
+                                        (
+                                            travelPlayTime
+                                                .toFloat() /
+                                                180f
+                                            )
+                                            .coerceIn(
+                                                0f,
+                                                1f
+                                            )
+                                    )
+
+                                (
+                                    rawProgress *
+                                        launchBlend
+                                    )
+                                    .coerceIn(
+                                        0f,
+                                        1f
+                                    )
+                            } else {
+                                rawProgress
+                            }
 
                         val baseIntensity =
                             when (
@@ -3552,7 +3588,7 @@ class PetOverlayService : Service() {
                         val rootProgress =
                             softPhaseLockedRootProgress(
                                 rawProgress =
-                                    rawProgress,
+                                    rootInputProgress,
                                 halfStepCount =
                                     halfStepCount,
                                 profile =

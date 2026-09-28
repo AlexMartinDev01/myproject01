@@ -139,9 +139,10 @@ class PetRigView @JvmOverloads constructor(
             null
         }
 
-    // V2.5.103 雨团转身防抖：
-    // 使用 65 张高密度稳定化帧，避免 17 帧在 60/90/120Hz 屏幕上出现
-    // 不均匀驻帧；左向继续镜像同一序列，保证角色造型完全一致。
+    // V2.5.102 雨团方向转身：
+    // 17 张离线修复后的透明帧只负责 0° -> 90° 转身。
+    // 左向不再额外生成一套 AI 图，而是在 Canvas 层镜像同一序列，
+    // 保证左右角色完全一致。
     private val yutuanTurnBitmaps: List<Bitmap> =
         if (
             petKind ==
@@ -164,55 +165,7 @@ class PetRigView @JvmOverloads constructor(
                 R.drawable.pet_yutuan_turn_13,
                 R.drawable.pet_yutuan_turn_14,
                 R.drawable.pet_yutuan_turn_15,
-                R.drawable.pet_yutuan_turn_16,
-                R.drawable.pet_yutuan_turn_17,
-                R.drawable.pet_yutuan_turn_18,
-                R.drawable.pet_yutuan_turn_19,
-                R.drawable.pet_yutuan_turn_20,
-                R.drawable.pet_yutuan_turn_21,
-                R.drawable.pet_yutuan_turn_22,
-                R.drawable.pet_yutuan_turn_23,
-                R.drawable.pet_yutuan_turn_24,
-                R.drawable.pet_yutuan_turn_25,
-                R.drawable.pet_yutuan_turn_26,
-                R.drawable.pet_yutuan_turn_27,
-                R.drawable.pet_yutuan_turn_28,
-                R.drawable.pet_yutuan_turn_29,
-                R.drawable.pet_yutuan_turn_30,
-                R.drawable.pet_yutuan_turn_31,
-                R.drawable.pet_yutuan_turn_32,
-                R.drawable.pet_yutuan_turn_33,
-                R.drawable.pet_yutuan_turn_34,
-                R.drawable.pet_yutuan_turn_35,
-                R.drawable.pet_yutuan_turn_36,
-                R.drawable.pet_yutuan_turn_37,
-                R.drawable.pet_yutuan_turn_38,
-                R.drawable.pet_yutuan_turn_39,
-                R.drawable.pet_yutuan_turn_40,
-                R.drawable.pet_yutuan_turn_41,
-                R.drawable.pet_yutuan_turn_42,
-                R.drawable.pet_yutuan_turn_43,
-                R.drawable.pet_yutuan_turn_44,
-                R.drawable.pet_yutuan_turn_45,
-                R.drawable.pet_yutuan_turn_46,
-                R.drawable.pet_yutuan_turn_47,
-                R.drawable.pet_yutuan_turn_48,
-                R.drawable.pet_yutuan_turn_49,
-                R.drawable.pet_yutuan_turn_50,
-                R.drawable.pet_yutuan_turn_51,
-                R.drawable.pet_yutuan_turn_52,
-                R.drawable.pet_yutuan_turn_53,
-                R.drawable.pet_yutuan_turn_54,
-                R.drawable.pet_yutuan_turn_55,
-                R.drawable.pet_yutuan_turn_56,
-                R.drawable.pet_yutuan_turn_57,
-                R.drawable.pet_yutuan_turn_58,
-                R.drawable.pet_yutuan_turn_59,
-                R.drawable.pet_yutuan_turn_60,
-                R.drawable.pet_yutuan_turn_61,
-                R.drawable.pet_yutuan_turn_62,
-                R.drawable.pet_yutuan_turn_63,
-                R.drawable.pet_yutuan_turn_64
+                R.drawable.pet_yutuan_turn_16
             )
                 .map {
                     resourceId ->
@@ -1176,6 +1129,34 @@ class PetRigView @JvmOverloads constructor(
     private var yutuanDirectionalReturnDirection =
         1f
 
+    // V2.5.103 Yutuan Turn Stabilization:
+    // These values are measured from the exact 17 frames shipped in V2.5.102.
+    // X offsets smooth the alpha-weighted visual center; Y offsets lock the feet;
+    // scaleX removes the small expand-contract-expand silhouette jitter.
+    private val yutuanTurnStabilizeXSourcePx =
+        floatArrayOf(
+            -0.032f, 0.139f, -0.026f, -0.319f, 0.193f,
+            0.126f, -0.240f, 0.120f, 0.157f, -0.654f,
+            1.064f, -0.685f, 0.080f, 0.407f, -0.344f,
+            -0.246f, 0.190f
+        )
+
+    private val yutuanTurnStabilizeYSourcePx =
+        floatArrayOf(
+            0.5f, -0.5f, 0.5f, 0.5f, 0.5f,
+            0.5f, 0.5f, -0.5f, -0.5f, 0.5f,
+            0.5f, 0.5f, 0.5f, 0.5f, -0.5f,
+            -0.5f, 0.5f
+        )
+
+    private val yutuanTurnScaleX =
+        floatArrayOf(
+            1.00285f, 0.99330f, 1.00153f, 1.01436f, 0.98602f,
+            1.00265f, 1.01772f, 0.98463f, 0.98163f, 1.00910f,
+            1.01698f, 1.02000f, 0.99722f, 0.98000f, 0.98000f,
+            0.98810f, 1.01580f
+        )
+
     // Walking Attention V2.3.3：
     // 不再用固定正弦让头机械左右摆，而是使用“随机目标 + 眼睛先到 + 头后跟 + 停留”的注意力状态机。
     private var locomotionLookFrom =
@@ -2011,7 +1992,7 @@ class PetRigView @JvmOverloads constructor(
             return 0f
         }
 
-        // 回正与正向使用同一 65 帧高密度时间轴；只保留轻微柔和减速。
+        // 回正沿用同一套逐帧防抖补偿，并使用与正向一致的 420ms 时间尺度。
         val eased =
             t *
                 t *
@@ -2036,7 +2017,8 @@ class PetRigView @JvmOverloads constructor(
         bitmap: Bitmap,
         direction: Float,
         translateY: Float = 0f,
-        rotationDegrees: Float = 0f
+        rotationDegrees: Float = 0f,
+        stabilizationFrameIndex: Int = -1
     ) {
         val save =
             canvas.save()
@@ -2052,6 +2034,49 @@ class PetRigView @JvmOverloads constructor(
                     2f,
                 height /
                     2f
+            )
+        }
+
+        if (
+            stabilizationFrameIndex >=
+            0 &&
+            stabilizationFrameIndex <
+            yutuanTurnScaleX.size
+        ) {
+            val sourceToViewX =
+                width /
+                    160f
+
+            val sourceToViewY =
+                height /
+                    160f
+
+            val scaleX =
+                yutuanTurnScaleX[
+                    stabilizationFrameIndex
+                ]
+
+            // Keep the character's outer body centered while removing the
+            // measured visual-center reversal around frames 9-11.
+            canvas.scale(
+                scaleX,
+                1f,
+                width *
+                    0.50f,
+                height *
+                    0.72f
+            )
+
+            canvas.translate(
+                yutuanTurnStabilizeXSourcePx[
+                    stabilizationFrameIndex
+                ] *
+                    sourceToViewX /
+                    scaleX,
+                yutuanTurnStabilizeYSourcePx[
+                    stabilizationFrameIndex
+                ] *
+                    sourceToViewY
             )
         }
 
@@ -2178,7 +2203,7 @@ class PetRigView @JvmOverloads constructor(
 
         if (
             frames.size !=
-            65
+            17
         ) {
             buildMesh(
                 0.0,
@@ -2232,25 +2257,25 @@ class PetRigView @JvmOverloads constructor(
         val frameIndex =
             (
                 progress *
-                    64f +
+                    16f +
                     0.5f
                 )
                 .toInt()
                 .coerceIn(
                     0,
-                    64
+                    16
                 )
 
-        // 第 65 张之后直接使用用户指定的侧面走路母图，
+        // 最后一张直接使用用户指定的侧面走路母图，
         // 这样转身结束 -> 侧面走路不存在纹理切换。
         val bitmap =
             if (
                 frameIndex >=
-                64
+                16
             ) {
                 yutuanSideWalkBitmap
                     ?: frames[
-                        64
+                        16
                     ]
             } else {
                 frames[
@@ -2264,7 +2289,16 @@ class PetRigView @JvmOverloads constructor(
             bitmap =
                 bitmap,
             direction =
-                direction
+                direction,
+            stabilizationFrameIndex =
+                if (
+                    frameIndex <
+                    16
+                ) {
+                    frameIndex
+                } else {
+                    -1
+                }
         )
     }
 

@@ -3407,8 +3407,8 @@ class PetOverlayService : Service() {
                 )
 
         // 方向角色先完成大部分转身，再开始明显根位移。
-        // V2.5.103 雨团在完整 420ms 转身期间冻结 WindowManager 根位移，
-        // 避免位图换帧与整像素窗口移动叠加形成身体抖动。
+        // V2.5.103 雨团完整 420ms 转身期间冻结 WindowManager 根位移，
+        // 避免位图姿态变化与整像素窗口平移叠加产生身体抖动。
         val turnLeadMs =
             when (
                 kind

@@ -550,9 +550,6 @@ def decodeOrangeTurn67Asset =
 def yutuanTurnWalkBundlePartsDir =
     file("$projectDir/src/main/pet_assets/yutuan_turn_walk_bundle")
 
-def yutuanTurnWalkSourceZip =
-    file("$projectDir/src/main/pet_assets/yutuan_turn_walk_bundle.zip")
-
 def yutuanTurnWalkBundleZip =
     file("$buildDir/generated/yutuan_turn_walk/yutuan_turn_walk_bundle.zip")
 
@@ -562,9 +559,8 @@ def yutuanTurnWalkOutputDir =
 def decodeYutuanTurnWalkAssets =
     tasks.register("decodeYutuanTurnWalkAssets") {
         inputs.dir(yutuanTurnWalkBundlePartsDir)
-        inputs.file(yutuanTurnWalkSourceZip)
         outputs.files(
-            (0..64).collect {
+            (0..16).collect {
                 index ->
                     file(
                         "$projectDir/src/main/res/drawable-nodpi/" +
@@ -583,52 +579,44 @@ def decodeYutuanTurnWalkAssets =
         )
 
         doLast {
+            def parts =
+                yutuanTurnWalkBundlePartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Yutuan turn/walk bundle chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
             yutuanTurnWalkBundleZip
                 .parentFile
                 .mkdirs()
 
-            if (
-                yutuanTurnWalkSourceZip.exists()
-            ) {
-                yutuanTurnWalkBundleZip.bytes =
-                    yutuanTurnWalkSourceZip.bytes
-            } else {
-                // Backward-compatible fallback for older checkouts.
-                def parts =
-                    yutuanTurnWalkBundlePartsDir
-                        .listFiles()
-                        ?.findAll {
-                            it.name.endsWith(".txt")
-                        }
-                        ?.sort {
-                            a, b ->
-                                a.name <=>
-                                    b.name
-                        }
-
-                if (
-                    parts == null ||
-                    parts.isEmpty()
-                ) {
-                    throw new GradleException(
-                        "No Yutuan turn/walk bundle source found"
-                    )
-                }
-
-                def encoded =
-                    parts.collect {
-                        it.getText("UTF-8")
-                            .replaceAll(
-                                "\\s",
-                                ""
-                            )
-                    }.join("")
-
-                yutuanTurnWalkBundleZip.bytes =
-                    java.util.Base64
-                        .decoder
-                        .decode(encoded)
-            }
+            yutuanTurnWalkBundleZip.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
 
             def tempDir =
                 file(
@@ -649,7 +637,7 @@ def decodeYutuanTurnWalkAssets =
             yutuanTurnWalkOutputDir
                 .mkdirs()
 
-            (0..64).each {
+            (0..16).each {
                 index ->
                     def source =
                         file(
@@ -704,7 +692,7 @@ def decodeYutuanTurnWalkAssets =
             }
 
             println(
-                "Prepared Yutuan turn/walk assets: 65 stabilized turn frames + side walk"
+                "Prepared Yutuan turn/walk assets: 17 turn frames + side walk"
             )
         }
     }

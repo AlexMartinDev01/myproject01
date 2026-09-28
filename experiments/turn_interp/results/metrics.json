@@ -427,11 +427,11 @@
     "RIFE_4.25_premul_alpha": {
       "label": "RIFE_4.25_premul_alpha",
       "frame_count": 17,
-      "mean_step_abs": 0.03221086726989597,
-      "step_diff_cv": 0.2761708855594356,
-      "centroid_step_mean": 0.7694057868091948,
-      "centroid_step_cv": 0.31933163965791406,
-      "mean_sharpness": 1021.2211698644302,
+      "mean_step_abs": 0.03221086517442018,
+      "step_diff_cv": 0.2761704935444134,
+      "centroid_step_mean": 0.7694058384915974,
+      "centroid_step_cv": 0.31933060729566337,
+      "mean_sharpness": 1021.2193675321691,
       "pair_midpoints": [
         {
           "pair": "0.0->22.5",
@@ -460,5 +460,121 @@
       ]
     }
   },
-  "rife_error": null
+  "rife_error": null,
+  "rife_density": {
+    "RIFE_4.25_2x": {
+      "label": "RIFE_4.25_2x",
+      "frame_count": 9,
+      "mean_step_abs": 0.054415378253906965,
+      "step_diff_cv": 0.2730250658189692,
+      "centroid_step_mean": 1.528807253553106,
+      "centroid_step_cv": 0.303466102307392,
+      "mean_sharpness": 1083.618387858073,
+      "pair_midpoints": [
+        {
+          "pair": "0.0->22.5",
+          "mid_core_alpha": 0.9809224009513855,
+          "mid_translucent_fraction": 0.039991573329588144,
+          "mid_edge_ratio": 0.926105479653298
+        },
+        {
+          "pair": "22.5->45.0",
+          "mid_core_alpha": 0.9897416830062866,
+          "mid_translucent_fraction": 0.04623981883925637,
+          "mid_edge_ratio": 0.9756752723474108
+        },
+        {
+          "pair": "45.0->67.5",
+          "mid_core_alpha": 0.9911073446273804,
+          "mid_translucent_fraction": 0.04618685537905594,
+          "mid_edge_ratio": 0.9888697287976171
+        },
+        {
+          "pair": "67.5->90.0",
+          "mid_core_alpha": 0.9915973544120789,
+          "mid_translucent_fraction": 0.05111297606202294,
+          "mid_edge_ratio": 0.9892988340520683
+        }
+      ],
+      "factor": 2,
+      "duration_560ms_effective_fps": 14.285714285714285,
+      "rgba_runtime_memory_mib_256px": 2.25
+    },
+    "RIFE_4.25_4x": {
+      "label": "RIFE_4.25_4x",
+      "frame_count": 17,
+      "mean_step_abs": 0.03221086517442018,
+      "step_diff_cv": 0.2761704935444134,
+      "centroid_step_mean": 0.7694058384915974,
+      "centroid_step_cv": 0.31933060729566337,
+      "mean_sharpness": 1021.2193675321691,
+      "pair_midpoints": [
+        {
+          "pair": "0.0->22.5",
+          "mid_core_alpha": 0.9809224009513855,
+          "mid_translucent_fraction": 0.039991573329588144,
+          "mid_edge_ratio": 0.926105479653298
+        },
+        {
+          "pair": "22.5->45.0",
+          "mid_core_alpha": 0.9897416830062866,
+          "mid_translucent_fraction": 0.04623981883925637,
+          "mid_edge_ratio": 0.9756752723474108
+        },
+        {
+          "pair": "45.0->67.5",
+          "mid_core_alpha": 0.9911073446273804,
+          "mid_translucent_fraction": 0.04618685537905594,
+          "mid_edge_ratio": 0.9888697287976171
+        },
+        {
+          "pair": "67.5->90.0",
+          "mid_core_alpha": 0.9915973544120789,
+          "mid_translucent_fraction": 0.05111297606202294,
+          "mid_edge_ratio": 0.9892988340520683
+        }
+      ],
+      "factor": 4,
+      "duration_560ms_effective_fps": 28.57142857142857,
+      "rgba_runtime_memory_mib_256px": 4.25
+    },
+    "RIFE_4.25_8x": {
+      "label": "RIFE_4.25_8x",
+      "frame_count": 33,
+      "mean_step_abs": 0.017963496064112405,
+      "step_diff_cv": 0.6206019693691788,
+      "centroid_step_mean": 0.3935821788583173,
+      "centroid_step_cv": 0.7056529486314308,
+      "mean_sharpness": 1009.9439974698154,
+      "pair_midpoints": [
+        {
+          "pair": "0.0->22.5",
+          "mid_core_alpha": 0.9809224009513855,
+          "mid_translucent_fraction": 0.039991573329588144,
+          "mid_edge_ratio": 0.926105479653298
+        },
+        {
+          "pair": "22.5->45.0",
+          "mid_core_alpha": 0.9897416830062866,
+          "mid_translucent_fraction": 0.04623981883925637,
+          "mid_edge_ratio": 0.9756752723474108
+        },
+        {
+          "pair": "45.0->67.5",
+          "mid_core_alpha": 0.9911073446273804,
+          "mid_translucent_fraction": 0.04618685537905594,
+          "mid_edge_ratio": 0.9888697287976171
+        },
+        {
+          "pair": "67.5->90.0",
+          "mid_core_alpha": 0.9915973544120789,
+          "mid_translucent_fraction": 0.05111297606202294,
+          "mid_edge_ratio": 0.9892988340520683
+        }
+      ],
+      "factor": 8,
+      "duration_560ms_effective_fps": 57.14285714285714,
+      "rgba_runtime_memory_mib_256px": 8.25
+    }
+  }
 }

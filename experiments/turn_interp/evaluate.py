@@ -14,11 +14,12 @@ APP=ROOT/"ShiguangBox"/"app"/"src"/"main"
 
 def assets():
     dec=OUT/"_decoded"; dec.mkdir(exist_ok=True)
-    p22=dec/"turn_22_5.webp"; p67=dec/"turn_67_5.webp"
+    p0=dec/"turn_0_runtime.webp"; p22=dec/"turn_22_5.webp"; p67=dec/"turn_67_5.webp"
+    decode_chunks(APP/"pet_assets"/"orange_idle",p0)
     decode_chunks(APP/"pet_assets"/"orange_turn_22_5",p22)
     decode_chunks(APP/"pet_assets"/"orange_turn_67_5",p67)
     return [
-        APP/"res"/"drawable-nodpi"/"pet_orange_idle.webp",
+        p0,
         p22,
         APP/"res"/"drawable-nodpi"/"pet_orange_3q_right.webp",
         p67,

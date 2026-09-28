@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -79,3 +79,62 @@ jobs:
         with:
           name: ShiguangBox-v2.5.99-RIFE-Turn-Test
           path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk
+
+      - name: Publish updater-visible experimental release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="shiguangbox-v2.5.99-rife-test"
+          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk"
+          RELEASE_TITLE="拾光盒 V2.5.99 · RIFE 转身实验版"
+
+          cat > "$RUNNER_TEMP/rife-test-release-notes.md" <<EOF
+          拾光盒 V2.5.99 · RIFE 转身实验版
+
+          - versionCode: 80
+          - 这是专门验证橘团转身闪烁问题的在线实验版本
+          - 使用当前 2.5.1 的 0° / 22.5° / 45° / 67.5° / 90° 五张真实关键姿态
+          - 开发阶段离线使用 Practical-RIFE 4.25 生成 4× 插值序列，共 17 帧
+          - Android 转身期间一次只显示一张离线插值帧，不再同时绘制两张关键姿态
+          - 取消转身过程中的 SRC_OVER 双图 Crossfade，从根源移除约 75% Alpha 的周期性闪暗
+          - 转身插值帧共享固定 Anchor / Scale / 脚底基线，不按帧重新自动对齐，减少位置抖动
+          - 左转继续使用同一套右转序列运行时镜像，避免左右素材角色漂移
+          - 90° 转身完成后继续交还现有侧身步态逻辑
+          - 已知实验观察点：45°→67.5° 的部分 RIFE 中间帧仍可能有耳朵/脸部局部插值伪影
+          - 本版本仅用于实机验证，不代表最终正式方案
+
+          提交：$GITHUB_SHA
+          EOF
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_PATH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$RUNNER_TEMP/rife-test-release-notes.md" \
+              --prerelease=false
+          else
+            gh release create "$TAG" "$APK_PATH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$RUNNER_TEMP/rife-test-release-notes.md"
+          fi
+
+          RELEASE_ID=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '.id')
+
+          gh api \
+            --method PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -f make_latest=true \
+            >/dev/null
+
+          echo "Published $TAG as latest release for in-app updater"

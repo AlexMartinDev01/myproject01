@@ -3395,7 +3395,7 @@ class PetOverlayService : Service() {
                     maxHalfStepCount
                 )
 
-        val durationMs =
+        val travelDurationMs =
             kotlin.math
                 .round(
                     halfStepCount *
@@ -3405,6 +3405,22 @@ class PetOverlayService : Service() {
                 .coerceAtLeast(
                     1L
                 )
+
+        // 橘团先完成大约 60%~70% 的身体转向再开始明显位移。
+        // 这能消除“边换立绘边横向滑”的 PPT 感。
+        val turnLeadMs =
+            if (
+                kind ==
+                PetKind.ORANGE
+            ) {
+                390L
+            } else {
+                0L
+            }
+
+        val animatorDurationMs =
+            travelDurationMs +
+                turnLeadMs
 
         var lastRenderedX =
             startX
@@ -3431,7 +3447,7 @@ class PetOverlayService : Service() {
                 )
                 .apply {
                     duration =
-                        durationMs
+                        animatorDurationMs
 
                     // 使用线性时间源，Soft Foot Plant Sync 自己只做轻微连续调制，
                     // 避免再次叠加插值器造成速度忽快忽慢。
@@ -3446,11 +3462,20 @@ class PetOverlayService : Service() {
                             return@addUpdateListener
                         }
 
+                        val travelPlayTime =
+                            (
+                                it.currentPlayTime -
+                                    turnLeadMs
+                                )
+                                .coerceAtLeast(
+                                    0L
+                                )
+
                         val rawProgress =
                             (
-                                it.currentPlayTime
+                                travelPlayTime
                                     .toFloat() /
-                                    durationMs
+                                    travelDurationMs
                                         .toFloat()
                                 )
                                 .coerceIn(
@@ -3767,7 +3792,7 @@ class PetOverlayService : Service() {
                                         kind
                                     ) {
                                         PetKind.ORANGE ->
-                                            0.62f
+                                            0.46f
 
                                         PetKind.YAYA ->
                                             0.52f
@@ -3905,8 +3930,8 @@ class PetOverlayService : Service() {
                         when (
                             kind
                         ) {
-                            // 橘团 V2.4.2 停下后先完成
-                            // SIDE -> 3/4 -> FRONT 的柔和回正，
+                            // 橘团 V2.5.0 停下后沿 90° -> 67.5° -> 45°
+                            // -> 22.5° -> 0° 连续回正，
                             // 再进入摇尾巴/观察动作，避免视觉动作叠在一起。
                             PetKind.ORANGE ->
                                 620L

@@ -522,7 +522,7 @@ fun PetSettingsScreen(
                 Column {
                     Text("我的桌宠", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "V2.4.2 橘团丝滑转身 · Smooth Directional Turn",
+                        "V2.5.0 橘团 Motion Turn 2.0 · 五姿态连续转身",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -940,7 +940,7 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "立即测试橘团丝滑转身：重点看眼睛先看、头部预判、正面 → 3/4 → 侧面是否连续，以及切图时角色有没有跳位或突然卡一下"
+                                            "立即测试 Motion Turn 2.0：重点看 0° → 22.5° → 45° → 67.5° → 90° 是否一口气转过去，前半段是否主要原地转身、接近侧身后才迈出去"
 
                                         PetKind.YAYA ->
                                             "立即测试芽芽行走灵动感：重点看眼睛先看、头再转、短暂停留和偶尔回正是否自然"
@@ -957,7 +957,7 @@ fun PetSettingsScreen(
                                     selectedPet ==
                                     PetKind.ORANGE
                                 ) {
-                                    "测试橘团转身侧走（立即）"
+                                    "测试橘团五姿态转身（立即）"
                                 } else {
                                     "测试" +
                                         selectedPet.displayName +
@@ -2125,7 +2125,7 @@ fun PetSettingsScreen(
                                         selectedPet
                                     ) {
                                         PetKind.ORANGE ->
-                                            "方向型：眼睛先看、头和身体轻预倾，再用更柔和的正面 → 3/4 → 侧面过渡；三张图自动对齐脚底与角色中心，减少切图卡顿"
+                                            "五姿态转身：0° → 22.5° → 45° → 67.5° → 90° 连续经过；相邻姿态同时做 Mesh Morph，眼睛、头、肩、身体和尾巴错峰跟随"
 
                                         PetKind.YAYA ->
                                             "观察型：顺滑小碎步中会随机看前方、回正或侧看；眼睛先到、头随后跟上，耳朵继续晚半拍"

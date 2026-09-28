@@ -167,11 +167,30 @@ class PetRigView @JvmOverloads constructor(
                 R.drawable.pet_orange_wake
             )
 
-    // V2.4.1 橘团方向资源修复：
-    // 实机发现旧版左 3/4 / 左侧面 WebP 文件本身损坏，
-    // Android 解码后会出现黑影/异常色块。现在只加载经过验证的右向资源，
-    // 左向图在内存中由右向图水平镜像生成，从源头保证左右像素质量一致。
-    // 正面仍继续使用现有 idleBitmap，不改变原始橘团形象。
+    // V2.5.0 Motion Turn 2.0：
+    // 橘团右转使用 0° / 22.5° / 45° / 67.5° / 90° 五个真实关键姿态。
+    // 左转继续由右向素材在内存中镜像，避免左右两套 AI 素材产生角色漂移。
+    private val orangeTurn22RightBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_orange_turn_22_5,
+                R.drawable.pet_orange_idle
+            )
+        } else {
+            null
+        }
+
+    private val orangeTurn22LeftBitmap: Bitmap? =
+        orangeTurn22RightBitmap
+            ?.let {
+                mirrorBitmapHorizontally(
+                    it
+                )
+            }
+
     private val orange3qRightBitmap: Bitmap? =
         if (
             petKind ==
@@ -187,6 +206,27 @@ class PetRigView @JvmOverloads constructor(
 
     private val orange3qLeftBitmap: Bitmap? =
         orange3qRightBitmap
+            ?.let {
+                mirrorBitmapHorizontally(
+                    it
+                )
+            }
+
+    private val orangeTurn67RightBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_orange_turn_67_5,
+                R.drawable.pet_orange_3q_right
+            )
+        } else {
+            null
+        }
+
+    private val orangeTurn67LeftBitmap: Bitmap? =
+        orangeTurn67RightBitmap
             ?.let {
                 mirrorBitmapHorizontally(
                     it
@@ -285,16 +325,12 @@ class PetRigView @JvmOverloads constructor(
 
         var minX =
             bitmapW
-
         var minY =
             bitmapH
-
         var maxX =
             -1
-
         var maxY =
             -1
-
         var index =
             0
 
@@ -319,37 +355,26 @@ class PetRigView @JvmOverloads constructor(
                     alpha >
                     14
                 ) {
-                    if (
-                        x <
-                        minX
-                    ) {
-                        minX =
+                    minX =
+                        minOf(
+                            minX,
                             x
-                    }
-
-                    if (
-                        x >
-                        maxX
-                    ) {
-                        maxX =
+                        )
+                    maxX =
+                        maxOf(
+                            maxX,
                             x
-                    }
-
-                    if (
-                        y <
-                        minY
-                    ) {
-                        minY =
+                        )
+                    minY =
+                        minOf(
+                            minY,
                             y
-                    }
-
-                    if (
-                        y >
-                        maxY
-                    ) {
-                        maxY =
+                        )
+                    maxY =
+                        maxOf(
+                            maxY,
                             y
-                    }
+                        )
                 }
             }
         }
@@ -402,11 +427,37 @@ class PetRigView @JvmOverloads constructor(
         )
     }
 
-    // 这些边界在 View 初始化阶段一次性计算。
-    // 不使用 lazy，避免用户第一次触发转身时才扫描像素造成首帧卡顿。
+    private fun mirroredAlphaBounds(
+        source: NormalizedAlphaBounds
+    ): NormalizedAlphaBounds =
+        NormalizedAlphaBounds(
+            left =
+                1.0 -
+                    source.right,
+            top =
+                source.top,
+            right =
+                1.0 -
+                    source.left,
+            bottom =
+                source.bottom
+        )
+
+    // 进入 View 时一次性预计算，不把像素扫描留到第一次转身帧。
     private val orangeFrontAlphaBounds =
         findAlphaBounds(
             idleBitmap
+        )
+
+    private val orangeTurn22RightAlphaBounds =
+        findAlphaBounds(
+            orangeTurn22RightBitmap
+                ?: idleBitmap
+        )
+
+    private val orangeTurn22LeftAlphaBounds =
+        mirroredAlphaBounds(
+            orangeTurn22RightAlphaBounds
         )
 
     private val orange3qRightAlphaBounds =
@@ -416,17 +467,20 @@ class PetRigView @JvmOverloads constructor(
         )
 
     private val orange3qLeftAlphaBounds =
-        NormalizedAlphaBounds(
-            left =
-                1.0 -
-                    orange3qRightAlphaBounds.right,
-            top =
-                orange3qRightAlphaBounds.top,
-            right =
-                1.0 -
-                    orange3qRightAlphaBounds.left,
-            bottom =
-                orange3qRightAlphaBounds.bottom
+        mirroredAlphaBounds(
+            orange3qRightAlphaBounds
+        )
+
+    private val orangeTurn67RightAlphaBounds =
+        findAlphaBounds(
+            orangeTurn67RightBitmap
+                ?: orange3qRightBitmap
+                ?: idleBitmap
+        )
+
+    private val orangeTurn67LeftAlphaBounds =
+        mirroredAlphaBounds(
+            orangeTurn67RightAlphaBounds
         )
 
     private val orangeSideRightAlphaBounds =
@@ -436,17 +490,8 @@ class PetRigView @JvmOverloads constructor(
         )
 
     private val orangeSideLeftAlphaBounds =
-        NormalizedAlphaBounds(
-            left =
-                1.0 -
-                    orangeSideRightAlphaBounds.right,
-            top =
-                orangeSideRightAlphaBounds.top,
-            right =
-                1.0 -
-                    orangeSideRightAlphaBounds.left,
-            bottom =
-                orangeSideRightAlphaBounds.bottom
+        mirroredAlphaBounds(
+            orangeSideRightAlphaBounds
         )
 
     private fun orangeAlphaBoundsFor(
@@ -454,12 +499,28 @@ class PetRigView @JvmOverloads constructor(
     ): NormalizedAlphaBounds =
         when {
             bitmap ===
+                orangeTurn22RightBitmap ->
+                orangeTurn22RightAlphaBounds
+
+            bitmap ===
+                orangeTurn22LeftBitmap ->
+                orangeTurn22LeftAlphaBounds
+
+            bitmap ===
                 orange3qRightBitmap ->
                 orange3qRightAlphaBounds
 
             bitmap ===
                 orange3qLeftBitmap ->
                 orange3qLeftAlphaBounds
+
+            bitmap ===
+                orangeTurn67RightBitmap ->
+                orangeTurn67RightAlphaBounds
+
+            bitmap ===
+                orangeTurn67LeftBitmap ->
+                orangeTurn67LeftAlphaBounds
 
             bitmap ===
                 orangeSideRightBitmap ->
@@ -472,6 +533,71 @@ class PetRigView @JvmOverloads constructor(
             else ->
                 orangeFrontAlphaBounds
         }
+
+    private fun orangeTurnBitmap(
+        direction: Float,
+        keyIndex: Int
+    ): Bitmap {
+        val right =
+            direction >=
+                0f
+
+        return when (
+            keyIndex.coerceIn(
+                0,
+                4
+            )
+        ) {
+            0 ->
+                idleBitmap
+
+            1 ->
+                if (
+                    right
+                ) {
+                    orangeTurn22RightBitmap
+                        ?: idleBitmap
+                } else {
+                    orangeTurn22LeftBitmap
+                        ?: idleBitmap
+                }
+
+            2 ->
+                if (
+                    right
+                ) {
+                    orange3qRightBitmap
+                        ?: idleBitmap
+                } else {
+                    orange3qLeftBitmap
+                        ?: idleBitmap
+                }
+
+            3 ->
+                if (
+                    right
+                ) {
+                    orangeTurn67RightBitmap
+                        ?: orange3qRightBitmap
+                        ?: idleBitmap
+                } else {
+                    orangeTurn67LeftBitmap
+                        ?: orange3qLeftBitmap
+                        ?: idleBitmap
+                }
+
+            else ->
+                if (
+                    right
+                ) {
+                    orangeSideRightBitmap
+                        ?: idleBitmap
+                } else {
+                    orangeSideLeftBitmap
+                        ?: idleBitmap
+                }
+        }
+    }
 
     private val paint = Paint(
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
@@ -578,8 +704,8 @@ class PetRigView @JvmOverloads constructor(
     private var locomotionStartNanos =
         0L
 
-    // V2.4.0 Directional Locomotion：
-    // amount 0 = 正面，1 = 3/4，2 = 纯侧面。
+    // V2.5.0 Motion Turn 2.0：
+    // amount 0/1/2/3/4 = 0°/22.5°/45°/67.5°/90°。
     // 结束行走时记录当下 amount，再平滑倒放到 0，
     // 因此即使用户在刚起步时打断，也不会突然闪成完整侧面。
     private var orangeDirectionalReturnStartNanos =
@@ -6025,7 +6151,7 @@ class PetRigView @JvmOverloads constructor(
 
         return directionalSmootherStep(
             elapsed /
-                105_000_000.0
+                90_000_000.0
         )
     }
 
@@ -6040,23 +6166,15 @@ class PetRigView @JvmOverloads constructor(
             return 0f
         }
 
-        // V2.4.2：
-        // 先给眼神 / 头部一个极短的预判，
-        // 再用两段更长的视角过渡。3/4 中间保留很短的“读帧”时间，
-        // 让大脑看到的是主动转身，而不是两张图快速闪过去。
+        // 90ms 眼神/头部预判后，用一条连续时间曲线穿过五个关键姿态。
+        // 不在 22.5/45/67.5 度任何节点停住，避免“关键帧读帧”造成顿挫。
         val anticipationNanos =
-            105_000_000.0
+            90_000_000.0
 
-        val frontToThreeQuarterNanos =
-            245_000_000.0
+        val turnNanos =
+            480_000_000.0
 
-        val threeQuarterHoldNanos =
-            65_000_000.0
-
-        val threeQuarterToSideNanos =
-            275_000_000.0
-
-        var elapsed =
+        val elapsed =
             (
                 now -
                     locomotionStartNanos
@@ -6067,54 +6185,30 @@ class PetRigView @JvmOverloads constructor(
                 .toDouble()
 
         if (
-            elapsed <
+            elapsed <=
             anticipationNanos
         ) {
             return 0f
         }
 
-        elapsed -=
-            anticipationNanos
-
-        if (
-            elapsed <
-            frontToThreeQuarterNanos
-        ) {
-            return directionalSmootherStep(
-                elapsed /
-                    frontToThreeQuarterNanos
+        val p =
+            directionalSmootherStep(
+                (
+                    elapsed -
+                        anticipationNanos
+                    ) /
+                    turnNanos
             )
-                .toFloat()
-        }
 
-        elapsed -=
-            frontToThreeQuarterNanos
-
-        if (
-            elapsed <
-            threeQuarterHoldNanos
-        ) {
-            return 1f
-        }
-
-        elapsed -=
-            threeQuarterHoldNanos
-
-        if (
-            elapsed <
-            threeQuarterToSideNanos
-        ) {
-            return (
-                1.0 +
-                    directionalSmootherStep(
-                        elapsed /
-                            threeQuarterToSideNanos
-                    )
-                )
-                .toFloat()
-        }
-
-        return 2f
+        return (
+            4.0 *
+                p
+            )
+            .toFloat()
+            .coerceIn(
+                0f,
+                4f
+            )
     }
 
     private fun orangeDirectionalReturnAmount(
@@ -6127,7 +6221,7 @@ class PetRigView @JvmOverloads constructor(
             orangeDirectionalReturnFromAmount
                 .coerceIn(
                     0f,
-                    2f
+                    4f
                 )
 
         if (
@@ -6139,159 +6233,79 @@ class PetRigView @JvmOverloads constructor(
             return 0f
         }
 
-        var elapsed =
+        val durationNanos =
             (
-                now -
-                    start
+                520_000_000.0 *
+                    (
+                        from /
+                            4f
+                        )
+                        .toDouble()
                 )
                 .coerceAtLeast(
-                    0L
+                    120_000_000.0
                 )
-                .toDouble()
 
-        val sideToThreeQuarterNanos =
-            245_000_000.0
-
-        val threeQuarterHoldNanos =
-            55_000_000.0
-
-        val threeQuarterToFrontNanos =
-            255_000_000.0
-
-        var amount =
-            from
-
-        if (
-            from >
-            1f
-        ) {
-            val sideSpan =
-                from -
-                    1f
-
-            val sideDuration =
-                sideToThreeQuarterNanos *
-                    sideSpan
-                        .toDouble()
-
-            if (
-                elapsed <
-                sideDuration
-            ) {
-                amount =
-                    (
-                        1.0 +
-                            sideSpan
-                                .toDouble() *
-                                (
-                                    1.0 -
-                                        directionalSmootherStep(
-                                            elapsed /
-                                                sideDuration
-                                        )
-                                    )
-                        )
-                        .toFloat()
-
-                return amount
-                    .coerceIn(
-                        0f,
-                        2f
+        val p =
+            directionalSmootherStep(
+                (
+                    now -
+                        start
                     )
-            }
-
-            elapsed -=
-                sideDuration
-
-            if (
-                elapsed <
-                threeQuarterHoldNanos
-            ) {
-                return 1f
-            }
-
-            elapsed -=
-                threeQuarterHoldNanos
-        }
-
-        val frontSpan =
-            minOf(
-                from,
-                1f
+                    .coerceAtLeast(
+                        0L
+                    )
+                    .toDouble() /
+                    durationNanos
             )
 
-        val frontDuration =
+        val amount =
             (
-                threeQuarterToFrontNanos *
-                    frontSpan
-                        .toDouble()
+                from
+                    .toDouble() *
+                    (
+                        1.0 -
+                            p
+                        )
                 )
-                .coerceAtLeast(
-                    1.0
+                .toFloat()
+                .coerceIn(
+                    0f,
+                    4f
                 )
 
         if (
-            elapsed <
-            frontDuration
+            p >=
+            1.0
         ) {
-            amount =
-                (
-                    frontSpan
-                        .toDouble() *
-                        (
-                            1.0 -
-                                directionalSmootherStep(
-                                    elapsed /
-                                        frontDuration
-                                )
-                            )
-                    )
-                    .toFloat()
-        } else {
-            amount =
-                0f
-
             orangeDirectionalReturnStartNanos =
                 0L
-
             orangeDirectionalReturnFromAmount =
                 0f
         }
 
         return amount
-            .coerceIn(
-                0f,
-                2f
-            )
     }
 
     private fun orangeThreeQuarterBitmap(
         direction: Float
     ): Bitmap =
-        if (
-            direction <
-            0f
-        ) {
-            orange3qLeftBitmap
-                ?: idleBitmap
-        } else {
-            orange3qRightBitmap
-                ?: idleBitmap
-        }
+        orangeTurnBitmap(
+            direction =
+                direction,
+            keyIndex =
+                2
+        )
 
     private fun orangeSideBitmap(
         direction: Float
     ): Bitmap =
-        if (
-            direction <
-            0f
-        ) {
-            orangeSideLeftBitmap
-                ?: idleBitmap
-        } else {
-            orangeSideRightBitmap
-                ?: idleBitmap
-        }
+        orangeTurnBitmap(
+            direction =
+                direction,
+            keyIndex =
+                4
+        )
 
     private fun buildOrangeAlignedNeutralMesh(
         bitmap: Bitmap
@@ -6428,22 +6442,14 @@ class PetRigView @JvmOverloads constructor(
         now: Long,
         direction: Float,
         blinkAmount: Double,
-        sideView: Boolean,
+        directionalBitmap: Bitmap,
+        keyIndex: Int,
         walking: Boolean,
         motionScale: Double = 1.0
     ) {
-        val directionalBitmap =
-            if (
-                sideView
-            ) {
-                orangeSideBitmap(
-                    direction
-                )
-            } else {
-                orangeThreeQuarterBitmap(
-                    direction
-                )
-            }
+        val sideView =
+            keyIndex >=
+                4
 
         buildOrangeAlignedNeutralMesh(
             directionalBitmap
@@ -7025,6 +7031,575 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun applyOrangeKeyframeMorphToMesh(
+        direction: Float,
+        sourceKeyIndex: Int,
+        targetAmount: Float
+    ) {
+        if (
+            width <=
+            0 ||
+            height <=
+            0
+        ) {
+            return
+        }
+
+        val delta =
+            (
+                targetAmount -
+                    sourceKeyIndex
+                        .toFloat()
+                )
+                .coerceIn(
+                    -1f,
+                    1f
+                )
+                .toDouble()
+
+        val p =
+            kotlin.math.abs(
+                delta
+            )
+
+        if (
+            p <
+            0.001
+        ) {
+            return
+        }
+
+        // lower key 向下一角度变形，upper key 反向向上一角度回补。
+        // 两张图因此会在中间轮廓靠拢，而不是只做透明度叠化。
+        val turnSign =
+            direction
+                .toDouble() *
+                if (
+                    delta >=
+                    0.0
+                ) {
+                    1.0
+                } else {
+                    -1.0
+                }
+
+        val headPhase =
+            directionalSmootherStep(
+                minOf(
+                    1.0,
+                    p *
+                        1.32
+                )
+            )
+
+        val shoulderPhase =
+            directionalSmootherStep(
+                clamp(
+                    (
+                        p -
+                            0.04
+                        ) /
+                        0.86,
+                    0.0,
+                    1.0
+                )
+            )
+
+        val bodyPhase =
+            directionalSmootherStep(
+                clamp(
+                    (
+                        p -
+                            0.10
+                        ) /
+                        0.90,
+                    0.0,
+                    1.0
+                )
+            )
+
+        val hipPhase =
+            directionalSmootherStep(
+                clamp(
+                    (
+                        p -
+                            0.20
+                        ) /
+                        0.80,
+                    0.0,
+                    1.0
+                )
+            )
+
+        val tailPhase =
+            directionalSmootherStep(
+                clamp(
+                    (
+                        p -
+                            0.30
+                        ) /
+                        0.70,
+                    0.0,
+                    1.0
+                )
+            )
+
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight
+                        .toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth
+                            .toDouble()
+
+                var x =
+                    verts[
+                        index
+                    ]
+                        .toDouble() /
+                        viewW
+
+                var y =
+                    verts[
+                        index +
+                            1
+                    ]
+                        .toDouble() /
+                        viewH
+
+                val headWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.505
+                                ) /
+                                0.315
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.355
+                                    ) /
+                                0.285
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                if (
+                    headWeight >
+                    0.002
+                ) {
+                    val centerU =
+                        0.505
+
+                    val centerV =
+                        0.355
+
+                    val dx0 =
+                        x -
+                            centerU
+
+                    val dy0 =
+                        y -
+                            centerV
+
+                    val yawScale =
+                        1.0 -
+                            0.013 *
+                                headPhase
+
+                    val yawX =
+                        centerU +
+                            dx0 *
+                                yawScale +
+                            turnSign *
+                                0.0058 *
+                                headPhase
+
+                    val angle =
+                        turnSign *
+                            1.85 *
+                            headPhase *
+                            PI /
+                            180.0
+
+                    val dx =
+                        yawX -
+                            centerU
+
+                    val rx =
+                        centerU +
+                            dx *
+                                cos(
+                                    angle
+                                ) -
+                            dy0 *
+                                sin(
+                                    angle
+                                )
+
+                    val ry =
+                        centerV +
+                            dx *
+                                sin(
+                                    angle
+                                ) +
+                            dy0 *
+                                cos(
+                                    angle
+                                )
+
+                    x =
+                        x *
+                            (
+                                1.0 -
+                                    headWeight
+                                ) +
+                            rx *
+                                headWeight
+
+                    y =
+                        y *
+                            (
+                                1.0 -
+                                    headWeight
+                                ) +
+                            ry *
+                                headWeight
+                }
+
+                val shoulderWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.51
+                                ) /
+                                0.34
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.58
+                                    ) /
+                                0.22
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    turnSign *
+                        0.0045 *
+                        shoulderPhase *
+                        shoulderWeight
+
+                val bodyWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.39
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.68
+                                    ) /
+                                0.31
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    turnSign *
+                        0.0028 *
+                        bodyPhase *
+                        bodyWeight
+
+                val hipWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    0.50
+                                ) /
+                                0.31
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.82
+                                    ) /
+                                0.20
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                x +=
+                    turnSign *
+                        0.0016 *
+                        hipPhase *
+                        hipWeight
+
+                val tailCenterU =
+                    if (
+                        direction >
+                        0f
+                    ) {
+                        0.22
+                    } else {
+                        0.78
+                    }
+
+                val tailWeight =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    tailCenterU
+                                ) /
+                                0.17
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        0.69
+                                    ) /
+                                0.22
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                // 尾巴最晚跟随，略向转身反方向留一下，形成动物惯性。
+                x -=
+                    turnSign *
+                        0.0038 *
+                        tailPhase *
+                        tailWeight
+
+                verts[
+                    index
+                ] =
+                    (
+                        x *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index +
+                        1
+                ] =
+                    (
+                        y *
+                            viewH
+                        )
+                        .toFloat()
+
+                index +=
+                    2
+            }
+        }
+    }
+
+    private fun orangeTurnMotionScale(
+        keyIndex: Int,
+        amount: Float,
+        walking: Boolean
+    ): Double {
+        if (
+            !walking
+        ) {
+            return 0.0
+        }
+
+        val overall =
+            (
+                (
+                    amount -
+                        1.5f
+                    ) /
+                    2.5f
+                )
+                .coerceIn(
+                    0f,
+                    1f
+                )
+                .toDouble()
+
+        return when (
+            keyIndex
+        ) {
+            0 ->
+                0.0
+
+            1 ->
+                0.05 +
+                    0.08 *
+                        overall
+
+            2 ->
+                0.10 +
+                    0.14 *
+                        overall
+
+            3 ->
+                0.20 +
+                    0.30 *
+                        overall
+
+            else ->
+                0.42 +
+                    0.58 *
+                        overall
+        }
+    }
+
+    private fun drawOrangeTurnKeyframe(
+        canvas: Canvas,
+        now: Long,
+        idleSeconds: Double,
+        stateSeconds: Double,
+        blinkAmount: Double,
+        direction: Float,
+        keyIndex: Int,
+        targetAmount: Float,
+        alpha: Float,
+        walking: Boolean
+    ) {
+        if (
+            alpha <=
+            0.001f
+        ) {
+            return
+        }
+
+        if (
+            keyIndex <=
+            0
+        ) {
+            buildOrangeMesh(
+                idleSeconds,
+                stateSeconds,
+                blinkAmount
+            )
+
+            if (
+                walking
+            ) {
+                applyOrangeTurnAnticipationToMesh(
+                    direction =
+                        direction,
+                    progress =
+                        1.0
+                )
+            }
+
+            applyOrangeKeyframeMorphToMesh(
+                direction =
+                    direction,
+                sourceKeyIndex =
+                    0,
+                targetAmount =
+                    targetAmount
+            )
+
+            drawIdleMesh(
+                canvas,
+                alpha
+            )
+
+            return
+        }
+
+        val bitmap =
+            orangeTurnBitmap(
+                direction =
+                    direction,
+                keyIndex =
+                    keyIndex
+            )
+
+        buildOrangeDirectionalMesh(
+            now =
+                now,
+            direction =
+                direction,
+            blinkAmount =
+                blinkAmount,
+            directionalBitmap =
+                bitmap,
+            keyIndex =
+                keyIndex,
+            walking =
+                walking,
+            motionScale =
+                orangeTurnMotionScale(
+                    keyIndex =
+                        keyIndex,
+                    amount =
+                        targetAmount,
+                    walking =
+                        walking
+                )
+        )
+
+        applyOrangeKeyframeMorphToMesh(
+            direction =
+                direction,
+            sourceKeyIndex =
+                keyIndex,
+            targetAmount =
+                targetAmount
+        )
+
+        drawCurrentMeshBitmap(
+            canvas =
+                canvas,
+            bitmap =
+                bitmap,
+            alpha =
+                alpha
+        )
+    }
+
     private fun applyOrangeTurnAnticipationToMesh(
         direction: Float,
         progress: Double
@@ -7338,187 +7913,164 @@ class PetRigView @JvmOverloads constructor(
                     now
                 )
             }
+                .coerceIn(
+                    0f,
+                    4f
+                )
 
-        val anticipation =
+        if (
+            amount <=
+            0.001f
+        ) {
+            buildOrangeMesh(
+                idleSeconds,
+                stateSeconds,
+                blinkAmount
+            )
+
             if (
                 walking
             ) {
-                orangeDirectionalAnticipationProgress(
-                    now
+                // 真正换姿态之前，先让眼睛、头、肩膀给出转向信号。
+                applyOrangeTurnAnticipationToMesh(
+                    direction =
+                        direction,
+                    progress =
+                        orangeDirectionalAnticipationProgress(
+                            now
+                        )
                 )
             } else {
-                1.0
+                applyCurrentMotionToMesh(
+                    now
+                )
             }
 
-        val threeQuarter =
-            orangeThreeQuarterBitmap(
-                direction
+            drawIdleMesh(
+                canvas,
+                1f
             )
 
-        val side =
-            orangeSideBitmap(
-                direction
-            )
+            return
+        }
 
-        when {
-            amount <=
-                0.001f -> {
-                buildOrangeMesh(
-                    idleSeconds,
-                    stateSeconds,
-                    blinkAmount
+        val lowerKey =
+            kotlin.math
+                .floor(
+                    amount
+                        .toDouble()
+                )
+                .toInt()
+                .coerceIn(
+                    0,
+                    4
                 )
 
-                if (
-                    walking
-                ) {
-                    // 转图之前先由眼睛、头和身体给出方向预判。
-                    // 这一小段不做完整走路步态，避免“还没转身腿已经跑起来”。
-                    applyOrangeTurnAnticipationToMesh(
-                        direction =
-                            direction,
-                        progress =
-                            anticipation
-                    )
-                } else {
-                    applyCurrentMotionToMesh(
-                        now
-                    )
-                }
+        val upperKey =
+            (
+                lowerKey +
+                    1
+                )
+                .coerceAtMost(
+                    4
+                )
 
-                drawIdleMesh(
+        if (
+            lowerKey ==
+            upperKey
+        ) {
+            drawOrangeTurnKeyframe(
+                canvas =
                     canvas,
+                now =
+                    now,
+                idleSeconds =
+                    idleSeconds,
+                stateSeconds =
+                    stateSeconds,
+                blinkAmount =
+                    blinkAmount,
+                direction =
+                    direction,
+                keyIndex =
+                    lowerKey,
+                targetAmount =
+                    amount,
+                alpha =
+                    1f,
+                walking =
+                    walking
+            )
+
+            return
+        }
+
+        val local =
+            (
+                amount -
+                    lowerKey
+                        .toFloat()
+                )
+                .coerceIn(
+                    0f,
                     1f
                 )
-            }
 
-            amount <
-                1f -> {
-                val p =
-                    amount.coerceIn(
-                        0f,
-                        1f
-                    )
+        val blend =
+            directionalSmootherStep(
+                local
+                    .toDouble()
+            )
+                .toFloat()
 
-                buildOrangeMesh(
-                    idleSeconds,
-                    stateSeconds,
-                    blinkAmount
-                )
+        // 只绘制相邻两个姿态，且两边 Mesh 都先向同一中间轮廓靠拢。
+        // 因此 60Hz 中间帧既有纹理渐变，也有实际几何连续变化。
+        drawOrangeTurnKeyframe(
+            canvas =
+                canvas,
+            now =
+                now,
+            idleSeconds =
+                idleSeconds,
+            stateSeconds =
+                stateSeconds,
+            blinkAmount =
+                blinkAmount,
+            direction =
+                direction,
+            keyIndex =
+                lowerKey,
+            targetAmount =
+                amount,
+            alpha =
+                1f -
+                    blend,
+            walking =
+                walking
+        )
 
-                if (
-                    walking
-                ) {
-                    applyOrangeTurnAnticipationToMesh(
-                        direction =
-                            direction,
-                        progress =
-                            1.0
-                    )
-                }
-
-                drawIdleMesh(
-                    canvas,
-                    1f -
-                        p
-                )
-
-                buildOrangeDirectionalMesh(
-                    now =
-                        now,
-                    direction =
-                        direction,
-                    blinkAmount =
-                        blinkAmount,
-                    sideView =
-                        false,
-                    walking =
-                        walking,
-                    motionScale =
-                        0.10 +
-                            0.22 *
-                                p
-                                    .toDouble()
-                )
-
-                drawCurrentMeshBitmap(
-                    canvas =
-                        canvas,
-                    bitmap =
-                        threeQuarter,
-                    alpha =
-                        p
-                )
-            }
-
-            else -> {
-                val p =
-                    (
-                        amount -
-                            1f
-                        )
-                        .coerceIn(
-                            0f,
-                            1f
-                        )
-
-                // 3/4 在切侧面时逐步增加动作量，而不是一出现就全幅摆动。
-                buildOrangeDirectionalMesh(
-                    now =
-                        now,
-                    direction =
-                        direction,
-                    blinkAmount =
-                        blinkAmount,
-                    sideView =
-                        false,
-                    walking =
-                        walking,
-                    motionScale =
-                        0.32 +
-                            0.34 *
-                                p
-                                    .toDouble()
-                )
-
-                drawCurrentMeshBitmap(
-                    canvas =
-                        canvas,
-                    bitmap =
-                        threeQuarter,
-                    alpha =
-                        1f -
-                            p
-                )
-
-                buildOrangeDirectionalMesh(
-                    now =
-                        now,
-                    direction =
-                        direction,
-                    blinkAmount =
-                        blinkAmount,
-                    sideView =
-                        true,
-                    walking =
-                        walking,
-                    motionScale =
-                        0.24 +
-                            0.76 *
-                                p
-                                    .toDouble()
-                )
-
-                drawCurrentMeshBitmap(
-                    canvas =
-                        canvas,
-                    bitmap =
-                        side,
-                    alpha =
-                        p
-                )
-            }
-        }
+        drawOrangeTurnKeyframe(
+            canvas =
+                canvas,
+            now =
+                now,
+            idleSeconds =
+                idleSeconds,
+            stateSeconds =
+                stateSeconds,
+            blinkAmount =
+                blinkAmount,
+            direction =
+                direction,
+            keyIndex =
+                upperKey,
+            targetAmount =
+                amount,
+            alpha =
+                blend,
+            walking =
+                walking
+        )
     }
 
     private fun buildMesh(

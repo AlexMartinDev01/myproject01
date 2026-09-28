@@ -32,8 +32,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 77
-        versionName '2.4.2'
+        versionCode 78
+        versionName '2.5.0'
     }
 
     signingConfigs {
@@ -425,6 +425,128 @@ def decodeYutuanBubbleAsset =
         }
     }
 
+def orangeTurn22AssetPartsDir =
+    file("$projectDir/src/main/pet_assets/orange_turn_22_5")
+
+def orangeTurn22AssetOutput =
+    file("$projectDir/src/main/res/drawable-nodpi/pet_orange_turn_22_5.webp")
+
+def decodeOrangeTurn22Asset =
+    tasks.register("decodeOrangeTurn22Asset") {
+        inputs.dir(orangeTurn22AssetPartsDir)
+        outputs.file(orangeTurn22AssetOutput)
+
+        doLast {
+            def parts =
+                orangeTurn22AssetPartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Orange 22.5 degree turn asset chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
+            orangeTurn22AssetOutput
+                .parentFile
+                .mkdirs()
+
+            orangeTurn22AssetOutput.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
+
+            println(
+                "Decoded Orange 22.5 turn asset: " +
+                    orangeTurn22AssetOutput +
+                    " (" +
+                    orangeTurn22AssetOutput.length() +
+                    " bytes)"
+            )
+        }
+    }
+
+def orangeTurn67AssetPartsDir =
+    file("$projectDir/src/main/pet_assets/orange_turn_67_5")
+
+def orangeTurn67AssetOutput =
+    file("$projectDir/src/main/res/drawable-nodpi/pet_orange_turn_67_5.webp")
+
+def decodeOrangeTurn67Asset =
+    tasks.register("decodeOrangeTurn67Asset") {
+        inputs.dir(orangeTurn67AssetPartsDir)
+        outputs.file(orangeTurn67AssetOutput)
+
+        doLast {
+            def parts =
+                orangeTurn67AssetPartsDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.endsWith(".txt")
+                    }
+                    ?.sort {
+                        a, b ->
+                            a.name <=>
+                                b.name
+                    }
+
+            if (
+                parts == null ||
+                parts.isEmpty()
+            ) {
+                throw new GradleException(
+                    "No Orange 67.5 degree turn asset chunks found"
+                )
+            }
+
+            def encoded =
+                parts.collect {
+                    it.getText("UTF-8")
+                        .replaceAll(
+                            "\\s",
+                            ""
+                        )
+                }.join("")
+
+            orangeTurn67AssetOutput
+                .parentFile
+                .mkdirs()
+
+            orangeTurn67AssetOutput.bytes =
+                java.util.Base64
+                    .decoder
+                    .decode(encoded)
+
+            println(
+                "Decoded Orange 67.5 turn asset: " +
+                    orangeTurn67AssetOutput +
+                    " (" +
+                    orangeTurn67AssetOutput.length() +
+                    " bytes)"
+            )
+        }
+    }
+
 tasks.named("preBuild").configure {
     dependsOn(
         decodePetAssets,
@@ -434,7 +556,9 @@ tasks.named("preBuild").configure {
         decodeOrangeBubbleAsset,
         decodeYayaBubbleAsset,
         decodeYutuanBubbleAsset,
-        decodeYutuanRainbowAsset
+        decodeYutuanRainbowAsset,
+        decodeOrangeTurn22Asset,
+        decodeOrangeTurn67Asset
     )
 }
 

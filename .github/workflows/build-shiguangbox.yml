@@ -121,7 +121,29 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.4.2" ]]; then
+          if [[ "$VERSION_NAME" == "2.5.0" ]]; then
+            RELEASE_TITLE="拾光盒 V2.5.0 · 橘团 Motion Turn 2.0"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.5.0 · 橘团 Motion Turn 2.0 / 五姿态连续转身
+
+          - versionCode: $VERSION_CODE
+          - 新增两张真实中间关键姿态：右转 22.5° 与 67.5°，左转由同一套素材运行时镜像，避免角色左右造型漂移
+          - 橘团转身从 V2.4.x 的 0° / 45° / 90° 三姿态升级为 0° / 22.5° / 45° / 67.5° / 90° 五姿态
+          - 删除 45° 处的人为停顿，整段转身改成一条连续 smootherstep 时间曲线，关键角度只经过、不停帧
+          - 相邻两张关键图不再只 CrossFade：两侧 28×28 Mesh 会同时向同一中间轮廓 Morph，减少“双影换立绘”感
+          - Morph 按真实动物转身顺序错峰：头最先、肩膀随后、躯干再跟、臀部更晚、尾巴最后保留惯性
+          - 转身前保留约 90ms 预判：眼睛先扫向目标方向，头与身体随后跟上
+          - 真实屏幕横向位移延后约 390ms，前半段主要原地转身；橘团转到约 60°~70°后才开始明显向目标方向移动
+          - 方向关键图继续自动统一可见高度、身体中心和脚底基线，防止不同透明边距造成角色跳位
+          - 侧面步态只在接近 90°后逐渐进入完整幅度，避免身体还在转、腿已经全速跑
+          - 停止后按当前真实转身进度连续反向回正，完整侧身时会自然经过 67.5° / 45° / 22.5° 返回 0°
+          - 保留 V2.4.1 左向黑影修复、V2.3.2 Soft Foot Plant 顺滑根位移与 V2.3.3 Walking Attention
+          - 芽芽与雨团本版保持原有稳定行为，不受橘团 Motion Turn 2.0 改动影响
+          - “我的桌宠”测试入口更新为“测试橘团五姿态转身（立即）”
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.4.2" ]]; then
             RELEASE_TITLE="拾光盒 V2.4.2 · 橘团丝滑转身"
             cat > release-notes.md <<EOF
           拾光盒 V2.4.2 · 橘团丝滑转身 / Smooth Directional Turn

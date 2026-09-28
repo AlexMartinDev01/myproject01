@@ -90,11 +90,32 @@ try:
     metrics["methods"][name]=seq_metrics(seq,aligned,mids,name)
     save_gif(seq,OUT/f"{name}.gif")
 
-    # Preserve the exact 17-frame RIFE sequence for the Android playback experiment.
+    # Preserve the exact 17-frame RIFE right-turn sequence for Android.
     frame_dir=OUT/"rife4x_frames"
     frame_dir.mkdir(exist_ok=True)
     for idx,frame in enumerate(seq):
         Image.fromarray(frame).save(frame_dir/f"frame_{idx:02d}.png")
+
+    # Build a true left-turn sequence that starts from the SAME unmirrored idle frame.
+    # Only directional key poses 22.5/45/67.5/90 are mirrored.
+    # This removes the old experiment's frame-0 mirror flip at left-turn start.
+    left_keys=[aligned[0]]
+    for key in aligned[1:]:
+        left_keys.append(np.ascontiguousarray(np.flip(key,axis=1)))
+
+    left_seq,left_mids=build_seq(
+        left_keys,
+        lambda a,b,t:rife_rgba(torch,model,a,b,t)
+    )
+
+    left_frame_dir=OUT/"rife4x_left_frames"
+    left_frame_dir.mkdir(exist_ok=True)
+    for idx,frame in enumerate(left_seq):
+        Image.fromarray(frame).save(left_frame_dir/f"frame_{idx:02d}.png")
+
+    metrics["methods"]["RIFE_4.25_left_same_idle"]=seq_metrics(
+        left_seq,left_keys,left_mids,"RIFE_4.25_left_same_idle"
+    )
 
     # Same timing / same checkerboard: current Android-style SRC_OVER vs RIFE 4x.
     bg=checker()

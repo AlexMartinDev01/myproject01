@@ -983,6 +983,30 @@ class PetRigView @JvmOverloads constructor(
             -1f
         )
 
+    private val orangeAnticipationBodyWeights =
+        buildOrangeTurnWeightMap(
+            0.50,
+            0.69,
+            0.37,
+            0.34
+        )
+
+    private val orangeAnticipationLeftEyeWeights =
+        buildOrangeTurnWeightMap(
+            0.400,
+            0.392,
+            0.050,
+            0.045
+        )
+
+    private val orangeAnticipationRightEyeWeights =
+        buildOrangeTurnWeightMap(
+            0.606,
+            0.392,
+            0.050,
+            0.045
+        )
+
     private var callbackPosted = false
     private var paused = false
     private var lastFrameTimeNanos = 0L
@@ -7829,7 +7853,36 @@ class PetRigView @JvmOverloads constructor(
             direction
                 .toDouble()
 
+        val headAngle =
+            dir *
+                p *
+                2.25 *
+                PI /
+                180.0
+
+        val headCos =
+            cos(
+                headAngle
+            )
+
+        val headSin =
+            sin(
+                headAngle
+            )
+
+        val eyePhase =
+            directionalSmootherStep(
+                minOf(
+                    1.0,
+                    p *
+                        1.35
+                )
+            )
+
         var index =
+            0
+
+        var pointIndex =
             0
 
         for (
@@ -7866,26 +7919,9 @@ class PetRigView @JvmOverloads constructor(
                         viewH
 
                 val bodyWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.50
-                                ) /
-                                0.37
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.69
-                                    ) /
-                                0.34
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    orangeAnticipationBodyWeights[
+                        pointIndex
+                    ]
 
                 // 身体先给出非常轻的方向预倾。
                 x +=
@@ -7895,26 +7931,11 @@ class PetRigView @JvmOverloads constructor(
                         bodyWeight
 
                 val headWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.505
-                                ) /
-                                0.315
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.355
-                                    ) /
-                                0.285
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    orangeMorphHeadWeights[
+                        pointIndex
+                    ]
+
+                val headCenterU =
 
                 val headCenterU =
                     0.505
@@ -7929,13 +7950,6 @@ class PetRigView @JvmOverloads constructor(
                 val dy0 =
                     y -
                         headCenterV
-
-                val angle =
-                    dir *
-                        p *
-                        2.25 *
-                        PI /
-                        180.0
 
                 val yawX =
                     headCenterU +
@@ -7956,24 +7970,16 @@ class PetRigView @JvmOverloads constructor(
                 val rx =
                     headCenterU +
                         dx *
-                            cos(
-                                angle
-                            ) -
+                            headCos -
                         dy0 *
-                            sin(
-                                angle
-                            )
+                            headSin
 
                 val ry =
                     headCenterV +
                         dx *
-                            sin(
-                                angle
-                            ) +
+                            headSin +
                         dy0 *
-                            cos(
-                                angle
-                            )
+                            headCos
 
                 x =
                     x *
@@ -7994,40 +8000,18 @@ class PetRigView @JvmOverloads constructor(
                             headWeight
 
                 val leftEyeWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.400
-                                ) /
-                                0.050
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.392
-                                    ) /
-                                0.045
-                            )
-                    )
+                    orangeAnticipationLeftEyeWeights[
+                        pointIndex
+                    ]
 
                 val rightEyeWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.606
-                                ) /
-                                0.050
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.392
-                                    ) /
-                                0.045
-                            )
-                    )
+
+                val rightEyeWeight =
+                    orangeAnticipationRightEyeWeights[
+                        pointIndex
+                    ]
+
+                val eyeWeight =
 
                 val eyeWeight =
                     clamp(
@@ -8041,13 +8025,7 @@ class PetRigView @JvmOverloads constructor(
                 x +=
                     dir *
                         0.0125 *
-                        directionalSmootherStep(
-                            minOf(
-                                1.0,
-                                p *
-                                    1.35
-                            )
-                        ) *
+                        eyePhase *
                         eyeWeight
 
                 verts[
@@ -8071,6 +8049,9 @@ class PetRigView @JvmOverloads constructor(
 
                 index +=
                     2
+
+                pointIndex +=
+                    1
             }
         }
     }

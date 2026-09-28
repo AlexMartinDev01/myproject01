@@ -1117,6 +1117,13 @@ class PetRigView @JvmOverloads constructor(
     private var orangeDirectionalReturnDirection =
         1f
 
+    // Turn -> Walk continuity experiment:
+    // The side gait must NOT inherit locomotionStartNanos.  It starts only when
+    // the RIFE turn reaches the stable 90° pose, so the first visible gait pose
+    // is phase 0 instead of an arbitrary mid-cycle pose.
+    private var orangeGaitStartNanos =
+        0L
+
     // Walking Attention V2.3.3：
     // 不再用固定正弦让头机械左右摆，而是使用“随机目标 + 眼睛先到 + 头后跟 + 停留”的注意力状态机。
     private var locomotionLookFrom =
@@ -1403,6 +1410,8 @@ class PetRigView @JvmOverloads constructor(
                 0L
             orangeDirectionalReturnFromAmount =
                 0f
+            orangeGaitStartNanos =
+                0L
         }
 
         resetLocomotionAttention(
@@ -1460,6 +1469,9 @@ class PetRigView @JvmOverloads constructor(
                 } else {
                     0L
                 }
+
+            orangeGaitStartNanos =
+                0L
         }
 
         locomotionActive =
@@ -6919,6 +6931,68 @@ class PetRigView @JvmOverloads constructor(
             255
     }
 
+    private fun ensureOrangeGaitStarted(
+        now: Long
+    ) {
+        if (
+            orangeGaitStartNanos <=
+            0L
+        ) {
+            orangeGaitStartNanos =
+                now
+        }
+    }
+
+    private fun orangeGaitElapsedSeconds(
+        now: Long
+    ): Double {
+        val start =
+            orangeGaitStartNanos
+
+        if (
+            start <=
+            0L
+        ) {
+            return 0.0
+        }
+
+        return (
+            now -
+                start
+            )
+            .coerceAtLeast(
+                0L
+            ) /
+            1_000_000_000.0
+    }
+
+    private fun orangeTurnToWalkBlend(
+        now: Long
+    ): Double {
+        val start =
+            orangeGaitStartNanos
+
+        if (
+            start <=
+            0L
+        ) {
+            return 0.0
+        }
+
+        // About 170ms: enough to form the first step without a visible pause.
+        return directionalSmootherStep(
+            (
+                now -
+                    start
+                )
+                .coerceAtLeast(
+                    0L
+                )
+                .toDouble() /
+                170_000_000.0
+        )
+    }
+
     private fun buildOrangeDirectionalMesh(
         now: Long,
         direction: Float,
@@ -6946,9 +7020,20 @@ class PetRigView @JvmOverloads constructor(
             if (
                 walking
             ) {
-                walkingElapsedSeconds(
-                    now
-                )
+                if (
+                    petKind ==
+                    PetKind.ORANGE &&
+                    orangeGaitStartNanos >
+                    0L
+                ) {
+                    orangeGaitElapsedSeconds(
+                        now
+                    )
+                } else {
+                    walkingElapsedSeconds(
+                        now
+                    )
+                }
             } else {
                 0.0
             }
@@ -7194,11 +7279,13 @@ class PetRigView @JvmOverloads constructor(
                     x +=
                         look *
                             0.0045 *
+                            intensity *
                             headWeight
 
                     y -=
                         headLift *
                             0.0028 *
+                            intensity *
                             headWeight
 
                     val eyeCenterV =
@@ -7218,6 +7305,7 @@ class PetRigView @JvmOverloads constructor(
                     x +=
                         eyeLook *
                             0.0070 *
+                            intensity *
                             eyeWeight
 
                     if (
@@ -7858,7 +7946,8 @@ class PetRigView @JvmOverloads constructor(
     private fun drawOrangeRifeTurnFrame(
         canvas: Canvas,
         direction: Float,
-        amount: Float
+        amount: Float,
+        anticipationCarry: Double = 0.0
     ) {
         if (
             orangeRifeTurnBitmaps.size !=
@@ -7896,6 +7985,20 @@ class PetRigView @JvmOverloads constructor(
             ]
 
         buildOrangeRifeTurnMesh()
+
+        if (
+            anticipationCarry >
+            0.0001
+        ) {
+            // Do not retract the 90ms anticipation pose at the RIFE boundary.
+            // Carry it into the first few interpolation frames and fade it out.
+            applyOrangeTurnAnticipationToMesh(
+                direction =
+                    direction,
+                progress =
+                    anticipationCarry
+            )
+        }
 
         if (
             direction <
@@ -8267,6 +8370,56 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun drawOrangeSideGaitTransition(
+        canvas: Canvas,
+        now: Long,
+        direction: Float,
+        blinkAmount: Double
+    ) {
+        val bitmap =
+            if (
+                direction <
+                0f
+            ) {
+                orangeSideLeftBitmap
+            } else {
+                orangeSideRightBitmap
+            }
+                ?: return
+
+        ensureOrangeGaitStarted(
+            now
+        )
+
+        buildOrangeDirectionalMesh(
+            now =
+                now,
+            direction =
+                direction,
+            blinkAmount =
+                blinkAmount,
+            directionalBitmap =
+                bitmap,
+            keyIndex =
+                4,
+            walking =
+                true,
+            motionScale =
+                orangeTurnToWalkBlend(
+                    now
+                )
+        )
+
+        drawCurrentMeshBitmap(
+            canvas =
+                canvas,
+            bitmap =
+                bitmap,
+            alpha =
+                1f
+        )
+    }
+
     private fun drawOrangeDirectionalLocomotion(
         canvas: Canvas,
         now: Long,
@@ -8315,34 +8468,39 @@ class PetRigView @JvmOverloads constructor(
             amount <=
             0.001f
         ) {
-            buildOrangeMesh(
-                idleSeconds,
-                stateSeconds,
-                blinkAmount
-            )
-
             if (
                 walking
             ) {
-                // 真正换姿态之前，先让眼睛、头、肩膀给出转向信号。
-                applyOrangeTurnAnticipationToMesh(
+                // From the first preparation frame onward, stay in the same
+                // RIFE rendering pipeline.  No idle-mesh -> RIFE renderer switch.
+                drawOrangeRifeTurnFrame(
+                    canvas =
+                        canvas,
                     direction =
                         direction,
-                    progress =
+                    amount =
+                        0f,
+                    anticipationCarry =
                         orangeDirectionalAnticipationProgress(
                             now
                         )
                 )
             } else {
+                buildOrangeMesh(
+                    idleSeconds,
+                    stateSeconds,
+                    blinkAmount
+                )
+
                 applyCurrentMotionToMesh(
                     now
                 )
-            }
 
-            drawIdleMesh(
-                canvas,
-                1f
-            )
+                drawIdleMesh(
+                    canvas,
+                    1f
+                )
+            }
 
             return
         }
@@ -8351,43 +8509,73 @@ class PetRigView @JvmOverloads constructor(
             amount >=
             3.999f
         ) {
-            // At the completed 90° pose, hand back to the existing side-view gait.
-            // This preserves leg/tail motion while walking after the turn is complete.
-            drawOrangeTurnKeyframe(
-                canvas =
-                    canvas,
-                now =
-                    now,
-                idleSeconds =
-                    idleSeconds,
-                stateSeconds =
-                    stateSeconds,
-                blinkAmount =
-                    blinkAmount,
-                direction =
-                    direction,
-                keyIndex =
-                    4,
-                targetAmount =
-                    4f,
-                alpha =
-                    1f,
-                walking =
-                    walking
-            )
+            if (
+                walking
+            ) {
+                // Start the visible gait exactly here at phase 0 and fade its
+                // secondary motion in over ~170ms.
+                drawOrangeSideGaitTransition(
+                    canvas =
+                        canvas,
+                    now =
+                        now,
+                    direction =
+                        direction,
+                    blinkAmount =
+                        blinkAmount
+                )
+            } else {
+                // During the reverse turn keep the same RIFE texture pipeline.
+                drawOrangeRifeTurnFrame(
+                    canvas =
+                        canvas,
+                    direction =
+                        direction,
+                    amount =
+                        4f
+                )
+            }
 
             return
         }
 
-        // Experiment variable: one precomputed RIFE frame only.
-        // No lower/upper bitmap pair, no SRC_OVER crossfade, no runtime keyframe morph.
+        val turnNormalized =
+            (
+                amount /
+                    4f
+                )
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        val anticipationCarry =
+            if (
+                walking
+            ) {
+                1.0 -
+                    directionalSmootherStep(
+                        (
+                            turnNormalized /
+                                0.18f
+                            )
+                            .toDouble()
+                    )
+            } else {
+                0.0
+            }
+
+        // One precomputed RIFE frame only.  The preparation deformation fades
+        // continuously over the first ~3 generated frames.
         drawOrangeRifeTurnFrame(
             canvas =
                 canvas,
             direction =
                 direction,
             amount =
-                amount
+                amount,
+            anticipationCarry =
+                anticipationCarry
         )
     }
 

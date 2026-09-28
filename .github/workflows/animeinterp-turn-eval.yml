@@ -62,6 +62,11 @@ jobs:
           s=p.read_text()
           s=s.replace('F.grid_sample(img, grid)', 'F.grid_sample(img, grid, align_corners=True)')
           p.write_text(s)
+
+          p=Path('/tmp/AnimeInterp/models/forward_warp2.py')
+          s=p.read_text()
+          s=s.replace('.view(-1)', '.reshape(-1)')
+          p.write_text(s)
           PY
 
           curl -L --fail --retry 3 \

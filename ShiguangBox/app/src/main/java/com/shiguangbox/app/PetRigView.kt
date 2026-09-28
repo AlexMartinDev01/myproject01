@@ -7936,8 +7936,6 @@ class PetRigView @JvmOverloads constructor(
                     ]
 
                 val headCenterU =
-
-                val headCenterU =
                     0.505
 
                 val headCenterV =
@@ -8005,13 +8003,9 @@ class PetRigView @JvmOverloads constructor(
                     ]
 
                 val rightEyeWeight =
-
-                val rightEyeWeight =
                     orangeAnticipationRightEyeWeights[
                         pointIndex
                     ]
-
-                val eyeWeight =
 
                 val eyeWeight =
                     clamp(

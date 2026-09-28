@@ -3406,16 +3406,21 @@ class PetOverlayService : Service() {
                     1L
                 )
 
-        // 橘团先完成大约 60%~70% 的身体转向再开始明显位移。
-        // 这能消除“边换立绘边横向滑”的 PPT 感。
+        // 方向角色先完成大部分转身，再开始明显根位移。
+        // 雨团转身更快（约 420ms），因此只延后约 260ms，
+        // 让身体先转过一半以上，再自然进入横向走路。
         val turnLeadMs =
-            if (
-                kind ==
-                PetKind.ORANGE
+            when (
+                kind
             ) {
-                390L
-            } else {
-                0L
+                PetKind.ORANGE ->
+                    390L
+
+                PetKind.YUTUAN ->
+                    260L
+
+                else ->
+                    0L
             }
 
         val animatorDurationMs =

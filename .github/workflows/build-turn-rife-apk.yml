@@ -51,8 +51,11 @@ jobs:
         shell: bash
         working-directory: .
         run: |
-          test "$(find experiments/turn_interp/results/rife4x_frames -name 'frame_*.png' | wc -l)" -eq 17
-          echo "Found 17 offline RIFE turn frames"
+          RIGHT_COUNT="$(find experiments/turn_interp/results/rife4x_frames -name 'frame_*.png' | wc -l)"
+          LEFT_COUNT="$(find experiments/turn_interp/results/rife4x_left_frames -name 'frame_*.png' | wc -l)"
+          test "$RIGHT_COUNT" -eq 17
+          test "$LEFT_COUNT" -eq 17
+          echo "Found 17 right + 17 left offline RIFE turn frames"
 
       - name: Restore release keystore
         shell: bash
@@ -101,13 +104,16 @@ jobs:
           - versionCode: 81
           - 这是专门验证橘团转身闪烁问题的在线实验版本
           - 使用当前 2.5.1 的 0° / 22.5° / 45° / 67.5° / 90° 五张真实关键姿态
-          - 开发阶段离线使用 Practical-RIFE 4.25 生成 4× 插值序列，共 17 帧
-          - Android 转身期间一次只显示一张离线插值帧，不再同时绘制两张关键姿态
-          - 取消转身过程中的 SRC_OVER 双图 Crossfade，从根源移除约 75% Alpha 的周期性闪暗
-          - 转身插值帧共享固定 Anchor / Scale / 脚底基线，不按帧重新自动对齐，减少位置抖动
-          - 左转继续使用同一套右转序列运行时镜像，避免左右素材角色漂移
-          - 90° 转身完成后继续交还现有侧身步态逻辑
-          - 已知实验观察点：45°→67.5° 的部分 RIFE 中间帧仍可能有耳朵/脸部局部插值伪影
+          - Practical-RIFE 4.25 离线生成 4× 插值；右转 17 帧、左转 17 帧分别生成
+          - 左右两套序列都从同一张未镜像正面 frame 0 出发，消除左转起步瞬间的正面翻转
+          - Android 转身期间一次只显示一张离线插值帧，不再使用 SRC_OVER 双图 Crossfade
+          - 90ms 眼神/头肩预判不再在 RIFE 开始时突然归零，而是带入前约 3 张 RIFE 帧逐渐衰减
+          - 侧身步态新增独立 gaitStartNanos；90°后从 phase=0 起步，不再接入已经跑到半周期的腿部状态
+          - 腿、身体起伏、尾巴、头眼微动在约 170ms 内从 0 平滑渐入
+          - 第一脚迈出期间继续使用 RIFE 最后一张 90°纹理，不再切回旧侧身贴图
+          - 橘团根位移从转身约 72% 后才开始，并用约 180ms 从零速度渐入，避免突然被横向拖走
+          - 转身插值帧共享固定 Anchor / Scale / 脚底基线，减少位置抖动
+          - 已知实验观察点：45°→67.5° 的少量 RIFE 中间帧仍可能有耳朵/脸部局部插值伪影
           - 本版本仅用于实机验证，不代表最终正式方案
 
           提交：$GITHUB_SHA

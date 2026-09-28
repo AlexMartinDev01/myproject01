@@ -458,6 +458,41 @@
           "mid_edge_ratio": 0.9892988340520683
         }
       ]
+    },
+    "RIFE_4.25_left_same_idle": {
+      "label": "RIFE_4.25_left_same_idle",
+      "frame_count": 17,
+      "mean_step_abs": 0.03597078868187964,
+      "step_diff_cv": 0.4274015537274914,
+      "centroid_step_mean": 1.0592476637781458,
+      "centroid_step_cv": 0.6620064477386741,
+      "mean_sharpness": 1005.5816578584559,
+      "pair_midpoints": [
+        {
+          "pair": "0.0->22.5",
+          "mid_core_alpha": 0.9792629480361938,
+          "mid_translucent_fraction": 0.07015000842743975,
+          "mid_edge_ratio": 0.963409257898604
+        },
+        {
+          "pair": "22.5->45.0",
+          "mid_core_alpha": 0.9898092746734619,
+          "mid_translucent_fraction": 0.04543628328280799,
+          "mid_edge_ratio": 0.9895522388059701
+        },
+        {
+          "pair": "45.0->67.5",
+          "mid_core_alpha": 0.9910385012626648,
+          "mid_translucent_fraction": 0.047203192049988706,
+          "mid_edge_ratio": 0.9495139542176231
+        },
+        {
+          "pair": "67.5->90.0",
+          "mid_core_alpha": 0.9915257692337036,
+          "mid_translucent_fraction": 0.051832314270870795,
+          "mid_edge_ratio": 0.9741131351869607
+        }
+      ]
     }
   },
   "rife_error": null,

@@ -7126,7 +7126,7 @@ class PetRigView @JvmOverloads constructor(
                             0.0028 *
                             headWeight
 
-                    val eyeCenterV =                    val eyeCenterV =
+                    val eyeCenterV =
                         if (
                             sideView
                         ) {
@@ -7179,7 +7179,7 @@ class PetRigView @JvmOverloads constructor(
                                 legIndex ==
                                     0
 
-                            val signal =                            val signal =
+                            val signal =
                                 if (
                                     frontLeg
                                 ) {
@@ -7201,7 +7201,7 @@ class PetRigView @JvmOverloads constructor(
                                     ]
                                 }
 
-                            val lift =                            val lift =
+                            val lift =
                                 maxOf(
                                     0.0,
                                     signal
@@ -7241,11 +7241,10 @@ class PetRigView @JvmOverloads constructor(
                             ]
 
                         if (
-                            tailWeight >                        if (
                             tailWeight >
                             0.003
                         ) {
-                            val pivotV =                            val pivotV =
+                            val pivotV =
                                 0.715
 
                             val dx =

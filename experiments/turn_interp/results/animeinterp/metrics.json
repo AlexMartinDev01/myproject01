@@ -1,0 +1,45 @@
+{
+  "model": "AnimeInterpNoCupy using official anime_interp_full.ckpt",
+  "checkpoint": "/tmp/anime_interp_full.ckpt",
+  "missing_keys": [],
+  "unexpected_keys": [],
+  "pairs": [
+    {
+      "pair": "0.0->22.5",
+      "seconds": 5.817945957183838,
+      "core_alpha": 0.9816169142723083,
+      "translucent_fraction": 0.051824023032899125,
+      "edge_ratio": 0.7342441604230939,
+      "sharpness": 347.86566162109375
+    },
+    {
+      "pair": "22.5->45.0",
+      "seconds": 5.81948184967041,
+      "core_alpha": 0.9899703860282898,
+      "translucent_fraction": 0.0572336462252091,
+      "edge_ratio": 0.8410684972392181,
+      "sharpness": 475.41314697265625
+    },
+    {
+      "pair": "45.0->67.5",
+      "seconds": 5.801250457763672,
+      "core_alpha": 0.991391122341156,
+      "translucent_fraction": 0.06858390423850035,
+      "edge_ratio": 0.7693995924126038,
+      "sharpness": 345.89105224609375
+    },
+    {
+      "pair": "67.5->90.0",
+      "seconds": 5.828928709030151,
+      "core_alpha": 0.9914287328720093,
+      "translucent_fraction": 0.06521999760220597,
+      "edge_ratio": 0.9359527232071554,
+      "sharpness": 543.4337768554688
+    }
+  ],
+  "mean_seconds": 5.816901743412018,
+  "mean_core_alpha": 0.9886017888784409,
+  "mean_translucent_fraction": 0.06071539277470364,
+  "mean_edge_ratio": 0.8201662433205178,
+  "mean_sharpness": 428.1509094238281
+}

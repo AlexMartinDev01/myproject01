@@ -3,7 +3,7 @@ name: Build RIFE Turn Test APK
 on:
   push:
     branches:
-      - experiment/turn-rife-apk
+      - experiment/turn-rife-continuity-v2
     paths:
       - 'ShiguangBox/**'
       - '.github/workflows/build-turn-rife-apk.yml'
@@ -12,6 +12,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: turn-rife-continuity-v2-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -72,13 +76,13 @@ jobs:
         shell: bash
         run: |
           cp app/build/outputs/apk/release/app-release.apk \
-             app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk
+             app/build/outputs/apk/release/ShiguangBox_v2.5.101_RIFE_Turn_Test.apk
 
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShiguangBox-v2.5.99-RIFE-Turn-Test
-          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk
+          name: ShiguangBox-v2.5.101-RIFE-Turn-Test
+          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v2.5.101_RIFE_Turn_Test.apk
 
       - name: Publish updater-visible experimental release
         env:
@@ -87,22 +91,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          TAG="shiguangbox-v2.5.99-rife-test"
-          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk"
-          RELEASE_TITLE="拾光盒 V2.5.99 · RIFE 转身实验版"
+          TAG="shiguangbox-v2.5.101-rife-test"
+          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v2.5.101_RIFE_Turn_Test.apk"
+          RELEASE_TITLE="拾光盒 V2.5.101 · 转身连续性实验版"
 
           cat > "$RUNNER_TEMP/rife-test-release-notes.md" <<EOF
-          拾光盒 V2.5.99 · RIFE 转身实验版
+          拾光盒 V2.5.101 · RIFE 转身实验版
 
-          - versionCode: 80
-          - 这是专门验证橘团转身闪烁问题的在线实验版本
+          - versionCode: 82
+          - 基于 2.5.99 稳定 RIFE 转身重新构建，只修动作边界连续性
           - 使用当前 2.5.1 的 0° / 22.5° / 45° / 67.5° / 90° 五张真实关键姿态
           - 开发阶段离线使用 Practical-RIFE 4.25 生成 4× 插值序列，共 17 帧
           - Android 转身期间一次只显示一张离线插值帧，不再同时绘制两张关键姿态
           - 取消转身过程中的 SRC_OVER 双图 Crossfade，从根源移除约 75% Alpha 的周期性闪暗
           - 转身插值帧共享固定 Anchor / Scale / 脚底基线，不按帧重新自动对齐，减少位置抖动
           - 左转继续使用同一套右转序列运行时镜像，避免左右素材角色漂移
-          - 90° 转身完成后继续交还现有侧身步态逻辑
+          - 起转取消独立 90ms 预判 Mesh，RIFE frame0 从动作开始直接接管
+          - 90° 后继续使用同一张 RIFE frame16 和同一套固定 Mesh
+          - 侧身步态从 phase=0 开始，并在约 180ms 内渐进进入完整步态
+          - 左转恢复 2.5.99 的稳定运行时镜像，不使用独立左转 AI 插帧序列
           - 已知实验观察点：45°→67.5° 的部分 RIFE 中间帧仍可能有耳朵/脸部局部插值伪影
           - 本版本仅用于实机验证，不代表最终正式方案
 

@@ -254,6 +254,44 @@ class PetRigView @JvmOverloads constructor(
                 )
             }
 
+    // Isolated RIFE playback experiment.
+    // These 17 frames were generated offline from the exact 2.5.1 key poses.
+    // Runtime never blends two of these frames together: exactly one bitmap is visible.
+    private val orangeRifeTurnBitmaps: List<Bitmap> =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            listOf(
+                R.drawable.pet_orange_turn_rife_00,
+                R.drawable.pet_orange_turn_rife_01,
+                R.drawable.pet_orange_turn_rife_02,
+                R.drawable.pet_orange_turn_rife_03,
+                R.drawable.pet_orange_turn_rife_04,
+                R.drawable.pet_orange_turn_rife_05,
+                R.drawable.pet_orange_turn_rife_06,
+                R.drawable.pet_orange_turn_rife_07,
+                R.drawable.pet_orange_turn_rife_08,
+                R.drawable.pet_orange_turn_rife_09,
+                R.drawable.pet_orange_turn_rife_10,
+                R.drawable.pet_orange_turn_rife_11,
+                R.drawable.pet_orange_turn_rife_12,
+                R.drawable.pet_orange_turn_rife_13,
+                R.drawable.pet_orange_turn_rife_14,
+                R.drawable.pet_orange_turn_rife_15,
+                R.drawable.pet_orange_turn_rife_16
+            )
+                .map {
+                    resourceId ->
+                        decodePetBitmap(
+                            resourceId,
+                            R.drawable.pet_orange_idle
+                        )
+                }
+        } else {
+            emptyList()
+        }
+
     private data class NormalizedAlphaBounds(
         val left: Double,
         val top: Double,
@@ -493,6 +531,19 @@ class PetRigView @JvmOverloads constructor(
         mirroredAlphaBounds(
             orangeSideRightAlphaBounds
         )
+
+    private val orangeRifeFrameZeroAlphaBounds =
+        if (
+            orangeRifeTurnBitmaps.isNotEmpty()
+        ) {
+            findAlphaBounds(
+                orangeRifeTurnBitmaps[
+                    0
+                ]
+            )
+        } else {
+            orangeFrontAlphaBounds
+        }
 
     private fun orangeAlphaBoundsFor(
         bitmap: Bitmap
@@ -7717,6 +7768,172 @@ class PetRigView @JvmOverloads constructor(
         }
     }
 
+    private fun buildOrangeRifeTurnMesh() {
+        val viewW =
+            width.toDouble()
+
+        val viewH =
+            height.toDouble()
+
+        val reference =
+            orangeFrontAlphaBounds
+
+        // Important: use frame 0 bounds for every generated frame.
+        // Per-frame auto-alignment would reintroduce tiny scale/position jitter.
+        val source =
+            orangeRifeFrameZeroAlphaBounds
+
+        val scale =
+            (
+                reference.height /
+                    source.height
+                )
+                .coerceIn(
+                    0.90,
+                    1.12
+                )
+
+        val targetCenterX =
+            reference.centerX
+
+        val targetBottom =
+            reference.bottom
+
+        var index =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                val alignedU =
+                    targetCenterX +
+                        (
+                            u -
+                                source.centerX
+                            ) *
+                            scale
+
+                val alignedV =
+                    targetBottom +
+                        (
+                            v -
+                                source.bottom
+                            ) *
+                            scale
+
+                verts[
+                    index++
+                ] =
+                    (
+                        alignedU *
+                            viewW
+                        )
+                        .toFloat()
+
+                verts[
+                    index++
+                ] =
+                    (
+                        alignedV *
+                            viewH
+                        )
+                        .toFloat()
+            }
+        }
+    }
+
+    private fun drawOrangeRifeTurnFrame(
+        canvas: Canvas,
+        direction: Float,
+        amount: Float
+    ) {
+        if (
+            orangeRifeTurnBitmaps.size !=
+            17
+        ) {
+            return
+        }
+
+        val normalized =
+            (
+                amount /
+                    4f
+                )
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        val frameIndex =
+            kotlin.math
+                .round(
+                    normalized
+                        .toDouble() *
+                        16.0
+                )
+                .toInt()
+                .coerceIn(
+                    0,
+                    16
+                )
+
+        val bitmap =
+            orangeRifeTurnBitmaps[
+                frameIndex
+            ]
+
+        buildOrangeRifeTurnMesh()
+
+        if (
+            direction <
+            0f
+        ) {
+            canvas.save()
+
+            canvas.scale(
+                -1f,
+                1f,
+                width /
+                    2f,
+                height /
+                    2f
+            )
+
+            drawCurrentMeshBitmap(
+                canvas =
+                    canvas,
+                bitmap =
+                    bitmap,
+                alpha =
+                    1f
+            )
+
+            canvas.restore()
+        } else {
+            drawCurrentMeshBitmap(
+                canvas =
+                    canvas,
+                bitmap =
+                    bitmap,
+                alpha =
+                    1f
+            )
+        }
+    }
+
     private fun drawOrangeTurnKeyframe(
         canvas: Canvas,
         now: Long,
@@ -8130,31 +8347,12 @@ class PetRigView @JvmOverloads constructor(
             return
         }
 
-        val lowerKey =
-            kotlin.math
-                .floor(
-                    amount
-                        .toDouble()
-                )
-                .toInt()
-                .coerceIn(
-                    0,
-                    4
-                )
-
-        val upperKey =
-            (
-                lowerKey +
-                    1
-                )
-                .coerceAtMost(
-                    4
-                )
-
         if (
-            lowerKey ==
-            upperKey
+            amount >=
+            3.999f
         ) {
+            // At the completed 90° pose, hand back to the existing side-view gait.
+            // This preserves leg/tail motion while walking after the turn is complete.
             drawOrangeTurnKeyframe(
                 canvas =
                     canvas,
@@ -8169,9 +8367,9 @@ class PetRigView @JvmOverloads constructor(
                 direction =
                     direction,
                 keyIndex =
-                    lowerKey,
+                    4,
                 targetAmount =
-                    amount,
+                    4f,
                 alpha =
                     1f,
                 walking =
@@ -8181,70 +8379,15 @@ class PetRigView @JvmOverloads constructor(
             return
         }
 
-        val local =
-            (
-                amount -
-                    lowerKey
-                        .toFloat()
-                )
-                .coerceIn(
-                    0f,
-                    1f
-                )
-
-        // 关键姿态之间保持线性混合。
-        // 外层时间曲线已经负责整体启停，这里不能再做一次 smootherstep，
-        // 否则每经过 22.5° / 45° / 67.5° 都会产生一次肉眼可见的减速。
-        val blend =
-            local
-
-        // 只绘制相邻两个姿态，且两边 Mesh 都先向同一中间轮廓靠拢。
-        // 因此 60Hz 中间帧既有纹理渐变，也有实际几何连续变化。
-        drawOrangeTurnKeyframe(
+        // Experiment variable: one precomputed RIFE frame only.
+        // No lower/upper bitmap pair, no SRC_OVER crossfade, no runtime keyframe morph.
+        drawOrangeRifeTurnFrame(
             canvas =
                 canvas,
-            now =
-                now,
-            idleSeconds =
-                idleSeconds,
-            stateSeconds =
-                stateSeconds,
-            blinkAmount =
-                blinkAmount,
             direction =
                 direction,
-            keyIndex =
-                lowerKey,
-            targetAmount =
-                amount,
-            alpha =
-                1f -
-                    blend,
-            walking =
-                walking
-        )
-
-        drawOrangeTurnKeyframe(
-            canvas =
-                canvas,
-            now =
-                now,
-            idleSeconds =
-                idleSeconds,
-            stateSeconds =
-                stateSeconds,
-            blinkAmount =
-                blinkAmount,
-            direction =
-                direction,
-            keyIndex =
-                upperKey,
-            targetAmount =
-                amount,
-            alpha =
-                blend,
-            walking =
-                walking
+            amount =
+                amount
         )
     }
 

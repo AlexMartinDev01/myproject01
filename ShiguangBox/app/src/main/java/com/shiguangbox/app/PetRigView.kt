@@ -139,6 +139,58 @@ class PetRigView @JvmOverloads constructor(
             null
         }
 
+    // V2.5.102 雨团方向转身：
+    // 17 张离线修复后的透明帧只负责 0° -> 90° 转身。
+    // 左向不再额外生成一套 AI 图，而是在 Canvas 层镜像同一序列，
+    // 保证左右角色完全一致。
+    private val yutuanTurnBitmaps: List<Bitmap> =
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            listOf(
+                R.drawable.pet_yutuan_turn_00,
+                R.drawable.pet_yutuan_turn_01,
+                R.drawable.pet_yutuan_turn_02,
+                R.drawable.pet_yutuan_turn_03,
+                R.drawable.pet_yutuan_turn_04,
+                R.drawable.pet_yutuan_turn_05,
+                R.drawable.pet_yutuan_turn_06,
+                R.drawable.pet_yutuan_turn_07,
+                R.drawable.pet_yutuan_turn_08,
+                R.drawable.pet_yutuan_turn_09,
+                R.drawable.pet_yutuan_turn_10,
+                R.drawable.pet_yutuan_turn_11,
+                R.drawable.pet_yutuan_turn_12,
+                R.drawable.pet_yutuan_turn_13,
+                R.drawable.pet_yutuan_turn_14,
+                R.drawable.pet_yutuan_turn_15,
+                R.drawable.pet_yutuan_turn_16
+            )
+                .map {
+                    resourceId ->
+                        decodePetBitmap(
+                            resourceId,
+                            R.drawable.pet_yutuan_turn_00
+                        )
+                }
+        } else {
+            emptyList()
+        }
+
+    private val yutuanSideWalkBitmap: Bitmap? =
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            decodePetBitmap(
+                R.drawable.pet_yutuan_side_walk,
+                R.drawable.pet_yutuan_turn_16
+            )
+        } else {
+            null
+        }
+
     private val idleBitmap: Bitmap =
         yutuanBitmap
             ?: decodePetBitmap(
@@ -1066,6 +1118,17 @@ class PetRigView @JvmOverloads constructor(
     private var orangeDirectionalReturnDirection =
         1f
 
+    // 雨团使用独立的 0..1 转身进度。
+    // 停止行走时从当前进度反向播放回正面，避免直接闪回 idle。
+    private var yutuanDirectionalReturnStartNanos =
+        0L
+
+    private var yutuanDirectionalReturnFromProgress =
+        0f
+
+    private var yutuanDirectionalReturnDirection =
+        1f
+
     // Walking Attention V2.3.3：
     // 不再用固定正弦让头机械左右摆，而是使用“随机目标 + 眼睛先到 + 头后跟 + 停留”的注意力状态机。
     private var locomotionLookFrom =
@@ -1354,6 +1417,16 @@ class PetRigView @JvmOverloads constructor(
                 0f
         }
 
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            yutuanDirectionalReturnStartNanos =
+                0L
+            yutuanDirectionalReturnFromProgress =
+                0f
+        }
+
         resetLocomotionAttention(
             now
         )
@@ -1403,6 +1476,29 @@ class PetRigView @JvmOverloads constructor(
             orangeDirectionalReturnStartNanos =
                 if (
                     orangeDirectionalReturnFromAmount >
+                    0.02f
+                ) {
+                    now
+                } else {
+                    0L
+                }
+        }
+
+        if (
+            petKind ==
+            PetKind.YUTUAN
+        ) {
+            yutuanDirectionalReturnDirection =
+                locomotionDirection
+
+            yutuanDirectionalReturnFromProgress =
+                yutuanTurnProgressWhileWalking(
+                    now
+                )
+
+            yutuanDirectionalReturnStartNanos =
+                if (
+                    yutuanDirectionalReturnFromProgress >
                     0.02f
                 ) {
                     now
@@ -1593,7 +1689,9 @@ class PetRigView @JvmOverloads constructor(
             State.IDLE &&
             currentMotion ==
                 PetMotion.NONE &&
-            !locomotionActive
+            !locomotionActive &&
+            yutuanDirectionalReturnStartNanos <=
+                0L
 
     fun isSleepingOrTired(): Boolean =
         state == State.SLEEP ||
@@ -1667,6 +1765,10 @@ class PetRigView @JvmOverloads constructor(
             0L
         orangeDirectionalReturnFromAmount =
             0f
+        yutuanDirectionalReturnStartNanos =
+            0L
+        yutuanDirectionalReturnFromProgress =
+            0f
         clearLocomotionAttention()
         yutuanRainSystem?.reset()
 
@@ -1701,6 +1803,10 @@ class PetRigView @JvmOverloads constructor(
             orangeDirectionalReturnStartNanos =
                 0L
             orangeDirectionalReturnFromAmount =
+                0f
+            yutuanDirectionalReturnStartNanos =
+                0L
+            yutuanDirectionalReturnFromProgress =
                 0f
             clearLocomotionAttention()
         }
@@ -1758,6 +1864,361 @@ class PetRigView @JvmOverloads constructor(
             invalidate()
             postFrame()
         }
+    }
+
+    private fun yutuanTurnProgressWhileWalking(
+        now: Long
+    ): Float {
+        if (
+            !locomotionActive ||
+            locomotionStartNanos <=
+            0L
+        ) {
+            return 0f
+        }
+
+        // 用户要求比预览更利落：约 0.42s 完成正面 -> 侧面。
+        return (
+            (
+                now -
+                    locomotionStartNanos
+                )
+                .coerceAtLeast(
+                    0L
+                )
+                .toDouble() /
+                420_000_000.0
+            )
+            .coerceIn(
+                0.0,
+                1.0
+            )
+            .toFloat()
+    }
+
+    private fun yutuanDirectionalProgress(
+        now: Long
+    ): Float {
+        if (
+            locomotionActive
+        ) {
+            return yutuanTurnProgressWhileWalking(
+                now
+            )
+        }
+
+        val returnStart =
+            yutuanDirectionalReturnStartNanos
+
+        if (
+            returnStart <=
+            0L
+        ) {
+            return 0f
+        }
+
+        val from =
+            yutuanDirectionalReturnFromProgress
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        val duration =
+            (
+                310_000_000.0 *
+                    from
+                )
+                .toLong()
+                .coerceAtLeast(
+                    100_000_000L
+                )
+
+        val t =
+            (
+                (
+                    now -
+                        returnStart
+                    )
+                    .coerceAtLeast(
+                        0L
+                    )
+                    .toDouble() /
+                    duration
+                        .toDouble()
+                )
+                .coerceIn(
+                    0.0,
+                    1.0
+                )
+
+        if (
+            t >=
+            1.0
+        ) {
+            yutuanDirectionalReturnStartNanos =
+                0L
+            yutuanDirectionalReturnFromProgress =
+                0f
+
+            return 0f
+        }
+
+        // 回正允许轻微柔和减速，但不做中途停顿。
+        val eased =
+            t *
+                t *
+                (
+                    3.0 -
+                        2.0 *
+                            t
+                    )
+
+        return (
+            from *
+                (
+                    1.0 -
+                        eased
+                    )
+            )
+            .toFloat()
+    }
+
+    private fun drawYutuanBitmap(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        direction: Float,
+        translateY: Float = 0f,
+        rotationDegrees: Float = 0f
+    ) {
+        val save =
+            canvas.save()
+
+        if (
+            direction <
+            0f
+        ) {
+            canvas.scale(
+                -1f,
+                1f,
+                width /
+                    2f,
+                height /
+                    2f
+            )
+        }
+
+        if (
+            translateY !=
+            0f
+        ) {
+            canvas.translate(
+                0f,
+                translateY
+            )
+        }
+
+        if (
+            rotationDegrees !=
+            0f
+        ) {
+            canvas.rotate(
+                rotationDegrees,
+                width *
+                    0.50f,
+                height *
+                    0.72f
+            )
+        }
+
+        paint.alpha =
+            255
+
+        canvas.drawBitmap(
+            bitmap,
+            null,
+            RectF(
+                0f,
+                0f,
+                width.toFloat(),
+                height.toFloat()
+            ),
+            paint
+        )
+
+        canvas.restoreToCount(
+            save
+        )
+    }
+
+    private fun drawYutuanSideWalk(
+        canvas: Canvas,
+        now: Long,
+        direction: Float
+    ) {
+        val bitmap =
+            yutuanSideWalkBitmap
+                ?: yutuanTurnBitmaps
+                    .lastOrNull()
+                ?: idleBitmap
+
+        val gaitStart =
+            (
+                locomotionStartNanos +
+                    420_000_000L
+                )
+                .coerceAtLeast(
+                    0L
+                )
+
+        val elapsed =
+            (
+                now -
+                    gaitStart
+                )
+                .coerceAtLeast(
+                    0L
+                )
+                .toDouble() /
+                1_000_000_000.0
+
+        val phase =
+            elapsed *
+                2.0 *
+                PI /
+                0.62
+
+        val step =
+            sin(
+                phase
+            )
+
+        val bob =
+            abs(
+                step
+            )
+
+        // 侧面母图只做很轻的落脚起伏，避免再次出现“整张图漂浮”。
+        drawYutuanBitmap(
+            canvas =
+                canvas,
+            bitmap =
+                bitmap,
+            direction =
+                direction,
+            translateY =
+                (
+                    -bob *
+                        height *
+                        0.0065
+                    )
+                    .toFloat(),
+            rotationDegrees =
+                (
+                    step *
+                        0.55
+                    )
+                    .toFloat()
+        )
+    }
+
+    private fun drawYutuanDirectionalLocomotion(
+        canvas: Canvas,
+        now: Long
+    ) {
+        val frames =
+            yutuanTurnBitmaps
+
+        if (
+            frames.size !=
+            17
+        ) {
+            buildMesh(
+                0.0,
+                0.0,
+                0.0
+            )
+
+            drawIdleMesh(
+                canvas,
+                1f
+            )
+
+            return
+        }
+
+        val direction =
+            if (
+                locomotionActive
+            ) {
+                locomotionDirection
+            } else {
+                yutuanDirectionalReturnDirection
+            }
+
+        val progress =
+            yutuanDirectionalProgress(
+                now
+            )
+                .coerceIn(
+                    0f,
+                    1f
+                )
+
+        if (
+            locomotionActive &&
+            progress >=
+            0.999f
+        ) {
+            drawYutuanSideWalk(
+                canvas =
+                    canvas,
+                now =
+                    now,
+                direction =
+                    direction
+            )
+
+            return
+        }
+
+        val frameIndex =
+            (
+                progress *
+                    16f +
+                    0.5f
+                )
+                .toInt()
+                .coerceIn(
+                    0,
+                    16
+                )
+
+        // 最后一张直接使用用户指定的侧面走路母图，
+        // 这样转身结束 -> 侧面走路不存在纹理切换。
+        val bitmap =
+            if (
+                frameIndex >=
+                16
+            ) {
+                yutuanSideWalkBitmap
+                    ?: frames[
+                        16
+                    ]
+            } else {
+                frames[
+                    frameIndex
+                ]
+            }
+
+        drawYutuanBitmap(
+            canvas =
+                canvas,
+            bitmap =
+                bitmap,
+            direction =
+                direction
+        )
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -1892,6 +2353,21 @@ class PetRigView @JvmOverloads constructor(
                             stateSeconds,
                         blinkAmount =
                             blink
+                    )
+                } else if (
+                    petKind ==
+                    PetKind.YUTUAN &&
+                    (
+                        locomotionActive ||
+                        yutuanDirectionalReturnStartNanos >
+                        0L
+                    )
+                ) {
+                    drawYutuanDirectionalLocomotion(
+                        canvas =
+                            canvas,
+                        now =
+                            now
                     )
                 } else {
                     buildMesh(

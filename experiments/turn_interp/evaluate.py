@@ -90,6 +90,31 @@ try:
     metrics["methods"][name]=seq_metrics(seq,aligned,mids,name)
     save_gif(seq,OUT/f"{name}.gif")
 
+    # Preserve the exact 17-frame RIFE sequence for the Android playback experiment.
+    frame_dir=OUT/"rife4x_frames"
+    frame_dir.mkdir(exist_ok=True)
+    for idx,frame in enumerate(seq):
+        Image.fromarray(frame).save(frame_dir/f"frame_{idx:02d}.png")
+
+    # Same timing / same checkerboard: current Android-style SRC_OVER vs RIFE 4x.
+    bg=checker()
+    side_frames=[]
+    current_seq=methods["current_SRC_OVER"]
+    for left,right in zip(current_seq,seq):
+        li=Image.fromarray((composite(left,bg)*255).astype(np.uint8))
+        ri=Image.fromarray((composite(right,bg)*255).astype(np.uint8))
+        pair=Image.new("RGB",(SIZE*2,SIZE),(238,238,238))
+        pair.paste(li,(0,0)); pair.paste(ri,(SIZE,0))
+        side_frames.append(pair)
+    side_frames[0].save(
+        OUT/"current_vs_rife4x.gif",
+        save_all=True,
+        append_images=side_frames[1:],
+        duration=42,
+        loop=0,
+        optimize=False
+    )
+
     # Density experiment: 2x / 4x / 8x. Generate each factor explicitly
     # because arbitrary-timestep RIFE can behave differently away from t=0.5.
     def build_factor(factor):

@@ -72,13 +72,13 @@ jobs:
         shell: bash
         run: |
           cp app/build/outputs/apk/release/app-release.apk \
-             app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk
+             app/build/outputs/apk/release/ShiguangBox_v2.5.100_RIFE_Turn_Test.apk
 
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShiguangBox-v2.5.99-RIFE-Turn-Test
-          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk
+          name: ShiguangBox-v2.5.100-RIFE-Turn-Test
+          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v2.5.100_RIFE_Turn_Test.apk
 
       - name: Publish updater-visible experimental release
         env:
@@ -87,14 +87,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          TAG="shiguangbox-v2.5.99-rife-test"
-          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk"
-          RELEASE_TITLE="拾光盒 V2.5.99 · RIFE 转身实验版"
+          TAG="shiguangbox-v2.5.100-rife-test"
+          APK_PATH="app/build/outputs/apk/release/ShiguangBox_v2.5.100_RIFE_Turn_Test.apk"
+          RELEASE_TITLE="拾光盒 V2.5.100 · RIFE 转身实验版"
 
           cat > "$RUNNER_TEMP/rife-test-release-notes.md" <<EOF
-          拾光盒 V2.5.99 · RIFE 转身实验版
+          拾光盒 V2.5.100 · RIFE 转身实验版
 
-          - versionCode: 80
+          - versionCode: 81
           - 这是专门验证橘团转身闪烁问题的在线实验版本
           - 使用当前 2.5.1 的 0° / 22.5° / 45° / 67.5° / 90° 五张真实关键姿态
           - 开发阶段离线使用 Practical-RIFE 4.25 生成 4× 插值序列，共 17 帧

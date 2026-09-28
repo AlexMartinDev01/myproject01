@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -1129,33 +1131,18 @@ class PetRigView @JvmOverloads constructor(
     private var yutuanDirectionalReturnDirection =
         1f
 
-    // V2.5.103 Yutuan Turn Stabilization:
-    // These values are measured from the exact 17 frames shipped in V2.5.102.
-    // X offsets smooth the alpha-weighted visual center; Y offsets lock the feet;
-    // scaleX removes the small expand-contract-expand silhouette jitter.
-    private val yutuanTurnStabilizeXSourcePx =
-        floatArrayOf(
-            -0.032f, 0.139f, -0.026f, -0.319f, 0.193f,
-            0.126f, -0.240f, 0.120f, 0.157f, -0.654f,
-            1.064f, -0.685f, 0.080f, 0.407f, -0.344f,
-            -0.246f, 0.190f
-        )
+    // V2.5.104: turn interpolation is now driven by a compact optical-flow mesh.
+    // No per-keyframe scale/translate correction is applied anymore.
+    private val yutuanTurnMeshVertsA = FloatArray((8 + 1) * (8 + 1) * 2)
+    private val yutuanTurnMeshVertsB = FloatArray((8 + 1) * (8 + 1) * 2)
 
-    private val yutuanTurnStabilizeYSourcePx =
-        floatArrayOf(
-            0.5f, -0.5f, 0.5f, 0.5f, 0.5f,
-            0.5f, 0.5f, -0.5f, -0.5f, 0.5f,
-            0.5f, 0.5f, 0.5f, 0.5f, -0.5f,
-            -0.5f, 0.5f
-        )
+    private val yutuanTurnMorphPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
-    private val yutuanTurnScaleX =
-        floatArrayOf(
-            1.00285f, 0.99330f, 1.00153f, 1.01436f, 0.98602f,
-            1.00265f, 1.01772f, 0.98463f, 0.98163f, 1.00910f,
-            1.01698f, 1.02000f, 0.99722f, 0.98000f, 0.98000f,
-            0.98810f, 1.01580f
-        )
+    private val yutuanTurnAddPaint =
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
+        }
 
     // Walking Attention V2.3.3：
     // 不再用固定正弦让头机械左右摆，而是使用“随机目标 + 眼睛先到 + 头后跟 + 停留”的注意力状态机。
@@ -1992,7 +1979,7 @@ class PetRigView @JvmOverloads constructor(
             return 0f
         }
 
-        // 回正沿用同一套逐帧防抖补偿，并使用与正向一致的 420ms 时间尺度。
+        // 回正沿用同一套光流 Mesh 连续插值，并使用与正向一致的 420ms 时间尺度。
         val eased =
             t *
                 t *
@@ -2017,8 +2004,7 @@ class PetRigView @JvmOverloads constructor(
         bitmap: Bitmap,
         direction: Float,
         translateY: Float = 0f,
-        rotationDegrees: Float = 0f,
-        stabilizationFrameIndex: Int = -1
+        rotationDegrees: Float = 0f
     ) {
         val save =
             canvas.save()
@@ -2034,49 +2020,6 @@ class PetRigView @JvmOverloads constructor(
                     2f,
                 height /
                     2f
-            )
-        }
-
-        if (
-            stabilizationFrameIndex >=
-            0 &&
-            stabilizationFrameIndex <
-            yutuanTurnScaleX.size
-        ) {
-            val sourceToViewX =
-                width /
-                    160f
-
-            val sourceToViewY =
-                height /
-                    160f
-
-            val scaleX =
-                yutuanTurnScaleX[
-                    stabilizationFrameIndex
-                ]
-
-            // Keep the character's outer body centered while removing the
-            // measured visual-center reversal around frames 9-11.
-            canvas.scale(
-                scaleX,
-                1f,
-                width *
-                    0.50f,
-                height *
-                    0.72f
-            )
-
-            canvas.translate(
-                yutuanTurnStabilizeXSourcePx[
-                    stabilizationFrameIndex
-                ] *
-                    sourceToViewX /
-                    scaleX,
-                yutuanTurnStabilizeYSourcePx[
-                    stabilizationFrameIndex
-                ] *
-                    sourceToViewY
             )
         }
 
@@ -2194,6 +2137,112 @@ class PetRigView @JvmOverloads constructor(
         )
     }
 
+    private fun yutuanTurnBitmapAt(index: Int): Bitmap {
+        return if (index >= 16) {
+            yutuanSideWalkBitmap
+                ?: yutuanTurnBitmaps[16]
+        } else {
+            yutuanTurnBitmaps[index]
+        }
+    }
+
+    private fun drawYutuanTurnFlowMorph(
+        canvas: Canvas,
+        pairIndex: Int,
+        localProgress: Float,
+        direction: Float
+    ) {
+        val pair = pairIndex.coerceIn(0, 15)
+        val t = localProgress.coerceIn(0f, 1f)
+        val fromBitmap = yutuanTurnBitmapAt(pair)
+        val toBitmap = yutuanTurnBitmapAt(pair + 1)
+
+        if (t <= 0.001f) {
+            drawYutuanBitmap(canvas, fromBitmap, direction)
+            return
+        }
+
+        if (t >= 0.999f) {
+            drawYutuanBitmap(canvas, toBitmap, direction)
+            return
+        }
+
+        val cells = 8
+        val verticesPerRow = cells + 1
+        val sourceSize = 160f
+        val scaleX = width / sourceSize
+        val scaleY = height / sourceSize
+        var vertex = 0
+        var out = 0
+
+        for (row in 0..cells) {
+            val baseY = height * row.toFloat() / cells.toFloat()
+            for (column in 0..cells) {
+                val baseX = width * column.toFloat() / cells.toFloat()
+                val forwardBase = YutuanTurnFlow.byteOffset(pair, 0, vertex)
+                val backwardBase = YutuanTurnFlow.byteOffset(pair, 1, vertex)
+
+                val forwardX = YutuanTurnFlow.data[forwardBase].toInt() / 8f * scaleX
+                val forwardY = YutuanTurnFlow.data[forwardBase + 1].toInt() / 8f * scaleY
+                val backwardX = YutuanTurnFlow.data[backwardBase].toInt() / 8f * scaleX
+                val backwardY = YutuanTurnFlow.data[backwardBase + 1].toInt() / 8f * scaleY
+
+                yutuanTurnMeshVertsA[out] = baseX + forwardX * t
+                yutuanTurnMeshVertsA[out + 1] = baseY + forwardY * t
+                yutuanTurnMeshVertsB[out] = baseX + backwardX * (1f - t)
+                yutuanTurnMeshVertsB[out + 1] = baseY + backwardY * (1f - t)
+
+                vertex += 1
+                out += 2
+            }
+        }
+
+        val outerSave = canvas.save()
+        if (direction < 0f) {
+            canvas.scale(-1f, 1f, width / 2f, height / 2f)
+        }
+
+        // Draw into an isolated layer. A normal SRC_OVER crossfade makes two opaque
+        // frames only ~75% opaque at t=0.5 and causes visible flashing. ADD on
+        // premultiplied bitmap colors gives the intended linear alpha interpolation.
+        val layerSave = canvas.saveLayer(
+            0f,
+            0f,
+            width.toFloat(),
+            height.toFloat(),
+            null
+        )
+
+        yutuanTurnMorphPaint.alpha =
+            (((1f - t) * 255f) + 0.5f).toInt().coerceIn(0, 255)
+        canvas.drawBitmapMesh(
+            fromBitmap,
+            cells,
+            cells,
+            yutuanTurnMeshVertsA,
+            0,
+            null,
+            0,
+            yutuanTurnMorphPaint
+        )
+
+        yutuanTurnAddPaint.alpha =
+            ((t * 255f) + 0.5f).toInt().coerceIn(0, 255)
+        canvas.drawBitmapMesh(
+            toBitmap,
+            cells,
+            cells,
+            yutuanTurnMeshVertsB,
+            0,
+            null,
+            0,
+            yutuanTurnAddPaint
+        )
+
+        canvas.restoreToCount(layerSave)
+        canvas.restoreToCount(outerSave)
+    }
+
     private fun drawYutuanDirectionalLocomotion(
         canvas: Canvas,
         now: Long
@@ -2254,51 +2303,34 @@ class PetRigView @JvmOverloads constructor(
             return
         }
 
-        val frameIndex =
-            (
-                progress *
-                    16f +
-                    0.5f
-                )
+        val position =
+            progress *
+                16f
+
+        if (position >= 15.999f) {
+            drawYutuanBitmap(
+                canvas = canvas,
+                bitmap = yutuanSideWalkBitmap
+                    ?: frames[16],
+                direction = direction
+            )
+            return
+        }
+
+        val lower =
+            position
                 .toInt()
-                .coerceIn(
-                    0,
-                    16
-                )
+                .coerceIn(0, 15)
 
-        // 最后一张直接使用用户指定的侧面走路母图，
-        // 这样转身结束 -> 侧面走路不存在纹理切换。
-        val bitmap =
-            if (
-                frameIndex >=
-                16
-            ) {
-                yutuanSideWalkBitmap
-                    ?: frames[
-                        16
-                    ]
-            } else {
-                frames[
-                    frameIndex
-                ]
-            }
+        val local =
+            (position - lower.toFloat())
+                .coerceIn(0f, 1f)
 
-        drawYutuanBitmap(
-            canvas =
-                canvas,
-            bitmap =
-                bitmap,
-            direction =
-                direction,
-            stabilizationFrameIndex =
-                if (
-                    frameIndex <
-                    16
-                ) {
-                    frameIndex
-                } else {
-                    -1
-                }
+        drawYutuanTurnFlowMorph(
+            canvas = canvas,
+            pairIndex = lower,
+            localProgress = local,
+            direction = direction
         )
     }
 

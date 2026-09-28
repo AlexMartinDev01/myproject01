@@ -121,7 +121,26 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.5.103" ]]; then
+          if [[ "$VERSION_NAME" == "2.5.104" ]]; then
+            RELEASE_TITLE="拾光盒 V2.5.104 · 雨团光流转身"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.5.104 · 雨团光流转身 / Optical-flow Inbetweening
+
+          - versionCode: $VERSION_CODE
+          - 根据 2.5.103 真机反馈继续修复“转身仍然明显卡顿、身体抖动”的问题
+          - 重新定位根因：不是窗口位置，而是 17 张关键帧内部耳朵、脸、身体轮廓在相邻帧之间发生非刚性跳变
+          - 删除 2.5.103 的逐帧 scale/translate 防抖矩阵，避免每次换帧时变换矩阵本身再次产生跳动
+          - 对现有 17 张雨团素材离线计算双向 DIS 光流，不重新生成任何角色图片
+          - 光流压缩为 8×8 Mesh 位移场，运行时只需约 5KB 数据，不在手机上运行 AI 模型
+          - 相邻关键帧不再硬切；每次 VSYNC 根据转身进度把前后两张图同时向真实中间几何位置 Morph
+          - 使用正确的 premultiplied-alpha ADD 合成，避免普通 SRC_OVER CrossFade 在中点变成约 75% 不透明而闪烁
+          - 正面 -> 侧面仍约 420ms，转身期间继续冻结 WindowManager 根位移，转完后再进入现有侧面走路
+          - 停止后的回正使用同一套光流 Mesh 反向连续过渡
+          - 最终侧面走路、下雨、彩虹、气泡、睡眠等现有雨团逻辑保持不变；橘团与芽芽不改动
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.5.103" ]]; then
             RELEASE_TITLE="拾光盒 V2.5.103 · 雨团转身防抖"
             cat > release-notes.md <<EOF
           拾光盒 V2.5.103 · 雨团转身防抖

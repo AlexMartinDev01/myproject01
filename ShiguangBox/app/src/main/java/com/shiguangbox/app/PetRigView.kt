@@ -292,6 +292,44 @@ class PetRigView @JvmOverloads constructor(
             emptyList()
         }
 
+    // True left-turn sequence generated offline from the SAME unmirrored idle
+    // frame followed by mirrored directional key poses.  This removes the old
+    // frame-0 mirror flip at left-turn start.
+    private val orangeRifeLeftTurnBitmaps: List<Bitmap> =
+        if (
+            petKind ==
+            PetKind.ORANGE
+        ) {
+            listOf(
+                R.drawable.pet_orange_left_turn_rife_00,
+                R.drawable.pet_orange_left_turn_rife_01,
+                R.drawable.pet_orange_left_turn_rife_02,
+                R.drawable.pet_orange_left_turn_rife_03,
+                R.drawable.pet_orange_left_turn_rife_04,
+                R.drawable.pet_orange_left_turn_rife_05,
+                R.drawable.pet_orange_left_turn_rife_06,
+                R.drawable.pet_orange_left_turn_rife_07,
+                R.drawable.pet_orange_left_turn_rife_08,
+                R.drawable.pet_orange_left_turn_rife_09,
+                R.drawable.pet_orange_left_turn_rife_10,
+                R.drawable.pet_orange_left_turn_rife_11,
+                R.drawable.pet_orange_left_turn_rife_12,
+                R.drawable.pet_orange_left_turn_rife_13,
+                R.drawable.pet_orange_left_turn_rife_14,
+                R.drawable.pet_orange_left_turn_rife_15,
+                R.drawable.pet_orange_left_turn_rife_16
+            )
+                .map {
+                    resourceId ->
+                        decodePetBitmap(
+                            resourceId,
+                            R.drawable.pet_orange_idle
+                        )
+                }
+        } else {
+            emptyList()
+        }
+
     private data class NormalizedAlphaBounds(
         val left: Double,
         val top: Double,
@@ -7949,8 +7987,18 @@ class PetRigView @JvmOverloads constructor(
         amount: Float,
         anticipationCarry: Double = 0.0
     ) {
+        val frames =
+            if (
+                direction <
+                0f
+            ) {
+                orangeRifeLeftTurnBitmaps
+            } else {
+                orangeRifeTurnBitmaps
+            }
+
         if (
-            orangeRifeTurnBitmaps.size !=
+            frames.size !=
             17
         ) {
             return
@@ -7980,7 +8028,7 @@ class PetRigView @JvmOverloads constructor(
                 )
 
         val bitmap =
-            orangeRifeTurnBitmaps[
+            frames[
                 frameIndex
             ]
 
@@ -8000,41 +8048,14 @@ class PetRigView @JvmOverloads constructor(
             )
         }
 
-        if (
-            direction <
-            0f
-        ) {
-            canvas.save()
-
-            canvas.scale(
-                -1f,
-                1f,
-                width /
-                    2f,
-                height /
-                    2f
-            )
-
-            drawCurrentMeshBitmap(
-                canvas =
-                    canvas,
-                bitmap =
-                    bitmap,
-                alpha =
-                    1f
-            )
-
-            canvas.restore()
-        } else {
-            drawCurrentMeshBitmap(
-                canvas =
-                    canvas,
-                bitmap =
-                    bitmap,
-                alpha =
-                    1f
-            )
-        }
+        drawCurrentMeshBitmap(
+            canvas =
+                canvas,
+            bitmap =
+                bitmap,
+            alpha =
+                1f
+        )
     }
 
     private fun drawOrangeTurnKeyframe(
@@ -8376,16 +8397,29 @@ class PetRigView @JvmOverloads constructor(
         direction: Float,
         blinkAmount: Double
     ) {
-        val bitmap =
+        val frames =
             if (
                 direction <
                 0f
             ) {
-                orangeSideLeftBitmap
+                orangeRifeLeftTurnBitmaps
             } else {
-                orangeSideRightBitmap
+                orangeRifeTurnBitmaps
             }
-                ?: return
+
+        if (
+            frames.size !=
+            17
+        ) {
+            return
+        }
+
+        // Keep the exact final RIFE texture while the first gait cycle fades in.
+        // No 90° RIFE -> legacy side-bitmap texture switch.
+        val bitmap =
+            frames[
+                16
+            ]
 
         ensureOrangeGaitStarted(
             now

@@ -121,7 +121,28 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.5.0" ]]; then
+          if [[ "$VERSION_NAME" == "2.5.102" ]]; then
+            RELEASE_TITLE="拾光盒 V2.5.102 · 雨团方向转身与侧面行走"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.5.102 · 雨团方向转身与侧面行走
+
+          - versionCode: $VERSION_CODE
+          - 雨团首次接入真实方向转身资源，不再使用正面立绘横向滑动来模拟走路
+          - 使用 17 张已对齐、透明底的转身帧完成正面 -> 90°侧面动作
+          - 转身采用单帧序列播放，一次只显示一张图，不使用 CrossFade，避免双影和透明闪烁
+          - 正面 -> 侧面约 420ms 完成，按用户反馈进一步加快动作节奏
+          - 左转由同一套右转资源运行时镜像，不额外生成第二套角色，保证左右造型一致
+          - 转身末帧直接切入用户指定的雨团侧面走路母图，避免转身结束后再次换脸/换比例
+          - 侧面走路增加非常轻的上下落脚与身体摆动，不对原图做大幅 Mesh 拉扯
+          - 停止移动后从当前转身进度反向播放回正面，中途停止也不会突然闪回
+          - 屏幕根位移延后约 260ms，雨团先完成超过一半的身体转向再开始明显横移
+          - 17 张转身资源和侧面走路图统一中心、脚底基线和可见高度，降低换帧漂移
+          - 保留雨团现有下雨、停雨、彩虹、气泡、犯困/睡觉/醒来等逻辑
+          - 橘团与芽芽本版不改动
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.5.0" ]]; then
             RELEASE_TITLE="拾光盒 V2.5.0 · 橘团 Motion Turn 2.0"
             cat > release-notes.md <<EOF
           拾光盒 V2.5.0 · 橘团 Motion Turn 2.0 / 五姿态连续转身

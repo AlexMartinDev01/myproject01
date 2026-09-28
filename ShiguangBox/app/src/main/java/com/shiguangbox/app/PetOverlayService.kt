@@ -3407,8 +3407,8 @@ class PetOverlayService : Service() {
                 )
 
         // 方向角色先完成大部分转身，再开始明显根位移。
-        // 雨团转身更快（约 420ms），因此只延后约 260ms，
-        // 让身体先转过一半以上，再自然进入横向走路。
+        // V2.5.103 雨团在完整 420ms 转身期间冻结 WindowManager 根位移，
+        // 避免位图换帧与整像素窗口移动叠加形成身体抖动。
         val turnLeadMs =
             when (
                 kind
@@ -3417,7 +3417,7 @@ class PetOverlayService : Service() {
                     390L
 
                 PetKind.YUTUAN ->
-                    260L
+                    420L
 
                 else ->
                     0L

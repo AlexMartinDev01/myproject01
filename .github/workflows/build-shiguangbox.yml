@@ -121,7 +121,26 @@ jobs:
           TAG="shiguangbox-v$VERSION_NAME"
           APK_PATH="app/build/outputs/apk/release/$OUTPUT_NAME"
 
-          if [[ "$VERSION_NAME" == "2.5.102" ]]; then
+          if [[ "$VERSION_NAME" == "2.5.103" ]]; then
+            RELEASE_TITLE="拾光盒 V2.5.103 · 雨团转身防抖"
+            cat > release-notes.md <<EOF
+          拾光盒 V2.5.103 · 雨团转身防抖 / Turn Stabilization
+
+          - versionCode: $VERSION_CODE
+          - 针对真机反馈“雨团转身时身体抖动”做正式修复，不使用实验通道
+          - 根因定位为：17 帧视觉轨迹残余漂移 + 420ms 内帧驻留不均 + 260ms 后 WindowManager 根位移叠加
+          - 转身资源由 17 张升级为 65 张高密度稳定化帧，仍全部来自现有雨团素材，不重新生成角色图片
+          - 65 帧在进入 App 前统一做中心/脚底/可见高度与轮廓时序稳定，压低相邻帧身体跳位和忽胖忽瘦
+          - Android 继续使用 Choreographer 的 VSYNC 时间戳按 0..64 连续取帧，60/90/120Hz 下减少重复驻帧造成的顿挫
+          - 雨团完整 420ms 转身期间冻结真实窗口横移；转到侧面后才开始 WindowManager 根位移，去掉两种运动叠加造成的抖动
+          - 停止移动后的回正同样使用 65 帧时间轴，回正不再用更短的 310ms 快速倒放
+          - 最终侧面走路母图、侧面轻微落脚起伏、下雨/停雨/彩虹/气泡/睡眠逻辑保持不变
+          - 左转继续运行时镜像同一套右转资源，避免左右角色身份漂移
+          - 橘团与芽芽本版不改动
+
+          提交：$GITHUB_SHA
+          EOF
+          elif [[ "$VERSION_NAME" == "2.5.102" ]]; then
             RELEASE_TITLE="拾光盒 V2.5.102 · 雨团方向转身与侧面行走"
             cat > release-notes.md <<EOF
           拾光盒 V2.5.102 · 雨团方向转身与侧面行走

@@ -1,0 +1,113 @@
+name: Export Yutuan Runtime Asset
+
+on:
+  push:
+    branches:
+      - experiment/yutuan-asset-export
+    paths:
+      - '.github/workflows/export-yutuan-asset.yml'
+      - 'ShiguangBox/app/src/main/java/com/shiguangbox/app/YutuanEmbeddedAsset.kt'
+      - 'ShiguangBox/app/src/main/res/drawable-nodpi/pet_yutuan_idle.webp'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pillow
+        run: pip install 'pillow==10.4.0'
+
+      - name: Decode and validate runtime Yutuan asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p yutuan_export
+          python - <<'PY'
+          import base64, hashlib, json, re
+          from pathlib import Path
+          from PIL import Image
+
+          src = Path("ShiguangBox/app/src/main/java/com/shiguangbox/app/YutuanEmbeddedAsset.kt")
+          text = src.read_text(encoding="utf-8")
+          parts = re.findall(r'private const val PART_\d+\s*=\s*"([^"]*)"', text)
+
+          if not parts:
+              raise SystemExit("No PART_n constants found in YutuanEmbeddedAsset.kt")
+
+          joined = "".join(parts)
+          raw = base64.b64decode(joined, validate=True)
+
+          out = Path("yutuan_export")
+          webp = out / "yutuan_runtime_original_verified.webp"
+          png = out / "yutuan_runtime_original_verified.png"
+          webp.write_bytes(raw)
+
+          # Decode fully, force load, then save a fresh PNG.
+          with Image.open(webp) as im:
+              im.load()
+              rgba = im.convert("RGBA")
+              size = rgba.size
+              extrema = rgba.getextrema()
+              rgba.save(png, format="PNG", optimize=False)
+
+          # Reopen the PNG and force a second full decode check.
+          with Image.open(png) as check:
+              check.load()
+              if check.mode != "RGBA":
+                  check = check.convert("RGBA")
+              png_size = check.size
+              png_extrema = check.getextrema()
+
+          repo_webp = Path("ShiguangBox/app/src/main/res/drawable-nodpi/pet_yutuan_idle.webp")
+          repo_info = {}
+          if repo_webp.exists():
+              rb = repo_webp.read_bytes()
+              repo_info["sha256"] = hashlib.sha256(rb).hexdigest()
+              repo_info["bytes"] = len(rb)
+              try:
+                  with Image.open(repo_webp) as rim:
+                      rim.load()
+                      repo_info["size"] = list(rim.size)
+                      repo_info["mode"] = rim.mode
+              except Exception as e:
+                  repo_info["decode_error"] = repr(e)
+
+          report = {
+              "embedded_parts": len(parts),
+              "embedded_base64_chars": len(joined),
+              "runtime_webp_bytes": len(raw),
+              "runtime_webp_sha256": hashlib.sha256(raw).hexdigest(),
+              "runtime_image_size": list(size),
+              "runtime_rgba_extrema": [list(x) for x in extrema],
+              "png_bytes": png.stat().st_size,
+              "png_sha256": hashlib.sha256(png.read_bytes()).hexdigest(),
+              "png_size": list(png_size),
+              "png_rgba_extrema": [list(x) for x in png_extrema],
+              "repo_pet_yutuan_idle": repo_info
+          }
+          (out / "validation_report.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2),
+              encoding="utf-8"
+          )
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+          file yutuan_export/*
+          sha256sum yutuan_export/*
+
+      - name: Upload verified Yutuan files
+        uses: actions/upload-artifact@v4
+        with:
+          name: yutuan-runtime-original-verified
+          path: yutuan_export/
+          if-no-files-found: error

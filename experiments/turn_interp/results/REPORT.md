@@ -10,17 +10,4 @@
 - current_SRC_OVER: 中点核心alpha=0.7450; 中点边缘倍率=1.221; 帧间变化CV=0.320; 平均锐度=740.1
 - true_premul_blend: 中点核心alpha=0.9922; 中点边缘倍率=1.279; 帧间变化CV=0.243; 平均锐度=841.8
 - farneback_flow: 中点核心alpha=0.9846; 中点边缘倍率=0.985; 帧间变化CV=0.294; 平均锐度=612.7
-
-## RIFE 执行错误
-
-ModuleNotFoundError("No module named 'torchvision'")
-Traceback (most recent call last):
-  File "/home/runner/work/myproject01/myproject01/experiments/turn_interp/evaluate.py", line 83, in <module>
-    torch,model=load_rife()
-  File "/home/runner/work/myproject01/myproject01/experiments/turn_interp/evaluate.py", line 34, in load_rife
-    from train_log.RIFE_HDv3 import Model
-  File "/tmp/Practical-RIFE/train_log/RIFE_HDv3.py", line 11, in <module>
-    from model.loss import *
-  File "/tmp/Practical-RIFE/model/loss.py", line 5, in <module>
-    import torchvision.models as models
-ModuleNotFoundError: No module named 'torchvision'
+- RIFE_4.25_premul_alpha: 中点核心alpha=0.9883; 中点边缘倍率=0.970; 帧间变化CV=0.276; 平均锐度=1021.2

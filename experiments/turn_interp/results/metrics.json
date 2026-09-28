@@ -423,7 +423,42 @@
           "mid_edge_ratio": 0.9637438108928286
         }
       ]
+    },
+    "RIFE_4.25_premul_alpha": {
+      "label": "RIFE_4.25_premul_alpha",
+      "frame_count": 17,
+      "mean_step_abs": 0.03221086726989597,
+      "step_diff_cv": 0.2761708855594356,
+      "centroid_step_mean": 0.7694057868091948,
+      "centroid_step_cv": 0.31933163965791406,
+      "mean_sharpness": 1021.2211698644302,
+      "pair_midpoints": [
+        {
+          "pair": "0.0->22.5",
+          "mid_core_alpha": 0.9809224009513855,
+          "mid_translucent_fraction": 0.039991573329588144,
+          "mid_edge_ratio": 0.926105479653298
+        },
+        {
+          "pair": "22.5->45.0",
+          "mid_core_alpha": 0.9897416830062866,
+          "mid_translucent_fraction": 0.04623981883925637,
+          "mid_edge_ratio": 0.9756752723474108
+        },
+        {
+          "pair": "45.0->67.5",
+          "mid_core_alpha": 0.9911073446273804,
+          "mid_translucent_fraction": 0.04618685537905594,
+          "mid_edge_ratio": 0.9888697287976171
+        },
+        {
+          "pair": "67.5->90.0",
+          "mid_core_alpha": 0.9915973544120789,
+          "mid_translucent_fraction": 0.05111297606202294,
+          "mid_edge_ratio": 0.9892988340520683
+        }
+      ]
     }
   },
-  "rife_error": "ModuleNotFoundError(\"No module named 'torchvision'\")\nTraceback (most recent call last):\n  File \"/home/runner/work/myproject01/myproject01/experiments/turn_interp/evaluate.py\", line 83, in <module>\n    torch,model=load_rife()\n  File \"/home/runner/work/myproject01/myproject01/experiments/turn_interp/evaluate.py\", line 34, in load_rife\n    from train_log.RIFE_HDv3 import Model\n  File \"/tmp/Practical-RIFE/train_log/RIFE_HDv3.py\", line 11, in <module>\n    from model.loss import *\n  File \"/tmp/Practical-RIFE/model/loss.py\", line 5, in <module>\n    import torchvision.models as models\nModuleNotFoundError: No module named 'torchvision'\n"
+  "rife_error": null
 }

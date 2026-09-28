@@ -659,8 +659,123 @@ class PetRigView @JvmOverloads constructor(
     private val meshHeight = 28
     private val verts = FloatArray((meshWidth + 1) * (meshHeight + 1) * 2)
 
+    // V2.5.1 Motion Turn 2.1:
+    // 转身用到的高斯权重只和 Mesh UV 有关，初始化时一次性计算。
+    // 之前每个转身帧都为两张关键姿态重复执行大量 exp()，容易吃掉 16.67ms 帧预算。
+    private fun buildOrangeTurnWeightMap(
+        centerU: Double,
+        centerV: Double,
+        radiusU: Double,
+        radiusV: Double
+    ): DoubleArray {
+        val weights =
+            DoubleArray(
+                (meshWidth + 1) *
+                    (meshHeight + 1)
+            )
+
+        var pointIndex =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                weights[
+                    pointIndex
+                ] =
+                    exp(
+                        -square(
+                            (
+                                u -
+                                    centerU
+                                ) /
+                                radiusU
+                        ) -
+                            square(
+                                (
+                                    v -
+                                        centerV
+                                    ) /
+                                radiusV
+                            )
+                    )
+                        .coerceIn(
+                            0.0,
+                            1.0
+                        )
+
+                pointIndex +=
+                    1
+            }
+        }
+
+        return weights
+    }
+
+    private val orangeMorphHeadWeights =
+        buildOrangeTurnWeightMap(
+            0.505,
+            0.355,
+            0.315,
+            0.285
+        )
+
+    private val orangeMorphShoulderWeights =
+        buildOrangeTurnWeightMap(
+            0.51,
+            0.58,
+            0.34,
+            0.22
+        )
+
+    private val orangeMorphBodyWeights =
+        buildOrangeTurnWeightMap(
+            0.50,
+            0.68,
+            0.39,
+            0.31
+        )
+
+    private val orangeMorphHipWeights =
+        buildOrangeTurnWeightMap(
+            0.50,
+            0.82,
+            0.31,
+            0.20
+        )
+
+    private val orangeMorphTailRightWeights =
+        buildOrangeTurnWeightMap(
+            0.22,
+            0.69,
+            0.17,
+            0.22
+        )
+
+    private val orangeMorphTailLeftWeights =
+        buildOrangeTurnWeightMap(
+            0.78,
+            0.69,
+            0.17,
+            0.22
+        )
+
     private var callbackPosted = false
     private var paused = false
+    private var lastFrameTimeNanos = 0L
 
     private var state: State = State.IDLE
     private var stateChangeListener:
@@ -1402,6 +1517,9 @@ class PetRigView @JvmOverloads constructor(
 
     override fun doFrame(frameTimeNanos: Long) {
         callbackPosted = false
+        lastFrameTimeNanos =
+            frameTimeNanos
+
         if (!paused && isAttachedToWindow) {
             invalidate()
             postFrame()
@@ -1412,7 +1530,24 @@ class PetRigView @JvmOverloads constructor(
         super.onDraw(canvas)
         if (width <= 0 || height <= 0) return
 
-        val now = System.nanoTime()
+        val systemNow =
+            System.nanoTime()
+
+        // Choreographer 的 frameTimeNanos 与 VSYNC 锁相。
+        // 只有在 View 不是由正常帧回调触发、时间戳已经明显过期时才回退到 nanoTime。
+        val now =
+            if (
+                lastFrameTimeNanos >
+                    0L &&
+                systemNow -
+                    lastFrameTimeNanos <
+                    50_000_000L
+            ) {
+                lastFrameTimeNanos
+            } else {
+                systemNow
+            }
+
         updateState(now)
 
         val stateSeconds =
@@ -6128,6 +6263,65 @@ class PetRigView @JvmOverloads constructor(
                 )
     }
 
+    // V2.5.1 Motion Turn 2.1:
+    // 只在头尾约 12% 做柔和启停，中间保持 1:1 近似匀速。
+    // 这样 0/22.5/45/67.5/90 度四段的时间基本均匀，
+    // 不再出现旧版 quintic smootherstep 在中段突然加速造成的“跳帧感”。
+    private fun orangeTurnProgress(
+        value: Double
+    ): Double {
+        val t =
+            clamp(
+                value,
+                0.0,
+                1.0
+            )
+
+        val edge =
+            0.12
+
+        if (
+            t <
+            edge
+        ) {
+            val u =
+                t /
+                    edge
+
+            return edge *
+                u *
+                u *
+                (
+                    2.0 -
+                        u
+                    )
+        }
+
+        if (
+            t >
+            1.0 -
+                edge
+        ) {
+            val u =
+                (
+                    1.0 -
+                        t
+                    ) /
+                    edge
+
+            return 1.0 -
+                edge *
+                    u *
+                    u *
+                    (
+                        2.0 -
+                            u
+                        )
+        }
+
+        return t
+    }
+
     private fun orangeDirectionalAnticipationProgress(
         now: Long
     ): Double {
@@ -6172,7 +6366,7 @@ class PetRigView @JvmOverloads constructor(
             90_000_000.0
 
         val turnNanos =
-            480_000_000.0
+            520_000_000.0
 
         val elapsed =
             (
@@ -6192,7 +6386,7 @@ class PetRigView @JvmOverloads constructor(
         }
 
         val p =
-            directionalSmootherStep(
+            orangeTurnProgress(
                 (
                     elapsed -
                         anticipationNanos
@@ -6247,7 +6441,7 @@ class PetRigView @JvmOverloads constructor(
                 )
 
         val p =
-            directionalSmootherStep(
+            orangeTurnProgress(
                 (
                     now -
                         start
@@ -7150,27 +7344,48 @@ class PetRigView @JvmOverloads constructor(
         val viewH =
             height.toDouble()
 
+        val headAngle =
+            turnSign *
+                1.85 *
+                headPhase *
+                PI /
+                180.0
+
+        // 同一帧所有顶点共用同一个头部旋转角，三角函数只算一次。
+        val headCos =
+            cos(
+                headAngle
+            )
+
+        val headSin =
+            sin(
+                headAngle
+            )
+
+        val tailWeights =
+            if (
+                direction >
+                0f
+            ) {
+                orangeMorphTailRightWeights
+            } else {
+                orangeMorphTailLeftWeights
+            }
+
         var index =
+            0
+
+        var pointIndex =
             0
 
         for (
             row in
             0..meshHeight
         ) {
-            val v =
-                row.toDouble() /
-                    meshHeight
-                        .toDouble()
-
             for (
                 col in
                 0..meshWidth
             ) {
-                val u =
-                    col.toDouble() /
-                        meshWidth
-                            .toDouble()
-
                 var x =
                     verts[
                         index
@@ -7187,26 +7402,9 @@ class PetRigView @JvmOverloads constructor(
                         viewH
 
                 val headWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.505
-                                ) /
-                                0.315
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.355
-                                    ) /
-                                0.285
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    orangeMorphHeadWeights[
+                        pointIndex
+                    ]
 
                 if (
                     headWeight >
@@ -7239,13 +7437,6 @@ class PetRigView @JvmOverloads constructor(
                                 0.0058 *
                                 headPhase
 
-                    val angle =
-                        turnSign *
-                            1.85 *
-                            headPhase *
-                            PI /
-                            180.0
-
                     val dx =
                         yawX -
                             centerU
@@ -7253,24 +7444,16 @@ class PetRigView @JvmOverloads constructor(
                     val rx =
                         centerU +
                             dx *
-                                cos(
-                                    angle
-                                ) -
+                                headCos -
                             dy0 *
-                                sin(
-                                    angle
-                                )
+                                headSin
 
                     val ry =
                         centerV +
                             dx *
-                                sin(
-                                    angle
-                                ) +
+                                headSin +
                             dy0 *
-                                cos(
-                                    angle
-                                )
+                                headCos
 
                     x =
                         x *
@@ -7292,26 +7475,9 @@ class PetRigView @JvmOverloads constructor(
                 }
 
                 val shoulderWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.51
-                                ) /
-                                0.34
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.58
-                                    ) /
-                                0.22
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    orangeMorphShoulderWeights[
+                        pointIndex
+                    ]
 
                 x +=
                     turnSign *
@@ -7320,26 +7486,9 @@ class PetRigView @JvmOverloads constructor(
                         shoulderWeight
 
                 val bodyWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.50
-                                ) /
-                                0.39
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.68
-                                    ) /
-                                0.31
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    orangeMorphBodyWeights[
+                        pointIndex
+                    ]
 
                 x +=
                     turnSign *
@@ -7348,26 +7497,9 @@ class PetRigView @JvmOverloads constructor(
                         bodyWeight
 
                 val hipWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    0.50
-                                ) /
-                                0.31
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.82
-                                    ) /
-                                0.20
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    orangeMorphHipWeights[
+                        pointIndex
+                    ]
 
                 x +=
                     turnSign *
@@ -7375,37 +7507,10 @@ class PetRigView @JvmOverloads constructor(
                         hipPhase *
                         hipWeight
 
-                val tailCenterU =
-                    if (
-                        direction >
-                        0f
-                    ) {
-                        0.22
-                    } else {
-                        0.78
-                    }
-
                 val tailWeight =
-                    exp(
-                        -square(
-                            (
-                                u -
-                                    tailCenterU
-                                ) /
-                                0.17
-                        ) -
-                            square(
-                                (
-                                    v -
-                                        0.69
-                                    ) /
-                                0.22
-                            )
-                    )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    tailWeights[
+                        pointIndex
+                    ]
 
                 // 尾巴最晚跟随，略向转身反方向留一下，形成动物惯性。
                 x -=
@@ -7435,6 +7540,9 @@ class PetRigView @JvmOverloads constructor(
 
                 index +=
                     2
+
+                pointIndex +=
+                    1
             }
         }
     }
@@ -8016,12 +8124,11 @@ class PetRigView @JvmOverloads constructor(
                     1f
                 )
 
+        // 关键姿态之间保持线性混合。
+        // 外层时间曲线已经负责整体启停，这里不能再做一次 smootherstep，
+        // 否则每经过 22.5° / 45° / 67.5° 都会产生一次肉眼可见的减速。
         val blend =
-            directionalSmootherStep(
-                local
-                    .toDouble()
-            )
-                .toFloat()
+            local
 
         // 只绘制相邻两个姿态，且两边 Mesh 都先向同一中间轮廓靠拢。
         // 因此 60Hz 中间帧既有纹理渐变，也有实际几何连续变化。

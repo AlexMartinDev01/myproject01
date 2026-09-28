@@ -1,0 +1,81 @@
+name: Build RIFE Turn Test APK
+
+on:
+  push:
+    branches:
+      - experiment/turn-rife-apk
+    paths:
+      - 'ShiguangBox/**'
+      - '.github/workflows/build-turn-rife-apk.yml'
+      - 'experiments/turn_interp/results/rife4x_frames/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      RELEASE_KEYSTORE_B64: ${{ secrets.SHIGUANGBOX_KEYSTORE_BASE64 }}
+      RELEASE_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+
+    defaults:
+      run:
+        working-directory: ShiguangBox
+
+    steps:
+      - name: Checkout experiment branch
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Verify RIFE frame inputs
+        shell: bash
+        working-directory: .
+        run: |
+          test "$(find experiments/turn_interp/results/rife4x_frames -name 'frame_*.png' | wc -l)" -eq 17
+          echo "Found 17 offline RIFE turn frames"
+
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          test -n "$RELEASE_KEYSTORE_B64"
+          test -n "$RELEASE_STORE_PASSWORD"
+          test -n "$RELEASE_KEY_ALIAS"
+          test -n "$RELEASE_KEY_PASSWORD"
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/shiguangbox-release.jks"
+          test -s "$RUNNER_TEMP/shiguangbox-release.jks"
+
+      - name: Build signed experimental APK
+        env:
+          SHIGUANGBOX_KEYSTORE_FILE: ${{ runner.temp }}/shiguangbox-release.jks
+          SHIGUANGBOX_STORE_PASSWORD: ${{ secrets.SHIGUANGBOX_STORE_PASSWORD }}
+          SHIGUANGBOX_KEY_ALIAS: ${{ secrets.SHIGUANGBOX_KEY_ALIAS }}
+          SHIGUANGBOX_KEY_PASSWORD: ${{ secrets.SHIGUANGBOX_KEY_PASSWORD }}
+        run: gradle assembleRelease
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShiguangBox-v2.5.99-RIFE-Turn-Test
+          path: ShiguangBox/app/build/outputs/apk/release/ShiguangBox_v2.5.99_RIFE_Turn_Test.apk

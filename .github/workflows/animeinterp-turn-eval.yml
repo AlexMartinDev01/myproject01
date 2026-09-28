@@ -1,0 +1,85 @@
+name: AnimeInterp turn experiment
+
+on:
+  push:
+    branches:
+      - experiment/turn-interpolation-eval
+    paths:
+      - 'experiments/turn_interp/animeinterp_eval.py'
+      - '.github/workflows/animeinterp-turn-eval.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  animeinterp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/turn-interpolation-eval
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'numpy==1.26.4' 'pillow==10.4.0' 'opencv-python-headless==4.10.0.84'
+          pip install 'torch==2.2.2' --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Prepare AnimeInterp
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/lisiyao21/AnimeInterp.git /tmp/AnimeInterp
+
+          # Modern PyTorch + CPU compatibility only; network/checkpoint remain unchanged.
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/AnimeInterp/models/rfr_model/rfr_new.py')
+          s=p.read_text()
+          s=s.replace('gridX = torch.tensor(gridX, requires_grad=False,).cuda()',
+                      'gridX = torch.tensor(gridX, requires_grad=False, device=img.device)')
+          s=s.replace('gridY = torch.tensor(gridY, requires_grad=False,).cuda()',
+                      'gridY = torch.tensor(gridY, requires_grad=False, device=img.device)')
+          s=s.replace('torch.nn.functional.grid_sample(img, grid)',
+                      'torch.nn.functional.grid_sample(img, grid, align_corners=True)')
+          p.write_text(s)
+
+          p=Path('/tmp/AnimeInterp/models/rfr_model/utils.py')
+          s=p.read_text()
+          s=s.replace('F.grid_sample(img, grid)', 'F.grid_sample(img, grid, align_corners=True)')
+          p.write_text(s)
+          PY
+
+          curl -L --fail --retry 3 \
+            https://github.com/Fannovel16/ComfyUI-Frame-Interpolation/releases/download/models/anime_interp_full.ckpt \
+            -o /tmp/anime_interp_full.ckpt
+          ls -lh /tmp/anime_interp_full.ckpt
+
+      - name: Run AnimeInterp midpoint experiment
+        env:
+          ANIME_HOME: /tmp/AnimeInterp
+          ANIME_CKPT: /tmp/anime_interp_full.ckpt
+        run: |
+          python experiments/turn_interp/animeinterp_eval.py
+
+      - name: Upload AnimeInterp results
+        uses: actions/upload-artifact@v4
+        with:
+          name: animeinterp-turn-experiment
+          path: experiments/turn_interp/results/animeinterp
+
+      - name: Commit AnimeInterp results
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add experiments/turn_interp/results/animeinterp
+          git commit -m "experiment: record AnimeInterp turn results" || exit 0
+          git push origin HEAD:experiment/turn-interpolation-eval

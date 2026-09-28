@@ -773,6 +773,216 @@ class PetRigView @JvmOverloads constructor(
             0.22
         )
 
+    private fun buildOrangeSideLegWeightMap(
+        centerU: Double
+    ): DoubleArray {
+        val weights =
+            buildOrangeTurnWeightMap(
+                centerU,
+                0.875,
+                0.145,
+                0.120
+            )
+
+        var pointIndex =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            val v =
+                row.toDouble() /
+                    meshHeight.toDouble()
+
+            val lowerBodyMask =
+                smoothStep(
+                    clamp(
+                        (
+                            v -
+                                0.735
+                            ) /
+                            0.20,
+                        0.0,
+                        1.0
+                    )
+                )
+
+            for (
+                col in
+                0..meshWidth
+            ) {
+                weights[
+                    pointIndex
+                ] *=
+                    lowerBodyMask
+
+                pointIndex +=
+                    1
+            }
+        }
+
+        return weights
+    }
+
+    private fun buildOrangeSideTailWeightMap(
+        direction: Float
+    ): DoubleArray {
+        val centerU =
+            if (
+                direction >
+                0f
+            ) {
+                0.235
+            } else {
+                0.765
+            }
+
+        val weights =
+            buildOrangeTurnWeightMap(
+                centerU,
+                0.690,
+                0.160,
+                0.190
+            )
+
+        var pointIndex =
+            0
+
+        for (
+            row in
+            0..meshHeight
+        ) {
+            for (
+                col in
+                0..meshWidth
+            ) {
+                val u =
+                    col.toDouble() /
+                        meshWidth.toDouble()
+
+                val sideMask =
+                    if (
+                        direction >
+                        0f
+                    ) {
+                        1.0 -
+                            smoothStep(
+                                clamp(
+                                    (
+                                        u -
+                                            0.45
+                                        ) /
+                                        0.08,
+                                    0.0,
+                                    1.0
+                                )
+                            )
+                    } else {
+                        smoothStep(
+                            clamp(
+                                (
+                                    u -
+                                        0.55
+                                    ) /
+                                    0.08,
+                                0.0,
+                                1.0
+                            )
+                        )
+                    }
+
+                weights[
+                    pointIndex
+                ] *=
+                    sideMask
+
+                pointIndex +=
+                    1
+            }
+        }
+
+        return weights
+    }
+
+    private val orangeDirectionalBodyWeights =
+        buildOrangeTurnWeightMap(
+            0.50,
+            0.66,
+            0.42,
+            0.39
+        )
+
+    private val orangeDirectionalHeadWeights =
+        buildOrangeTurnWeightMap(
+            0.50,
+            0.34,
+            0.34,
+            0.27
+        )
+
+    private val orangeDirectionalEyeRightQuarterWeights =
+        buildOrangeTurnWeightMap(
+            0.595,
+            0.382,
+            0.095,
+            0.065
+        )
+
+    private val orangeDirectionalEyeLeftQuarterWeights =
+        buildOrangeTurnWeightMap(
+            0.405,
+            0.382,
+            0.095,
+            0.065
+        )
+
+    private val orangeDirectionalEyeRightSideWeights =
+        buildOrangeTurnWeightMap(
+            0.635,
+            0.355,
+            0.070,
+            0.065
+        )
+
+    private val orangeDirectionalEyeLeftSideWeights =
+        buildOrangeTurnWeightMap(
+            0.365,
+            0.355,
+            0.070,
+            0.065
+        )
+
+    private val orangeDirectionalRightFrontLegWeights =
+        buildOrangeSideLegWeightMap(
+            0.625
+        )
+
+    private val orangeDirectionalRightBackLegWeights =
+        buildOrangeSideLegWeightMap(
+            0.455
+        )
+
+    private val orangeDirectionalLeftFrontLegWeights =
+        buildOrangeSideLegWeightMap(
+            0.375
+        )
+
+    private val orangeDirectionalLeftBackLegWeights =
+        buildOrangeSideLegWeightMap(
+            0.545
+        )
+
+    private val orangeDirectionalRightTailWeights =
+        buildOrangeSideTailWeightMap(
+            1f
+        )
+
+    private val orangeDirectionalLeftTailWeights =
+        buildOrangeSideTailWeightMap(
+            -1f
+        )
+
     private var callbackPosted = false
     private var paused = false
     private var lastFrameTimeNanos = 0L
@@ -1539,6 +1749,8 @@ class PetRigView @JvmOverloads constructor(
             if (
                 lastFrameTimeNanos >
                     0L &&
+                lastFrameTimeNanos <=
+                    systemNow &&
                 systemNow -
                     lastFrameTimeNanos <
                     50_000_000L
@@ -6684,17 +6896,9 @@ class PetRigView @JvmOverloads constructor(
             }
 
         val bounce =
-            if (
-                walking
-            ) {
-                abs(
-                    sin(
-                        phase
-                    )
-                )
-            } else {
-                0.0
-            }
+            abs(
+                step
+            )
 
         val intensity =
             if (
@@ -6741,7 +6945,97 @@ class PetRigView @JvmOverloads constructor(
                 0.0
             }
 
+        val tailLag =
+            if (
+                walking &&
+                sideView
+            ) {
+                sin(
+                    phase -
+                        0.92
+                )
+            } else {
+                0.0
+            }
+
+        val tailAngle =
+            tailLag *
+                (
+                    if (
+                        direction >
+                        0f
+                    ) {
+                        -7.5
+                    } else {
+                        7.5
+                    }
+                    ) *
+                intensity *
+                PI /
+                180.0
+
+        val tailCos =
+            cos(
+                tailAngle
+            )
+
+        val tailSin =
+            sin(
+                tailAngle
+            )
+
+        val eyeWeights =
+            when {
+                direction <
+                    0f &&
+                    sideView ->
+                    orangeDirectionalEyeLeftSideWeights
+
+                direction <
+                    0f ->
+                    orangeDirectionalEyeLeftQuarterWeights
+
+                sideView ->
+                    orangeDirectionalEyeRightSideWeights
+
+                else ->
+                    orangeDirectionalEyeRightQuarterWeights
+            }
+
+        val frontLegWeights =
+            if (
+                direction >
+                0f
+            ) {
+                orangeDirectionalRightFrontLegWeights
+            } else {
+                orangeDirectionalLeftFrontLegWeights
+            }
+
+        val backLegWeights =
+            if (
+                direction >
+                0f
+            ) {
+                orangeDirectionalRightBackLegWeights
+            } else {
+                orangeDirectionalLeftBackLegWeights
+            }
+
+        val sideTailWeights =
+            if (
+                direction >
+                0f
+            ) {
+                orangeDirectionalRightTailWeights
+            } else {
+                orangeDirectionalLeftTailWeights
+            }
+
         var index =
+            0
+
+        var pointIndex =
             0
 
         for (
@@ -6783,26 +7077,9 @@ class PetRigView @JvmOverloads constructor(
                     // 整体连续前进已经由 WindowManager 负责，
                     // 贴图内部只做很小的重心与上下起伏。
                     val bodyWeight =
-                        exp(
-                            -square(
-                                (
-                                    u -
-                                        0.50
-                                    ) /
-                                    0.42
-                            ) -
-                                square(
-                                    (
-                                        v -
-                                            0.66
-                                        ) /
-                                    0.39
-                                )
-                        )
-                            .coerceIn(
-                                0.0,
-                                1.0
-                            )
+                        orangeDirectionalBodyWeights[
+                            pointIndex
+                        ]
 
                     x +=
                         -step *
@@ -6833,26 +7110,9 @@ class PetRigView @JvmOverloads constructor(
                             bodyWeight
 
                     val headWeight =
-                        exp(
-                            -square(
-                                (
-                                    u -
-                                        0.50
-                                    ) /
-                                    0.34
-                            ) -
-                                square(
-                                    (
-                                        v -
-                                            0.34
-                                        ) /
-                                    0.27
-                                )
-                        )
-                            .coerceIn(
-                                0.0,
-                                1.0
-                            )
+                        orangeDirectionalHeadWeights[
+                            pointIndex
+                        ]
 
                     // 已经是真实方向图，所以头眼这里只做“活着”的微调，
                     // 不再用大角度 Mesh 强拗侧脸。
@@ -6866,29 +7126,7 @@ class PetRigView @JvmOverloads constructor(
                             0.0028 *
                             headWeight
 
-                    val eyeCenterU =
-                        if (
-                            direction <
-                            0f
-                        ) {
-                            if (
-                                sideView
-                            ) {
-                                0.365
-                            } else {
-                                0.405
-                            }
-                        } else {
-                            if (
-                                sideView
-                            ) {
-                                0.635
-                            } else {
-                                0.595
-                            }
-                        }
-
-                    val eyeCenterV =
+                    val eyeCenterV =                    val eyeCenterV =
                         if (
                             sideView
                         ) {
@@ -6898,34 +7136,9 @@ class PetRigView @JvmOverloads constructor(
                         }
 
                     val eyeWeight =
-                        exp(
-                            -square(
-                                (
-                                    u -
-                                        eyeCenterU
-                                    ) /
-                                    (
-                                        if (
-                                            sideView
-                                        ) {
-                                            0.070
-                                        } else {
-                                            0.095
-                                        }
-                                    )
-                            ) -
-                                square(
-                                    (
-                                        v -
-                                            eyeCenterV
-                                        ) /
-                                    0.065
-                                )
-                        )
-                            .coerceIn(
-                                0.0,
-                                1.0
-                            )
+                        eyeWeights[
+                            pointIndex
+                        ]
 
                     x +=
                         eyeLook *
@@ -6966,25 +7179,7 @@ class PetRigView @JvmOverloads constructor(
                                 legIndex ==
                                     0
 
-                            val centerU =
-                                when {
-                                    direction >
-                                        0f &&
-                                        frontLeg ->
-                                        0.625
-
-                                    direction >
-                                        0f ->
-                                        0.455
-
-                                    frontLeg ->
-                                        0.375
-
-                                    else ->
-                                        0.545
-                                }
-
-                            val signal =
+                            val signal =                            val signal =
                                 if (
                                     frontLeg
                                 ) {
@@ -6993,38 +7188,20 @@ class PetRigView @JvmOverloads constructor(
                                     -step
                                 }
 
-                            var legWeight =
-                                exp(
-                                    -square(
-                                        (
-                                            u -
-                                                centerU
-                                            ) /
-                                            0.145
-                                    ) -
-                                        square(
-                                            (
-                                                v -
-                                                    0.875
-                                                ) /
-                                            0.120
-                                        )
-                                )
+                            val legWeight =
+                                if (
+                                    frontLeg
+                                ) {
+                                    frontLegWeights[
+                                        pointIndex
+                                    ]
+                                } else {
+                                    backLegWeights[
+                                        pointIndex
+                                    ]
+                                }
 
-                            legWeight *=
-                                smoothStep(
-                                    clamp(
-                                        (
-                                            v -
-                                                0.735
-                                            ) /
-                                            0.20,
-                                        0.0,
-                                        1.0
-                                    )
-                                )
-
-                            val lift =
+                            val lift =                            val lift =
                                 maxOf(
                                     0.0,
                                     signal
@@ -7058,95 +7235,17 @@ class PetRigView @JvmOverloads constructor(
                                 0.595
                             }
 
-                        val tailCenterU =
-                            if (
-                                direction >
-                                0f
-                            ) {
-                                0.235
-                            } else {
-                                0.765
-                            }
-
-                        var tailWeight =
-                            exp(
-                                -square(
-                                    (
-                                        u -
-                                            tailCenterU
-                                        ) /
-                                        0.160
-                                ) -
-                                    square(
-                                        (
-                                            v -
-                                                0.690
-                                            ) /
-                                        0.190
-                                    )
-                            )
-
-                        val tailSideMask =
-                            if (
-                                direction >
-                                0f
-                            ) {
-                                1.0 -
-                                    smoothStep(
-                                        clamp(
-                                            (
-                                                u -
-                                                    0.45
-                                                ) /
-                                                0.08,
-                                            0.0,
-                                            1.0
-                                        )
-                                    )
-                            } else {
-                                smoothStep(
-                                    clamp(
-                                        (
-                                            u -
-                                                0.55
-                                            ) /
-                                            0.08,
-                                        0.0,
-                                        1.0
-                                    )
-                                )
-                            }
-
-                        tailWeight *=
-                            tailSideMask
+                        val tailWeight =
+                            sideTailWeights[
+                                pointIndex
+                            ]
 
                         if (
+                            tailWeight >                        if (
                             tailWeight >
                             0.003
                         ) {
-                            val tailLag =
-                                sin(
-                                    phase -
-                                        0.92
-                                )
-
-                            val angle =
-                                tailLag *
-                                    (
-                                        if (
-                                            direction >
-                                            0f
-                                        ) {
-                                            -7.5
-                                        } else {
-                                            7.5
-                                        }
-                                        ) *
-                                    intensity *
-                                    PI /
-                                    180.0
-
-                            val pivotV =
+                            val pivotV =                            val pivotV =
                                 0.715
 
                             val dx =
@@ -7160,24 +7259,16 @@ class PetRigView @JvmOverloads constructor(
                             val rx =
                                 tailPivotU +
                                     dx *
-                                        cos(
-                                            angle
-                                        ) -
+                                        tailCos -
                                     dy *
-                                        sin(
-                                            angle
-                                        )
+                                        tailSin
 
                             val ry =
                                 pivotV +
                                     dx *
-                                        sin(
-                                            angle
-                                        ) +
+                                        tailSin +
                                     dy *
-                                        cos(
-                                            angle
-                                        )
+                                        tailCos
 
                             x =
                                 x *
@@ -7221,6 +7312,9 @@ class PetRigView @JvmOverloads constructor(
 
                 index +=
                     2
+
+                pointIndex +=
+                    1
             }
         }
     }

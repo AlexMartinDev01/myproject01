@@ -32,8 +32,8 @@ android {
         applicationId 'com.shiguangbox.app'
         minSdk 26
         targetSdk 35
-        versionCode 79
-        versionName '2.5.1'
+        versionCode 80
+        versionName '2.5.99-rife-test'
     }
 
     signingConfigs {
@@ -547,8 +547,72 @@ def decodeOrangeTurn67Asset =
         }
     }
 
+def orangeRifeTurnFramesDir =
+    file("$rootDir/../experiments/turn_interp/results/rife4x_frames")
+
+def orangeRifeTurnOutputDir =
+    file("$projectDir/src/main/res/drawable-nodpi")
+
+def prepareOrangeRifeTurnFrames =
+    tasks.register("prepareOrangeRifeTurnFrames") {
+        inputs.dir(orangeRifeTurnFramesDir)
+        outputs.dir(orangeRifeTurnOutputDir)
+
+        doLast {
+            if (
+                !orangeRifeTurnFramesDir.exists()
+            ) {
+                throw new GradleException(
+                    "RIFE turn experiment frames are missing: " +
+                        orangeRifeTurnFramesDir
+                )
+            }
+
+            copy {
+                from orangeRifeTurnFramesDir
+                into orangeRifeTurnOutputDir
+                include "frame_*.png"
+                rename {
+                    String fileName ->
+                        fileName.replace(
+                            "frame_",
+                            "pet_orange_turn_rife_"
+                        )
+                }
+            }
+
+            def copied =
+                orangeRifeTurnOutputDir
+                    .listFiles()
+                    ?.findAll {
+                        it.name.startsWith(
+                            "pet_orange_turn_rife_"
+                        ) &&
+                        it.name.endsWith(
+                            ".png"
+                        )
+                    }
+                    ?.size() ?: 0
+
+            if (
+                copied !=
+                17
+            ) {
+                throw new GradleException(
+                    "Expected 17 RIFE turn frames, copied " +
+                        copied
+                )
+            }
+
+            println(
+                "Prepared 17 Orange RIFE turn frames for isolated APK experiment"
+            )
+        }
+    }
+
 tasks.named("preBuild").configure {
     dependsOn(
+        prepareOrangeRifeTurnFrames,
         decodePetAssets,
         decodePetSleepAsset,
         decodePetTiredAsset,

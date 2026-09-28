@@ -14,6 +14,16 @@ def decode_chunks(folder,out):
     Path(out).write_bytes(base64.b64decode(s))
 
 def load_rgba(p):
+    p=str(p)
+    z=cv2.imread(p,cv2.IMREAD_UNCHANGED)
+    if z is not None:
+        if z.ndim==2:
+            z=cv2.cvtColor(z,cv2.COLOR_GRAY2RGBA)
+        elif z.shape[2]==3:
+            z=cv2.cvtColor(z,cv2.COLOR_BGR2RGBA)
+        elif z.shape[2]==4:
+            z=cv2.cvtColor(z,cv2.COLOR_BGRA2RGBA)
+        return z.astype(np.uint8)
     return np.array(Image.open(p).convert("RGBA"),dtype=np.uint8)
 
 def f32(im):

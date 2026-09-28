@@ -81,11 +81,45 @@ for name,fn in [
 
 try:
     torch,model=load_rife()
-    seq,mids=build_seq(aligned,lambda a,b,t:rife_rgba(torch,model,a,b,t))
+    rife_fn=lambda a,b,t:rife_rgba(torch,model,a,b,t)
+
+    # 4x is the direct A/B comparator used in comparison.png.
+    seq,mids=build_seq(aligned,rife_fn)
     name="RIFE_4.25_premul_alpha"
     methods[name]=seq
     metrics["methods"][name]=seq_metrics(seq,aligned,mids,name)
     save_gif(seq,OUT/f"{name}.gif")
+
+    # Density experiment: 2x / 4x / 8x. Generate each factor explicitly
+    # because arbitrary-timestep RIFE can behave differently away from t=0.5.
+    def build_factor(factor):
+        out=[aligned[0]]
+        mids_by_pair=[]
+        for i in range(4):
+            pair=[]
+            for j in range(1,factor):
+                t=j/factor
+                z=rife_fn(aligned[i],aligned[i+1],t)
+                out.append(z)
+                if abs(t-0.5)<1e-8:
+                    mid=z
+            # seq_metrics expects [0.25, 0.5, 0.75]-like lists and reads index 1.
+            # Replicate the exact midpoint for metric compatibility.
+            pair=[mid,mid,mid]
+            mids_by_pair.append(pair)
+            out.append(aligned[i+1])
+        return out,mids_by_pair
+
+    metrics["rife_density"]={}
+    for factor in (2,4,8):
+        dseq,dmids=build_factor(factor)
+        dname=f"RIFE_4.25_{factor}x"
+        dm=seq_metrics(dseq,aligned,dmids,dname)
+        dm["factor"]=factor
+        dm["duration_560ms_effective_fps"]=(len(dseq)-1)/0.560
+        dm["rgba_runtime_memory_mib_256px"]=len(dseq)*256*256*4/(1024*1024)
+        metrics["rife_density"][dname]=dm
+        save_gif(dseq,OUT/f"{dname}.gif")
 except Exception as e:
     metrics["rife_error"]=repr(e)+"\n"+traceback.format_exc()
 

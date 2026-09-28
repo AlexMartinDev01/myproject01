@@ -120,9 +120,17 @@ def key_metrics(imgs,label):
         frames.append(dict(angle=ang,canvas=[im.shape[1],im.shape[0]],bbox=[x0,y0,x1,y1],bbox_w=x1-x0,bbox_h=y1-y0,bottom=y1,alpha_area=int((a>.5).sum()),centroid=[cx,cy],mean_luma=float(lum[a>.5].mean())))
     pairs=[]
     for i in range(4):
-        a,b=imgs[i],imgs[i+1]; am=f32(a)[...,3]>.5; bm=f32(b)[...,3]>.5
-        inter=np.logical_and(am,bm).sum(); union=np.logical_or(am,bm).sum()
-        pairs.append(dict(pair=f"{ANGLES[i]}->{ANGLES[i+1]}",alpha_iou=float(inter/max(union,1)),centroid_shift_px=float(math.dist(centroid(a),centroid(b))),contour_chamfer_px=contour_chamfer(a,b),bbox_w_ratio=frames[i+1]["bbox_w"]/max(frames[i]["bbox_w"],1),bbox_h_ratio=frames[i+1]["bbox_h"]/max(frames[i]["bbox_h"],1),luma_delta=frames[i+1]["mean_luma"]-frames[i]["mean_luma"]))
+        a,b=imgs[i],imgs[i+1]
+        same_shape=a.shape[:2]==b.shape[:2]
+        if same_shape:
+            am=f32(a)[...,3]>.5; bm=f32(b)[...,3]>.5
+            inter=np.logical_and(am,bm).sum(); union=np.logical_or(am,bm).sum()
+            iou=float(inter/max(union,1)); cham=contour_chamfer(a,b)
+        else:
+            iou=None; cham=None
+        ca,cb=centroid(a),centroid(b)
+        cana=(ca[0]/a.shape[1],ca[1]/a.shape[0]); canb=(cb[0]/b.shape[1],cb[1]/b.shape[0])
+        pairs.append(dict(pair=f"{ANGLES[i]}->{ANGLES[i+1]}",same_canvas=same_shape,alpha_iou=iou,centroid_shift_normalized=float(math.dist(cana,canb)),contour_chamfer_px=cham,bbox_w_ratio_normalized=(frames[i+1]["bbox_w"]/b.shape[1])/max(frames[i]["bbox_w"]/a.shape[1],1e-9),bbox_h_ratio_normalized=(frames[i+1]["bbox_h"]/b.shape[0])/max(frames[i]["bbox_h"]/a.shape[0],1e-9),luma_delta=frames[i+1]["mean_luma"]-frames[i]["mean_luma"]))
     return dict(label=label,frames=frames,pairs=pairs)
 
 def seq_metrics(seq,keys,mids,label):

@@ -33,7 +33,7 @@ android {
         minSdk 26
         targetSdk 35
         versionCode 80
-        versionName '2.5.99-rife-test'
+        versionName '2.5.99'
     }
 
     signingConfigs {

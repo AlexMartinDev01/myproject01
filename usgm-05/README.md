@@ -57,7 +57,7 @@ idf.py -p YOUR_SERIAL_PORT flash monitor
 
 例如 Windows 可用 ESP-IDF PowerShell 工具终端。不要混淆 ESP32-S3 与 ESP32-C3；本工程目标芯片是 ESP32-C3。`firmware/partitions.csv` 针对 **4MB Flash**。
 
-> 我当前没有可用的 ESP-IDF 工具链或实物，因此无法声称以上完整固件已经交叉编译并在 ESP32 上启动。GitHub CI 定义了 ESP-IDF 构建任务，应以其真实构建结果和你的板上测试为准。
+> **云端构建已验证：** GitHub Actions [40340871013](https://github.com/AlexMartinDev01/myproject01/actions/runs/40340871013) 中的 ESP-IDF v5.3 ESP32-C3 交叉编译和链接均通过。**尚未在真实 ESP32-C3 上烧录、启动、试听或测量 HX711**，不能以编译通过替代板上测试。
 
 ## 4. 首次使用
 

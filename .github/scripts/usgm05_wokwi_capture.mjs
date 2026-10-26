@@ -58,16 +58,48 @@ try {
  await page.waitForTimeout(22000);
  await shot('04-usgm-real-firmware-loaded');
  console.log('AFTER_UPLOAD',(await page.locator('body').innerText()).slice(-4200));
- const a=page.locator('[id*="hx711"]');
- if(await a.count()){try{await a.first().dblclick({timeout:2500})}catch(e){console.log('HX_CLICK',String(e).slice(0,160))}}
- await page.waitForTimeout(1200);
- await shot('05-hx711-load-interface');
+
+ // Genuine Wokwi runtime input: click the load cell (not the HX711 amplifier wiring).
+ // The selected part's outline does not prove the popup has opened.
+ const hx=page.locator('#hx711').first();
+ const rect=await hx.boundingBox().catch(()=>null);
+ console.log('HX711_PART_BOUNDING_BOX',JSON.stringify(rect));
+ if(rect) {
+   const points=[
+     ['loadcell_center',rect.x+rect.width*0.75,rect.y+rect.height*0.48],
+     ['loadcell_bottom',rect.x+rect.width*0.77,rect.y+rect.height*0.70],
+     ['amplifier_center',rect.x+rect.width*0.23,rect.y+rect.height*0.48]
+   ];
+   for(const [label,x,y] of points) {
+     for(const clicks of [1,2]) {
+       try {
+         if(clicks===1)await page.mouse.click(x,y);
+         else await page.mouse.dblclick(x,y, {delay:110});
+         await page.waitForTimeout(850);
+         const snapshot=await page.evaluate(()=>({
+           body:document.body.innerText.slice(-1200),
+           inputs:[...document.querySelectorAll('input')].filter(el=>el.offsetWidth>0).map(el=>({type:el.type,aria:el.getAttribute('aria-label'),value:el.value,min:el.min,max:el.max,step:el.step})),
+           dialogs:[...document.querySelectorAll('[role=dialog]')].map(el=>el.innerText.slice(0,550))
+         }));
+         console.log('HX_UI_PROBE',label,clicks,JSON.stringify(snapshot).slice(0,1700));
+         fs.writeFileSync(path.join(out,'hx-ui-'+label+'-'+clicks+'.json'),JSON.stringify(snapshot,null,2));
+         await shot('hx-ui-'+label+'-'+clicks);
+         if(snapshot.inputs.some(el=>el.type==='range'||el.type==='number'))break;
+       }catch(e){console.log('HX_UI_ERROR',label,clicks,String(e).slice(0,130))}
+     }
+   }
+ }
  const inputs=await page.evaluate(()=>[...document.querySelectorAll('input')].filter(x=>x.offsetWidth>0).map(x=>({type:x.type,value:x.value,min:x.min,max:x.max,outer:x.outerHTML.slice(0,240)})));
  fs.writeFileSync(path.join(out,'inputs.json'),JSON.stringify(inputs,null,2));
- console.log('INPUTS',JSON.stringify(inputs).slice(0,2000));
- const slider=page.locator('input[type=range]');
- if(await slider.count())for(const [label,v] of [['zero','0'],['small','0.075'],['empty','0'],['medium','0.095'],['empty2','0'],['large','0.135']]){
-  try{await slider.last().fill(v);await page.waitForTimeout(2000);await shot('06-'+label);console.log('WEIGHT',label,v)}catch(e){console.log('SLIDER_ERROR',String(e).slice(0,200));break}
+ console.log('FINAL_INPUTS',JSON.stringify(inputs).slice(0,2500));
+ const weightControl=page.locator('input[type=range], input[type=number]');
+ if(await weightControl.count())for(const [label,v] of [['zero','0'],['small','0.075'],['empty','0'],['medium','0.095'],['empty2','0'],['large','0.135']]){
+   try {
+     await weightControl.last().fill(v);
+     await page.waitForTimeout(2800);
+     await shot('load-'+label);
+     console.log('LOAD_SET',label,v,(await page.locator('body').innerText()).slice(-600));
+   }catch(e){console.log('LOAD_ERROR',label,String(e).slice(0,400));break}
  }
  await page.waitForTimeout(4000);
  const final=await page.locator('body').innerText();

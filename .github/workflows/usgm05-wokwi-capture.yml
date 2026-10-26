@@ -44,7 +44,9 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if ! command -v ffmpeg >/dev/null; then sudo apt-get update -qq && sudo apt-get install -qq -y ffmpeg; fi
+          # Preserve the genuine WebM recording even if FFmpeg is unavailable.
+          # Do not spend time installing extra system packages during upload.
+          if ! command -v ffmpeg >/dev/null; then echo 'FFmpeg not available; uploading raw WebM only'; exit 0; fi
           if compgen -G 'wokwi-proof/videos/*.webm' >/dev/null; then
             ffmpeg -y -hide_banner -loglevel error -i "$(find wokwi-proof/videos -name '*.webm' | head -1)" -c:v libx264 -preset veryfast -crf 28 -pix_fmt yuv420p -movflags +faststart wokwi-proof/REAL_WOKWI_CAPTURE.mp4
           fi

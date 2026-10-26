@@ -61,3 +61,7 @@ https://docs.wokwi.com/wokwi-ci/automation-scenarios
 ## Wokwi I2S 限制
 
 Wokwi 2026 年 10 月的 ESP32 仿真兼容性表中，ESP32-C3 的 I2S 标记为不支持（https://docs.wokwi.com/guides/esp32）。因此只有仿真固件 `CONFIG_USGM_WOKWI_MODE` 会输出 `WOKWI_AUDIO_INTENT` 串口日志，实际设备使用的 `MAX98357A` I2S 固件不变。HX711 3.3V 仿真接线不代表实物电气规格。
+
+## 仅模拟器使用的听觉提示
+
+Wokwi 的 ESP32-C3 I²S 外设未实现，无法按真实固件的 MAX98357A 数字音频播放普通话。为在**真正 Wokwi 电路仿真**中听见分级事件，仿真版从 GPIO7 输出 1/2/3 个不同频率提示音，经 `wokwi-buzzer` 扬声模拟器在浏览器里发声。**真实硬件绝不使用蜂鸣器，本项不在采购清单。** 实物版仍按 `docs/WIRING.md` GPIO4/5/6→MAX98357A→4Ω 3W 喇叭播放中文 PCM 语音。两者有实质区别。打开 Wokwi 后可看到元件与全部仿真线路，但功放/喇叭与电源噪声等仍须上机验证。

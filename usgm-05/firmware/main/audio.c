@@ -2,13 +2,56 @@
 #include "audio.h"
 /* Wokwi does not emulate ESP32-C3 I2S; physical audio driver remains below. */
 #if defined(CONFIG_USGM_WOKWI_MODE)
+/* Wokwi C3 I2S unavailable: simulator-only audible tone proxy on GPIO7.
+ * Real hardware does NOT use a buzzer and remains MAX98357A I2S below.
+ * 1/2/3 tones represent small/medium/large; not Chinese speech.
+ */
+#include "driver/ledc.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_log.h"
-static const char *TAG = "USGM_WOKWI_AUDIO";
-void audio_init(void) {
-    ESP_LOGW(TAG, "WOKWI_AUDIO_STUB: ESP32-C3 I2S unsupported in Wokwi; physical speaker not simulated");
+#define WOKWI_AUDIO_PROXY_PIN GPIO_NUM_7
+static QueueHandle_t proxy_q;
+static const char *TAG="USGM_WOKWI_AUDIO";
+static void sound_pulse(int hz) {
+    (void)ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0, (uint32_t)hz);
+    (void)ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 512);
+    (void)ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    vTaskDelay(pdMS_TO_TICKS(175));
+    (void)ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+    (void)ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    vTaskDelay(pdMS_TO_TICKS(115));
+}
+static void proxy_task(void *arg) {
+    (void)arg; usgm_grade_t grade;
+    for(;;) {
+        if(xQueueReceive(proxy_q,&grade,portMAX_DELAY)==pdTRUE) {
+            int n=grade==USGM_SMALL?1:grade==USGM_MEDIUM?2:grade==USGM_LARGE?3:0;
+            int hz=grade==USGM_SMALL?660:grade==USGM_MEDIUM?880:1100;
+            ESP_LOGI(TAG,"WOKWI_AUDIO_INTENT grade=%s WOKWI_AUDIO_PROXY tones=%d (not I2S/voice)",
+                     usgm_grade_name(grade),n);
+            for(int i=0;i<n;i++)sound_pulse(hz);
+        }
+    }
 }
 void audio_enqueue(usgm_grade_t grade) {
-    ESP_LOGI(TAG, "WOKWI_AUDIO_INTENT grade=%s; NO audio waveform generated", usgm_grade_name(grade));
+    if(proxy_q && xQueueSend(proxy_q,&grade,0)!=pdTRUE)
+        ESP_LOGW(TAG,"Sim audio queue full");
+}
+void audio_init(void) {
+    ledc_timer_config_t timer={.speed_mode=LEDC_LOW_SPEED_MODE,
+        .duty_resolution=LEDC_TIMER_10_BIT,.timer_num=LEDC_TIMER_0,
+        .freq_hz=880,.clk_cfg=LEDC_AUTO_CLK};
+    ledc_channel_config_t channel={.gpio_num=WOKWI_AUDIO_PROXY_PIN,
+        .speed_mode=LEDC_LOW_SPEED_MODE,.channel=LEDC_CHANNEL_0,
+        .intr_type=LEDC_INTR_DISABLE,.timer_sel=LEDC_TIMER_0,
+        .duty=0,.hpoint=0};
+    ESP_ERROR_CHECK(ledc_timer_config(&timer));
+    ESP_ERROR_CHECK(ledc_channel_config(&channel));
+    proxy_q=xQueueCreate(8,sizeof(usgm_grade_t)); configASSERT(proxy_q);
+    configASSERT(xTaskCreate(proxy_task,"sim_audio",3072,NULL,3,NULL)==pdPASS);
+    ESP_LOGW(TAG,"WOKWI_AUDIO_PROXY=GPIO7. This is not a physical MAX98357A test.");
 }
 #else /* Real board: MAX98357A I2S */
 #include "audio.h"

@@ -14,9 +14,9 @@ function go(tab){activeTab=tab;document.querySelectorAll('nav button').forEach(x
 document.querySelectorAll('nav button').forEach(x=>x.addEventListener('click',()=>go(x.dataset.tab)));
 function label(mg){if(!status||status.stale)return '无有效数据';if(mg<status.settings.min_mg)return '未放果';if(mg<status.settings.small_upper_mg)return '小果';if(mg<status.settings.medium_upper_mg)return '中果';return '大果';}
 function update(s){
- status=s;const sim=s.mode==='SIMULATION';
- $('mode-warning').className=sim?'alert':'banner';
- $('mode-warning').textContent=sim?'模拟模式：这些读数不是来自真实传感器，不能当作硬件测试结果。':'HX711 实测模式：称重准确度取决于传感器安装、标定与参考砝码。';
+ status=s;const sim=s.mode==='SIMULATION',virtual=s.environment==='WOKWI_VIRTUAL_HX711';
+ $('mode-warning').className=(sim||virtual)?'alert':'banner';
+ $('mode-warning').textContent=virtual?'Wokwi 虚拟 HX711：模拟数值不是实物精度、喇叭音质或原地秤兼容性的证据。':sim?'模拟模式：这些读数不是来自真实传感器，不能当作硬件测试结果。':'HX711 实测模式：称重准确度取决于传感器安装、标定与参考砝码。';
  $('weight').textContent=s.stale?'—':`${gram(s.weight_mg)} g`;
  $('grade').textContent=label(s.weight_mg);
  $('state-label').textContent=stateZh[s.state]||s.state;

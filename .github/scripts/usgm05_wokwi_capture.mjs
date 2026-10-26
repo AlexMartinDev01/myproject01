@@ -59,48 +59,33 @@ try {
  await shot('04-usgm-real-firmware-loaded');
  console.log('AFTER_UPLOAD',(await page.locator('body').innerText()).slice(-4200));
 
- // Genuine Wokwi runtime input: click the load cell (not the HX711 amplifier wiring).
- // The selected part's outline does not prove the popup has opened.
+
+ // Genuine Wokwi load cell: clicking the center of the weighing beam opens
+ // the official 5kg slider (confirmed by previous real-run DOM evidence).
+ // Wokwi UI rounds its slider in 0.01kg increments (10 grams).
  const hx=page.locator('#hx711').first();
  const rect=await hx.boundingBox().catch(()=>null);
- console.log('HX711_PART_BOUNDING_BOX',JSON.stringify(rect));
- if(rect) {
-   const points=[
-     ['loadcell_center',rect.x+rect.width*0.75,rect.y+rect.height*0.48],
-     ['loadcell_bottom',rect.x+rect.width*0.77,rect.y+rect.height*0.70],
-     ['amplifier_center',rect.x+rect.width*0.23,rect.y+rect.height*0.48]
-   ];
-   for(const [label,x,y] of points) {
-     for(const clicks of [1,2]) {
-       try {
-         if(clicks===1)await page.mouse.click(x,y);
-         else await page.mouse.dblclick(x,y, {delay:110});
-         await page.waitForTimeout(850);
-         const snapshot=await page.evaluate(()=>({
-           body:document.body.innerText.slice(-1200),
-           inputs:[...document.querySelectorAll('input')].filter(el=>el.offsetWidth>0).map(el=>({type:el.type,aria:el.getAttribute('aria-label'),value:el.value,min:el.min,max:el.max,step:el.step})),
-           dialogs:[...document.querySelectorAll('[role=dialog]')].map(el=>el.innerText.slice(0,550))
-         }));
-         console.log('HX_UI_PROBE',label,clicks,JSON.stringify(snapshot).slice(0,1700));
-         fs.writeFileSync(path.join(out,'hx-ui-'+label+'-'+clicks+'.json'),JSON.stringify(snapshot,null,2));
-         await shot('hx-ui-'+label+'-'+clicks);
-         if(snapshot.inputs.some(el=>el.type==='range'||el.type==='number'))break;
-       }catch(e){console.log('HX_UI_ERROR',label,clicks,String(e).slice(0,130))}
-     }
-   }
+ if(!rect) throw Error('Wokwi HX711 DOM element missing');
+ const target={x:rect.x+rect.width*0.75,y:rect.y+rect.height*0.48};
+ await page.mouse.click(target.x,target.y);
+ await page.waitForTimeout(950);
+ const slider=page.locator('input[type="range"]').first();
+ if(await slider.count()===0)throw Error('HX711 load slider did not appear after clicking weighing cell');
+ const sliderAttrs=await slider.evaluate(el=>({min:el.min,max:el.max,step:el.step,value:el.value}));
+ fs.writeFileSync(path.join(out,'real-hx711-slider.json'),JSON.stringify(sliderAttrs,null,2));
+ console.log('REAL_HX711_LOAD_SLIDER',JSON.stringify(sliderAttrs));
+ const sequence=[['tare_0','0'],['small_60g','0.06'],['empty_a','0'],['medium_90g','0.09'],['empty_b','0'],['large_130g','0.13'],['empty_c','0']];
+ const marks=[];
+ for(const [label,kg] of sequence){
+   await slider.fill(kg);
+   await page.waitForTimeout(2350);
+   const serial=await page.locator('body').innerText();
+   const recent=serial.match(/USGM_GRADE[^\\r\\n]*|WOKWI_AUDIO_INTENT[^\\r\\n]*/g)||[];
+   console.log('REAL_WEIGHT_SET',label,kg,JSON.stringify(recent.slice(-7)));
+   marks.push({label,kg,recent:recent.slice(-7)});
+   await shot('weight-'+label);
  }
- const inputs=await page.evaluate(()=>[...document.querySelectorAll('input')].filter(x=>x.offsetWidth>0).map(x=>({type:x.type,value:x.value,min:x.min,max:x.max,outer:x.outerHTML.slice(0,240)})));
- fs.writeFileSync(path.join(out,'inputs.json'),JSON.stringify(inputs,null,2));
- console.log('FINAL_INPUTS',JSON.stringify(inputs).slice(0,2500));
- const weightControl=page.locator('input[type=range], input[type=number]');
- if(await weightControl.count())for(const [label,v] of [['zero','0'],['small','0.075'],['empty','0'],['medium','0.095'],['empty2','0'],['large','0.135']]){
-   try {
-     await weightControl.last().fill(v);
-     await page.waitForTimeout(2800);
-     await shot('load-'+label);
-     console.log('LOAD_SET',label,v,(await page.locator('body').innerText()).slice(-600));
-   }catch(e){console.log('LOAD_ERROR',label,String(e).slice(0,400));break}
- }
+ fs.writeFileSync(path.join(out,'grade-markers.json'),JSON.stringify(marks,null,2));
  await page.waitForTimeout(4000);
  const final=await page.locator('body').innerText();
  fs.writeFileSync(path.join(out,'body-final.txt'),final);

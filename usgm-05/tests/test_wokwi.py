@@ -16,17 +16,20 @@ class WokwiConfigurationTests(unittest.TestCase):
         self.assertEqual(len(self.parts), len(self.diagram["parts"]))
         self.assertEqual(self.parts["esp"]["type"], "board-esp32-c3-devkitm-1")
         self.assertEqual(self.parts["hx711"]["attrs"]["type"], "5kg")
-        self.assertEqual(self.parts["audio_logic"]["type"], "wokwi-logic-analyzer")
+        self.assertEqual(self.parts["hx711_logic"]["type"], "wokwi-logic-analyzer")
 
     def test_hx711_gpio_connections(self):
         for src, dst in [("hx711:DT", "esp:0"), ("hx711:SCK", "esp:1"),
                          ("hx711:VCC", "esp:3V3.1"), ("hx711:GND", "esp:GND.1")]:
             self.assertIn(frozenset((src, dst)), self.edges)
 
-    def test_audio_probe_connections(self):
-        for src, dst in [("esp:4", "audio_logic:D0"), ("esp:5", "audio_logic:D1"),
-                         ("esp:6", "audio_logic:D2")]:
+    def test_hx711_signal_probe_and_simulated_audio(self):
+        for src, dst in [("hx711:DT", "hx711_logic:D0"), ("hx711:SCK", "hx711_logic:D1")]:
             self.assertIn(frozenset((src, dst)), self.edges)
+        self.assertNotIn("audio_logic", self.parts)
+        audio = (FW / "main/audio.c").read_text()
+        self.assertIn("WOKWI_AUDIO_STUB", audio)
+        self.assertIn("WOKWI_AUDIO_INTENT", audio)
 
     def test_no_unknown_part_ids(self):
         for a, b, _, route in self.diagram["connections"]:

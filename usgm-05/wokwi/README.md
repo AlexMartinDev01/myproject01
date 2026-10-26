@@ -57,3 +57,7 @@ https://docs.wokwi.com/parts/wokwi-hx711
 https://docs.wokwi.com/vscode/esp-idf
 https://docs.wokwi.com/vscode/project-config
 https://docs.wokwi.com/wokwi-ci/automation-scenarios
+
+## Wokwi I2S 限制
+
+Wokwi 2026 年 10 月的 ESP32 仿真兼容性表中，ESP32-C3 的 I2S 标记为不支持（https://docs.wokwi.com/guides/esp32）。因此只有仿真固件 `CONFIG_USGM_WOKWI_MODE` 会输出 `WOKWI_AUDIO_INTENT` 串口日志，实际设备使用的 `MAX98357A` I2S 固件不变。HX711 3.3V 仿真接线不代表实物电气规格。

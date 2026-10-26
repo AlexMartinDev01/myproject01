@@ -1,4 +1,16 @@
 #include "audio.h"
+/* Wokwi does not emulate ESP32-C3 I2S; physical audio driver remains below. */
+#if defined(CONFIG_USGM_WOKWI_MODE)
+#include "esp_log.h"
+static const char *TAG = "USGM_WOKWI_AUDIO";
+void audio_init(void) {
+    ESP_LOGW(TAG, "WOKWI_AUDIO_STUB: ESP32-C3 I2S unsupported in Wokwi; physical speaker not simulated");
+}
+void audio_enqueue(usgm_grade_t grade) {
+    ESP_LOGI(TAG, "WOKWI_AUDIO_INTENT grade=%s; NO audio waveform generated", usgm_grade_name(grade));
+}
+#else /* Real board: MAX98357A I2S */
+#include "audio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -59,3 +71,5 @@ void audio_init(void) {
     ESP_ERROR_CHECK(i2s_channel_enable(tx));
     configASSERT(xTaskCreate(task,"voice",4096,NULL,3,NULL)==pdPASS);
 }
+
+#endif /* CONFIG_USGM_WOKWI_MODE */

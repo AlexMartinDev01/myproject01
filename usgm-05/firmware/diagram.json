@@ -21,12 +21,13 @@
     },
     {
       "type": "wokwi-logic-analyzer",
-      "id": "audio_logic",
-      "top": 170,
-      "left": 345,
+      "id": "hx711_logic",
+      "top": 195,
+      "left": 320,
       "attrs": {
-        "channelNames": "I2S_BCLK,I2S_WS,I2S_DIN,unused,unused,unused,unused,unused",
-        "bufferSize": "100000"
+        "channelNames": "HX711_DOUT,HX711_PD_SCK,D2,D3,D4,D5,D6,D7",
+        "bufferSize": "200000",
+        "filename": "usgm05-hx711-logic"
       }
     },
     {
@@ -35,7 +36,7 @@
       "top": -125,
       "left": -250,
       "attrs": {
-        "text": "HX711: double-click to set load kg: 0, 0.075, 0.095, 0.135"
+        "text": "Double-click HX711 to set kg: 0 -> .075 -> 0 -> .095 -> 0 -> .135"
       }
     },
     {
@@ -44,7 +45,7 @@
       "top": 315,
       "left": -250,
       "attrs": {
-        "text": "MAX98357A + 4ohm speaker NOT ACOUSTICALLY SIMULATED.\nLogic Analyzer D0=BCLK, D1=WS, D2=DIN.\nReal wiring: BCLK GPIO4, LRC GPIO5, DIN GPIO6; VIN 5V; SPK+/- -> speaker."
+        "text": "Wokwi ESP32-C3 I2S is UNSUPPORTED. MAX98357A + speaker on REAL hardware only.\nSimulator emits WOKWI_AUDIO_INTENT serial logs; no acoustic/I2S waveform is claimed."
       }
     },
     {
@@ -53,7 +54,7 @@
       "top": -180,
       "left": 30,
       "attrs": {
-        "text": "ESP32-C3 + HX711 (5kg) + I2S LOGIC PROBE - VIRTUAL TEST"
+        "text": "USGM-05: ESP32-C3 firmware + 5kg HX711 + HX711 DATA/CLOCK probes"
       }
     }
   ],
@@ -83,30 +84,6 @@
       []
     ],
     [
-      "esp:4",
-      "audio_logic:D0",
-      "orange",
-      []
-    ],
-    [
-      "esp:5",
-      "audio_logic:D1",
-      "purple",
-      []
-    ],
-    [
-      "esp:6",
-      "audio_logic:D2",
-      "yellow",
-      []
-    ],
-    [
-      "esp:GND.4",
-      "audio_logic:GND",
-      "black",
-      []
-    ],
-    [
       "esp:TX",
       "$serialMonitor:RX",
       "",
@@ -116,6 +93,24 @@
       "esp:RX",
       "$serialMonitor:TX",
       "",
+      []
+    ],
+    [
+      "hx711:DT",
+      "hx711_logic:D0",
+      "green",
+      []
+    ],
+    [
+      "hx711:SCK",
+      "hx711_logic:D1",
+      "blue",
+      []
+    ],
+    [
+      "esp:GND.4",
+      "hx711_logic:GND",
+      "black",
       []
     ]
   ],

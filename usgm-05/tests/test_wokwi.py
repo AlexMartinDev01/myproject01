@@ -28,7 +28,7 @@ class WokwiConfigurationTests(unittest.TestCase):
             self.assertIn(frozenset((src, dst)), self.edges)
         self.assertNotIn("audio_logic", self.parts)
         audio = (FW / "main/audio.c").read_text()
-        self.assertIn("WOKWI_AUDIO_STUB", audio)
+        self.assertIn("WOKWI_AUDIO_PROXY", audio)
         self.assertIn("WOKWI_AUDIO_INTENT", audio)
 
     def test_no_unknown_part_ids(self):

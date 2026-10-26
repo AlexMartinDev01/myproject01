@@ -1,5 +1,6 @@
 name: USGM-05 verify native and firmware
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'usgm-05/**'
@@ -56,3 +57,28 @@ jobs:
             usgm-05/firmware/build-wokwi/*.bin
             usgm-05/firmware/build-wokwi/bootloader/*.bin
             usgm-05/firmware/build-wokwi/partition_table/*.bin
+
+  # This job does not claim a virtual-chip PASS unless Wokwi actually runs.
+  wokwi-actual-simulation:
+    needs: wokwi-profile-build
+    runs-on: ubuntu-latest
+    env:
+      WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: usgm05-wokwi-firmware
+          path: usgm-05/firmware/build-wokwi
+      - name: Run real ESP32-C3 / HX711 simulation scenario
+        if: ${{ env.WOKWI_CLI_TOKEN != '' }}
+        uses: wokwi/wokwi-ci-action@v1
+        with:
+          token: ${{ secrets.WOKWI_CLI_TOKEN }}
+          path: usgm-05/firmware
+          scenario: ../wokwi/three_grades.scenario.yaml
+          timeout: 120000
+          serial_log_file: wokwi-serial.log
+      - name: Explain missing Wokwi authorization
+        if: ${{ env.WOKWI_CLI_TOKEN == '' }}
+        run: echo 'SKIPPED Wokwi virtual chip execution because WOKWI_CLI_TOKEN GitHub Actions secret is not configured.'

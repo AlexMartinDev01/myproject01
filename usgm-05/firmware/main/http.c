@@ -53,6 +53,11 @@ static esp_err_t get_status(httpd_req_t *r) {
     xSemaphoreTake(g_app.mutex,portMAX_DELAY);
     usgm_core_tick(&g_app.core,uptime_ms());
     cJSON_AddStringToObject(o,"mode",g_app.source==SOURCE_SIM?"SIMULATION":"HX711");
+#ifdef CONFIG_USGM_WOKWI_MODE
+    cJSON_AddStringToObject(o,"environment","WOKWI_VIRTUAL_HX711");
+#else
+    cJSON_AddStringToObject(o,"environment","PHYSICAL_DEVICE");
+#endif
     cJSON_AddStringToObject(o,"state",usgm_state_name(g_app.core.state));
     cJSON_AddBoolToObject(o,"stale",g_app.core.stale);
     cJSON_AddBoolToObject(o,"calibrated",g_app.calibrated);
@@ -185,7 +190,13 @@ static void append_event_json(cJSON *arr,const record_t *r) {
     cJSON_AddNumberToObject(o,"medium_upper_mg",r->medium_upper_mg);
     cJSON_AddStringToObject(o,"grade",usgm_grade_name(r->grade));
     cJSON_AddStringToObject(o,"reference",usgm_grade_name(r->reference));
-    cJSON_AddStringToObject(o,"mode",r->source==SOURCE_SIM?"SIMULATION":"HX711");
+    cJSON_AddStringToObject(o,"mode",r->source==SOURCE_SIM?"SIMULATION":
+#ifdef CONFIG_USGM_WOKWI_MODE
+    "WOKWI_VIRTUAL_HX711"
+#else
+    "HX711"
+#endif
+    );
     cJSON_AddItemToArray(arr,o);
 }
 static esp_err_t get_events(httpd_req_t *r) {
@@ -226,7 +237,13 @@ static esp_err_t get_summary(httpd_req_t *r) {
     else cJSON_AddNullToObject(o,"accepted_accuracy");
     if(count)cJSON_AddNumberToObject(o,"avg_latency_ms",(double)latency_sum/count);
     else cJSON_AddNullToObject(o,"avg_latency_ms");
+#ifdef CONFIG_USGM_WOKWI_MODE
+    cJSON_AddBoolToObject(o,"can_claim_hardware_accuracy",false);
+    cJSON_AddStringToObject(o,"environment","WOKWI_VIRTUAL_HX711");
+#else
     cJSON_AddBoolToObject(o,"can_claim_hardware_accuracy",verified>0&&hardware>0&&sim==0);
+    cJSON_AddStringToObject(o,"environment","PHYSICAL_DEVICE");
+#endif
     cJSON_AddBoolToObject(o,"log_ok",g_app.log_ok);
     xSemaphoreGive(g_app.mutex);
     return respond_json(r,o,200);
@@ -245,7 +262,12 @@ static esp_err_t get_csv(httpd_req_t *r) {
         char line[180];int len=snprintf(line,sizeof(line),"%lu,%lu,%ld,%s,%s,%lu,%s,%ld,%ld,%ld\n",
             (unsigned long)e.id,(unsigned long)e.uptime_ms,(long)e.weight_mg,
             usgm_grade_name(e.grade),usgm_grade_name(e.reference),
-            (unsigned long)e.latency_ms,e.source==SOURCE_SIM?"SIMULATION":"HX711",
+            (unsigned long)e.latency_ms,e.source==SOURCE_SIM?"SIMULATION":
+#ifdef CONFIG_USGM_WOKWI_MODE
+            "WOKWI_VIRTUAL_HX711",
+#else
+            "HX711",
+#endif
             (long)e.min_mg,(long)e.small_upper_mg,(long)e.medium_upper_mg);
         if(len<=0||len>=(int)sizeof(line)||httpd_resp_send_chunk(r,line,len)!=ESP_OK)return ESP_FAIL;
     }
@@ -268,5 +290,9 @@ void http_start(void) {
         esp_err_t e=httpd_register_uri_handler(h,&uri);
         if(e!=ESP_OK)ESP_LOGE(TAG,"route %s failed: %d",routes[i].uri,e);
     }
+#ifdef CONFIG_USGM_WOKWI_MODE
+    ESP_LOGW(TAG,"WOKWI STA network: Private IoT Gateway required to reach simulated HTTP server");
+#else
     ESP_LOGI(TAG,"Local UI on http://192.168.4.1/");
+#endif
 }

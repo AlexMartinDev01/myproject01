@@ -1,0 +1,28 @@
+name: USGM Wokwi actual browser simulator probe
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/usgm05-wokwi-browser.yml'
+      - 'usgm-05/tools/wokwi_browser_probe.mjs'
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Attempt real Wokwi editor launch (no mock UI)
+        run: node usgm-05/tools/wokwi_browser_probe.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wokwi-actual-browser-proof
+          path: wokwi-proof/
+          if-no-files-found: warn

@@ -1,0 +1,5 @@
+menu "USGM-05 experimental settings"
+    config USGM_AP_PASSWORD
+        string "Wi-Fi SoftAP password (8 to 63 chars; change before field use)"
+        default "USGM05-DEMO-CHANGE"
+endmenu

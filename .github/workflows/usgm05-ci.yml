@@ -1,0 +1,33 @@
+name: USGM-05 verify native and firmware
+on:
+  push:
+    paths:
+      - 'usgm-05/**'
+      - '.github/workflows/usgm05-ci.yml'
+  pull_request:
+    paths:
+      - 'usgm-05/**'
+      - '.github/workflows/usgm05-ci.yml'
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native C / JS / Python tests
+        run: cd usgm-05 && ./tools/run_native_tests.sh
+  esp-idf:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v5.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ESP32-C3 firmware
+        shell: bash
+        run: |
+          cd usgm-05/firmware
+          . /opt/esp/idf/export.sh
+          idf.py set-target esp32c3
+          idf.py build

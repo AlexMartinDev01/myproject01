@@ -1,0 +1,27 @@
+name: USGM-05 native and firmware CI
+on:
+  push:
+  pull_request:
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Native tests with sanitizers
+      run: ./tools/run_native_tests.sh
+  esp-idf-build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v5.3
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build for ESP32-C3 with ESP-IDF
+      shell: bash
+      run: |
+        cd firmware
+        . /opt/esp/idf/export.sh
+        idf.py set-target esp32c3
+        idf.py build

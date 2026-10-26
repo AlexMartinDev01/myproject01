@@ -1,0 +1,34 @@
+name: USGM-05 real Wokwi browser availability
+on:
+  push:
+    paths:
+      - '.github/workflows/usgm05-wokwi-reality-probe.yml'
+  workflow_dispatch:
+jobs:
+  availability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check Wokwi from GitHub hosted runner
+        shell: bash
+        run: |
+          set +e
+          echo 'System Chrome:'
+          command -v google-chrome || command -v chromium || true
+          echo 'HTTP Wokwi:'
+          curl -L -I --max-time 20 'https://wokwi.com/projects/new/esp32-c3' 2>&1 | head -28
+          echo 'HTTP documentation:'
+          curl -L -I --max-time 20 'https://docs.wokwi.com/' 2>&1 | head -15
+          echo 'HEADLESS Chrome page rendering:'
+          if command -v google-chrome >/dev/null; then
+            timeout 45s google-chrome --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage --virtual-time-budget=12000 --window-size=1440,900 --screenshot=/tmp/wokwi.png 'https://wokwi.com/projects/new/esp32-c3' >/tmp/chrome.log 2>&1
+            tail -10 /tmp/chrome.log
+            file /tmp/wokwi.png
+          fi
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wokwi-site-headless-screenshot
+          path: /tmp/wokwi.png
+          if-no-files-found: ignore

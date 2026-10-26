@@ -21,10 +21,19 @@ try {
  JSON.parse(diagram);
  await page.locator('button').filter({hasText:'diagram.json'}).first().click();
  await page.waitForTimeout(1000);
+ await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:'https://wokwi.com'});
  await page.locator('.monaco-editor').first().click({position:{x:230,y:110}});
+ await page.evaluate(async data => { await navigator.clipboard.writeText(data); },diagram);
  await page.keyboard.press('Control+A');
- await page.keyboard.insertText(diagram);
- await page.waitForTimeout(5000);
+ await page.keyboard.press('Control+V'); // paste as one document change, no auto-indent per line
+ await page.waitForTimeout(5500);
+ const editorProbe=await page.evaluate(()=>({
+  monoModels:!!(window.monaco && window.monaco.editor && window.monaco.editor.getModels),
+  visibleEditor:document.querySelector('.monaco-editor .view-lines')?.innerText.slice(0,550),
+  editorErrors:document.querySelectorAll('.monaco-editor .squiggly-error').length
+ }));
+ fs.writeFileSync(path.join(out,'editor-probe.json'),JSON.stringify(editorProbe,null,2));
+ console.log('PASTED_DIAGRAM',JSON.stringify(editorProbe).slice(0,1300));
  await shot('02-usgm-real-components-wires');
  const ds=await page.evaluate(()=>({body:document.body.innerText.slice(-3000),ids:[...document.querySelectorAll('[id]')].filter(x=>/hx711|sim_speaker/.test(x.id)).slice(0,30).map(x=>x.id)}));
  fs.writeFileSync(path.join(out,'diagram-state.json'),JSON.stringify(ds,null,2));

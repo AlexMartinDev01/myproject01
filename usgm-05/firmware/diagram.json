@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "author": "USGM-05 experimental bench",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c3-devkitm-1",
+      "id": "esp",
+      "top": -75,
+      "left": 35,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-hx711",
+      "id": "hx711",
+      "top": -55,
+      "left": -265,
+      "attrs": {
+        "type": "5kg"
+      }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "audio_logic",
+      "top": 170,
+      "left": 345,
+      "attrs": {
+        "channelNames": "I2S_BCLK,I2S_WS,I2S_DIN,unused,unused,unused,unused,unused",
+        "bufferSize": "100000"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "hxlabel",
+      "top": -125,
+      "left": -250,
+      "attrs": {
+        "text": "HX711: double-click to set load kg: 0, 0.075, 0.095, 0.135"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "note",
+      "top": 315,
+      "left": -250,
+      "attrs": {
+        "text": "MAX98357A + 4ohm speaker NOT ACOUSTICALLY SIMULATED.\nLogic Analyzer D0=BCLK, D1=WS, D2=DIN.\nReal wiring: BCLK GPIO4, LRC GPIO5, DIN GPIO6; VIN 5V; SPK+/- -> speaker."
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "power",
+      "top": -180,
+      "left": 30,
+      "attrs": {
+        "text": "ESP32-C3 + HX711 (5kg) + I2S LOGIC PROBE - VIRTUAL TEST"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "hx711:VCC",
+      "esp:3V3.1",
+      "red",
+      []
+    ],
+    [
+      "hx711:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "hx711:DT",
+      "esp:0",
+      "green",
+      []
+    ],
+    [
+      "hx711:SCK",
+      "esp:1",
+      "blue",
+      []
+    ],
+    [
+      "esp:4",
+      "audio_logic:D0",
+      "orange",
+      []
+    ],
+    [
+      "esp:5",
+      "audio_logic:D1",
+      "purple",
+      []
+    ],
+    [
+      "esp:6",
+      "audio_logic:D2",
+      "yellow",
+      []
+    ],
+    [
+      "esp:GND.4",
+      "audio_logic:GND",
+      "black",
+      []
+    ],
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ]
+  ],
+  "serialMonitor": {
+    "display": "always",
+    "newline": "lf"
+  }
+}

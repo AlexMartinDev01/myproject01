@@ -35,7 +35,9 @@ jobs:
           console.log('merged genuine firmware',image.length);
           NODE
       - name: Install lightweight browser automation
-        run: npm install --no-save --ignore-scripts playwright-core@1.56.1
+        run: |
+          npm install --no-save --ignore-scripts playwright-core@1.56.1
+          npx playwright-core install ffmpeg
       - name: Record actual Wokwi.com editor and virtual firmware execution
         run: node .github/scripts/usgm05_wokwi_capture.mjs
       - name: Convert genuine browser capture into MP4

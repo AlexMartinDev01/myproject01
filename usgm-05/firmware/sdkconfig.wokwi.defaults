@@ -1,0 +1,2 @@
+# Wokwi simulation only, never flash this profile onto real devices.
+CONFIG_USGM_WOKWI_MODE=y

@@ -106,6 +106,12 @@ idf.py -p YOUR_SERIAL_PORT flash monitor
 
 **测试通过仍不代表硬件正确。** 在 ESP32 上需要额外完成板级编译、烧录、音频质量、供电、电平、HX711 标定准确度、长时间运行、真实地秤信号解码和原秤不受干扰验证。详细见 `docs/TEST_PLAN.md`、`docs/TEST_RESULTS.md`。
 
+## Wokwi 可运行硬件仿真工程（独立构建）
+
+已添加 [Wokwi 实验说明](wokwi/README.md)、[ESP32-C3 + 5kg HX711 接线图](firmware/diagram.json)、[Wokwi 固件配置](firmware/wokwi.toml) 和 [三档自动测试场景](wokwi/three_grades.scenario.yaml)。与真实硬件复用相同 ESP-IDF 分级和 HX711 驱动代码，但仿真固件用模型已知的转换系数、以 STA 模式加入 Wokwi-GUEST；报告强制标记虚拟数据。
+
+**仿真可验证数字协议、分级状态机与 I²S 波形；MAX98357A 声学输出、实际手机连接 ESP32 SoftAP、真实传感器精度和原地秤显示总线仍需实物验证。** Wokwi 场景只有取得真实模拟器运行日志才能标记通过。
+
 ## 7. 安全与原型限制
 
 - 无外壳裸板只限绝缘固定的实验环境；不能作为现场出售或长期使用的成品。

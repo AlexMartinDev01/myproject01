@@ -33,7 +33,8 @@ static cJSON *body_json(httpd_req_t *r) {
     char buf[513];size_t off=0;int n;
     while(off<(size_t)r->content_len) {
         n=httpd_req_recv(r,buf+off,r->content_len-off);
-        if(n<=0)return NULL;off+=(size_t)n;
+        if (n <= 0) return NULL;
+        off += (size_t)n;
     }
     buf[off]='\0';return cJSON_ParseWithLength(buf,off);
 }

@@ -22,9 +22,21 @@ void app_save_config(void) {if (!storage_save_config()) ESP_LOGE(TAG,"NVS config
 static void wifi_start(void) {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+#ifdef CONFIG_USGM_WOKWI_MODE
+    esp_netif_create_default_wifi_sta();
+#else
     esp_netif_create_default_wifi_ap();
+#endif
     wifi_init_config_t cfg=WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+#ifdef CONFIG_USGM_WOKWI_MODE
+    wifi_config_t sta={0};
+    strcpy((char*)sta.sta.ssid,"Wokwi-GUEST");
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA,&sta));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_connect());
+#else
     wifi_config_t ap={0};
     strncpy((char*)ap.ap.ssid,USGM_AP_SSID,sizeof(ap.ap.ssid)-1);
     strncpy((char*)ap.ap.password,USGM_AP_PASSWORD,sizeof(ap.ap.password)-1);
@@ -34,6 +46,7 @@ static void wifi_start(void) {
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP,&ap));
     ESP_ERROR_CHECK(esp_wifi_start());
+#endif
 }
 
 void app_reset_batch(void) {
@@ -98,6 +111,14 @@ void app_on_sample(int32_t mg,bool valid) {
                 g_app.log_ok=false;g_app.count_persist_error++;
             }
         }
+        ESP_LOGI(TAG,"USGM_GRADE grade=%s weight_mg=%ld source=%s",
+                 usgm_grade_name(e.grade),(long)e.weight_mg,
+#ifdef CONFIG_USGM_WOKWI_MODE
+                 "WOKWI_VIRTUAL_HX711"
+#else
+                 g_app.source==SOURCE_SIM?"SIMULATION":"HX711"
+#endif
+        );
         /* Always announce current grade, but explicit log fault is shown on UI. */
         audio_enqueue(e.grade);
     }
@@ -114,6 +135,18 @@ void app_main(void) {
     g_app.storage_ready=storage_init();g_app.log_ok=g_app.storage_ready;
     (void)storage_load_config();
     if (g_app.storage_ready && !storage_restore_batch())g_app.log_ok=false;
+#ifdef CONFIG_USGM_WOKWI_MODE
+    /* Wokwi 5kg HX711 synthetic ADC: 0..2100 counts over 5000g.
+       This conversion is NOT applicable to real physical ADCs. */
+    g_app.source=SOURCE_HX711;
+    g_app.has_zero=true;
+    g_app.calibrated=true;
+    g_app.cal_state=CAL_DONE;
+    g_app.zero_raw=0;
+    g_app.counts_per_g=2100.0/5000.0;
+    usgm_core_reconfigure(&g_app.core,g_app.core.cfg);
+    ESP_LOGW(TAG,"WOKWI_VIRTUAL_HX711: synthetic conversion only, NOT real measurement");
+#endif
     audio_init();sensor_start();wifi_start();http_start();
     ESP_LOGW(TAG,"SIM mode default. HX711 must be calibrated before live grams are valid.");
     ESP_LOGW(TAG,"Change the demo AP password via idf.py menuconfig before field use.");

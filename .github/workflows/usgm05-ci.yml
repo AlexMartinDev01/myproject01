@@ -31,3 +31,28 @@ jobs:
           . /opt/esp/idf/export.sh
           idf.py set-target esp32c3
           idf.py build
+
+  wokwi-profile-build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v5.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Wokwi ESP32-C3 simulation firmware
+        shell: bash
+        run: |
+          cd usgm-05/firmware
+          . /opt/esp/idf/export.sh
+          idf.py -B build-wokwi -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.wokwi.defaults' set-target esp32c3
+          idf.py -B build-wokwi build
+          grep -q 'CONFIG_USGM_WOKWI_MODE=y' sdkconfig
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usgm05-wokwi-firmware
+          if-no-files-found: error
+          path: |
+            usgm-05/firmware/build-wokwi/flasher_args.json
+            usgm-05/firmware/build-wokwi/usgm05.elf
+            usgm-05/firmware/build-wokwi/*.bin
+            usgm-05/firmware/build-wokwi/bootloader/*.bin
+            usgm-05/firmware/build-wokwi/partition_table/*.bin

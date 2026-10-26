@@ -42,10 +42,10 @@
     {
       "type": "wokwi-text",
       "id": "note",
-      "top": 315,
+      "top": 307,
       "left": -250,
       "attrs": {
-        "text": "Wokwi ESP32-C3 I2S is UNSUPPORTED. MAX98357A + speaker on REAL hardware only.\nSimulator emits WOKWI_AUDIO_INTENT serial logs; no acoustic/I2S waveform is claimed."
+        "text": "Wokwi ESP32-C3 I2S is UNSUPPORTED. The orange audio wire generates TONES only, not the real Chinese voice."
       }
     },
     {
@@ -55,6 +55,34 @@
       "left": 30,
       "attrs": {
         "text": "USGM-05: ESP32-C3 firmware + 5kg HX711 + HX711 DATA/CLOCK probes"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "sim_speaker",
+      "top": 155,
+      "left": 165,
+      "attrs": {
+        "mode": "accurate",
+        "volume": "0.5"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "proxy_note",
+      "top": 88,
+      "left": 115,
+      "attrs": {
+        "text": "VIRTUAL ONLY: GPIO7 -> sound transducer.\nSmall=1 tone, medium=2, large=3.\nNOT the actual MAX98357A voice amp."
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "real_amp_note",
+      "top": 392,
+      "left": -235,
+      "attrs": {
+        "text": "REAL HARDWARE (not simulated in Wokwi): ESP32 GPIO4->MAX98357A BCLK;\nGPIO5->LRC, GPIO6->DIN, USB5V->VIN, GND->GND.\n4Ω/3W SPEAKER -> SPK+ and SPK-; SPK- NEVER to ground."
       }
     }
   ],
@@ -110,6 +138,18 @@
     [
       "esp:GND.4",
       "hx711_logic:GND",
+      "black",
+      []
+    ],
+    [
+      "esp:7",
+      "sim_speaker:2",
+      "orange",
+      []
+    ],
+    [
+      "sim_speaker:1",
+      "esp:GND.3",
       "black",
       []
     ]

@@ -7,12 +7,12 @@
 #include <stdint.h>
 #include <string.h>
 
-extern const uint8_t _binary_assets_audio_small_raw_start[] asm("_binary_assets_audio_small_raw_start");
-extern const uint8_t _binary_assets_audio_small_raw_end[] asm("_binary_assets_audio_small_raw_end");
-extern const uint8_t _binary_assets_audio_medium_raw_start[] asm("_binary_assets_audio_medium_raw_start");
-extern const uint8_t _binary_assets_audio_medium_raw_end[] asm("_binary_assets_audio_medium_raw_end");
-extern const uint8_t _binary_assets_audio_large_raw_start[] asm("_binary_assets_audio_large_raw_start");
-extern const uint8_t _binary_assets_audio_large_raw_end[] asm("_binary_assets_audio_large_raw_end");
+extern const uint8_t _binary_small_raw_start[] asm("_binary_small_raw_start");
+extern const uint8_t _binary_small_raw_end[] asm("_binary_small_raw_end");
+extern const uint8_t _binary_medium_raw_start[] asm("_binary_medium_raw_start");
+extern const uint8_t _binary_medium_raw_end[] asm("_binary_medium_raw_end");
+extern const uint8_t _binary_large_raw_start[] asm("_binary_large_raw_start");
+extern const uint8_t _binary_large_raw_end[] asm("_binary_large_raw_end");
 static QueueHandle_t queue;
 static i2s_chan_handle_t tx;
 static const char *TAG="USGM_AUDIO";
@@ -36,9 +36,9 @@ static void task(void *arg) {
     (void)arg;usgm_grade_t grade;
     while(1) {
         if(xQueueReceive(queue,&grade,portMAX_DELAY)==pdTRUE) {
-            if(grade==USGM_SMALL)play(_binary_assets_audio_small_raw_start,_binary_assets_audio_small_raw_end);
-            if(grade==USGM_MEDIUM)play(_binary_assets_audio_medium_raw_start,_binary_assets_audio_medium_raw_end);
-            if(grade==USGM_LARGE)play(_binary_assets_audio_large_raw_start,_binary_assets_audio_large_raw_end);
+            if(grade==USGM_SMALL)play(_binary_small_raw_start,_binary_small_raw_end);
+            if(grade==USGM_MEDIUM)play(_binary_medium_raw_start,_binary_medium_raw_end);
+            if(grade==USGM_LARGE)play(_binary_large_raw_start,_binary_large_raw_end);
         }
     }
 }

@@ -10,9 +10,9 @@
 #include <math.h>
 
 static const char *TAG="USGM_HTTP";
-extern const char _binary_assets_index_html_start[] asm("_binary_assets_index_html_start");
-extern const char _binary_assets_app_js_start[] asm("_binary_assets_app_js_start");
-extern const char _binary_assets_report_mjs_start[] asm("_binary_assets_report_mjs_start");
+extern const char _binary_index_html_start[] asm("_binary_index_html_start");
+extern const char _binary_app_js_start[] asm("_binary_app_js_start");
+extern const char _binary_report_mjs_start[] asm("_binary_report_mjs_start");
 
 static esp_err_t respond_json(httpd_req_t *r,cJSON *obj,int code) {
     char *s=cJSON_PrintUnformatted(obj);cJSON_Delete(obj);
@@ -44,9 +44,9 @@ static bool integral(const cJSON *obj,const char *key,int32_t *out) {
        v->valuedouble>2147483647.0 || floor(v->valuedouble)!=v->valuedouble)return false;
     *out=(int32_t)v->valuedouble;return true;
 }
-static esp_err_t ui_index(httpd_req_t *r){httpd_resp_set_type(r,"text/html; charset=utf-8");return httpd_resp_send(r,_binary_assets_index_html_start,HTTPD_RESP_USE_STRLEN);}
-static esp_err_t ui_app(httpd_req_t *r){httpd_resp_set_type(r,"text/javascript; charset=utf-8");return httpd_resp_send(r,_binary_assets_app_js_start,HTTPD_RESP_USE_STRLEN);}
-static esp_err_t ui_report_js(httpd_req_t *r){httpd_resp_set_type(r,"text/javascript; charset=utf-8");return httpd_resp_send(r,_binary_assets_report_mjs_start,HTTPD_RESP_USE_STRLEN);}
+static esp_err_t ui_index(httpd_req_t *r){httpd_resp_set_type(r,"text/html; charset=utf-8");return httpd_resp_send(r,_binary_index_html_start,HTTPD_RESP_USE_STRLEN);}
+static esp_err_t ui_app(httpd_req_t *r){httpd_resp_set_type(r,"text/javascript; charset=utf-8");return httpd_resp_send(r,_binary_app_js_start,HTTPD_RESP_USE_STRLEN);}
+static esp_err_t ui_report_js(httpd_req_t *r){httpd_resp_set_type(r,"text/javascript; charset=utf-8");return httpd_resp_send(r,_binary_report_mjs_start,HTTPD_RESP_USE_STRLEN);}
 
 static esp_err_t get_status(httpd_req_t *r) {
     cJSON *o=cJSON_CreateObject(),*counts=cJSON_CreateObject(),*settings=cJSON_CreateObject();

@@ -1,3 +1,4 @@
+#include "sdkconfig.h"
 #include "audio.h"
 /* Wokwi does not emulate ESP32-C3 I2S; physical audio driver remains below. */
 #if defined(CONFIG_USGM_WOKWI_MODE)

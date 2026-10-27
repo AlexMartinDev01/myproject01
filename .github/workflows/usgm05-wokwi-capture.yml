@@ -1,0 +1,58 @@
+name: USGM record actual Wokwi chip simulation
+on:
+  push:
+    paths:
+      - '.github/workflows/usgm05-wokwi-capture.yml'
+      - '.github/scripts/usgm05_wokwi_capture.mjs'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: usgm05-wokwi-firmware
+          run-id: 40356100597
+          repository: AlexMartinDev01/myproject01
+          github-token: ${{ github.token }}
+          path: wokwi-bin
+      - name: Merge genuine ESP32-C3 firmware and bootloader
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const image=Buffer.alloc(4*1024*1024,0xff);
+          for(const [offset,file] of [[0,'bootloader/bootloader.bin'],[0x8000,'partition_table/partition-table.bin'],[0x10000,'usgm05.bin']]) fs.readFileSync('wokwi-bin/'+file).copy(image,offset);
+          fs.writeFileSync('wokwi-bin/fullflash.bin',image);
+          console.log('merged genuine firmware',image.length);
+          NODE
+      - name: Install lightweight browser automation
+        run: |
+          npm install --no-save --ignore-scripts playwright-core@1.56.1
+          npx playwright-core install ffmpeg
+      - name: Record actual Wokwi.com editor and virtual firmware execution
+        run: node .github/scripts/usgm05_wokwi_capture.mjs
+      - name: Convert genuine browser capture into MP4
+        if: always()
+        shell: bash
+        run: |
+          # Preserve the genuine WebM recording even if FFmpeg is unavailable.
+          # Do not spend time installing extra system packages during upload.
+          if ! command -v ffmpeg >/dev/null; then echo 'FFmpeg not available; uploading raw WebM only'; exit 0; fi
+          if compgen -G 'wokwi-proof/videos/*.webm' >/dev/null; then
+            ffmpeg -y -hide_banner -loglevel error -i "$(find wokwi-proof/videos -name '*.webm' | head -1)" -c:v libx264 -preset veryfast -crf 28 -pix_fmt yuv420p -movflags +faststart wokwi-proof/REAL_WOKWI_CAPTURE.mp4
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: usgm-real-wokwi-recording-and-evidence
+          path: wokwi-proof/
+          if-no-files-found: warn

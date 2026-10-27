@@ -1,0 +1,10 @@
+# Simulation profile: do NOT flash onto physical ESP32-C3.
+[wokwi]
+version = 1
+firmware = 'build-wokwi/flasher_args.json'
+elf = 'build-wokwi/usgm05.elf'
+
+# Requires Wokwi Private IoT Gateway for accessing the simulated ESP web UI.
+[[net.forward]]
+from = 'localhost:9080'
+to = 'target:80'

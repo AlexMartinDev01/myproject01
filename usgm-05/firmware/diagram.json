@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "author": "USGM-05 experimental bench",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c3-devkitm-1",
+      "id": "esp",
+      "top": -75,
+      "left": 35,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-hx711",
+      "id": "hx711",
+      "top": -55,
+      "left": -265,
+      "attrs": {
+        "type": "5kg"
+      }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "hx711_logic",
+      "top": 195,
+      "left": 320,
+      "attrs": {
+        "channelNames": "HX711_DOUT,HX711_PD_SCK,D2,D3,D4,D5,D6,D7",
+        "bufferSize": "200000",
+        "filename": "usgm05-hx711-logic"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "hxlabel",
+      "top": -125,
+      "left": -250,
+      "attrs": {
+        "text": "Double-click HX711 to set kg: 0 -> .075 -> 0 -> .095 -> 0 -> .135"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "note",
+      "top": 307,
+      "left": -250,
+      "attrs": {
+        "text": "Wokwi ESP32-C3 I2S is UNSUPPORTED. The orange audio wire generates TONES only, not the real Chinese voice."
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "power",
+      "top": -180,
+      "left": 30,
+      "attrs": {
+        "text": "USGM-05: ESP32-C3 firmware + 5kg HX711 + HX711 DATA/CLOCK probes"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "sim_speaker",
+      "top": 155,
+      "left": 165,
+      "attrs": {
+        "mode": "accurate",
+        "volume": "0.5"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "proxy_note",
+      "top": 88,
+      "left": 115,
+      "attrs": {
+        "text": "VIRTUAL ONLY: GPIO7 -> sound transducer.\nSmall=1 tone, medium=2, large=3.\nNOT the actual MAX98357A voice amp."
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "real_amp_note",
+      "top": 392,
+      "left": -235,
+      "attrs": {
+        "text": "REAL HARDWARE (not simulated in Wokwi): ESP32 GPIO4->MAX98357A BCLK;\nGPIO5->LRC, GPIO6->DIN, USB5V->VIN, GND->GND.\n4Ω/3W SPEAKER -> SPK+ and SPK-; SPK- NEVER to ground."
+      }
+    }
+  ],
+  "connections": [
+    [
+      "hx711:VCC",
+      "esp:3V3.1",
+      "red",
+      []
+    ],
+    [
+      "hx711:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "hx711:DT",
+      "esp:0",
+      "green",
+      []
+    ],
+    [
+      "hx711:SCK",
+      "esp:1",
+      "blue",
+      []
+    ],
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "hx711:DT",
+      "hx711_logic:D0",
+      "green",
+      []
+    ],
+    [
+      "hx711:SCK",
+      "hx711_logic:D1",
+      "blue",
+      []
+    ],
+    [
+      "esp:GND.4",
+      "hx711_logic:GND",
+      "black",
+      []
+    ],
+    [
+      "esp:7",
+      "sim_speaker:2",
+      "orange",
+      []
+    ],
+    [
+      "sim_speaker:1",
+      "esp:GND.3",
+      "black",
+      []
+    ]
+  ],
+  "serialMonitor": {
+    "display": "always",
+    "newline": "lf"
+  }
+}

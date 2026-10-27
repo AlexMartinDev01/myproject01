@@ -1,0 +1,84 @@
+name: USGM-05 verify native and firmware
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'usgm-05/**'
+      - '.github/workflows/usgm05-ci.yml'
+  pull_request:
+    paths:
+      - 'usgm-05/**'
+      - '.github/workflows/usgm05-ci.yml'
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native C / JS / Python tests
+        run: cd usgm-05 && ./tools/run_native_tests.sh
+  esp-idf:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v5.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ESP32-C3 firmware
+        shell: bash
+        run: |
+          cd usgm-05/firmware
+          . /opt/esp/idf/export.sh
+          idf.py set-target esp32c3
+          idf.py build
+
+  wokwi-profile-build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v5.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Wokwi ESP32-C3 simulation firmware
+        shell: bash
+        run: |
+          cd usgm-05/firmware
+          . /opt/esp/idf/export.sh
+          idf.py -B build-wokwi -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.wokwi.defaults' set-target esp32c3
+          idf.py -B build-wokwi build
+          grep -q 'CONFIG_USGM_WOKWI_MODE=y' sdkconfig
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usgm05-wokwi-firmware
+          if-no-files-found: error
+          path: |
+            usgm-05/firmware/build-wokwi/flasher_args.json
+            usgm-05/firmware/build-wokwi/usgm05.elf
+            usgm-05/firmware/build-wokwi/*.bin
+            usgm-05/firmware/build-wokwi/bootloader/*.bin
+            usgm-05/firmware/build-wokwi/partition_table/*.bin
+
+  # This job does not claim a virtual-chip PASS unless Wokwi actually runs.
+  wokwi-actual-simulation:
+    needs: wokwi-profile-build
+    runs-on: ubuntu-latest
+    env:
+      WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: usgm05-wokwi-firmware
+          path: usgm-05/firmware/build-wokwi
+      - name: Run real ESP32-C3 / HX711 simulation scenario
+        if: ${{ env.WOKWI_CLI_TOKEN != '' }}
+        uses: wokwi/wokwi-ci-action@v1
+        with:
+          token: ${{ secrets.WOKWI_CLI_TOKEN }}
+          path: usgm-05/firmware
+          scenario: ../wokwi/three_grades.scenario.yaml
+          timeout: 120000
+          serial_log_file: wokwi-serial.log
+      - name: Explain missing Wokwi authorization
+        if: ${{ env.WOKWI_CLI_TOKEN == '' }}
+        run: echo 'SKIPPED Wokwi virtual chip execution because WOKWI_CLI_TOKEN GitHub Actions secret is not configured.'

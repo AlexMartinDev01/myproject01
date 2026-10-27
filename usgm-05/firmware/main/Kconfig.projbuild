@@ -1,0 +1,12 @@
+menu "USGM-05 experimental settings"
+    config USGM_AP_PASSWORD
+        string "Wi-Fi SoftAP password (8 to 63 chars; change before field use)"
+        default "USGM05-DEMO-CHANGE"
+    config USGM_WOKWI_MODE
+        bool "Wokwi HX711 simulation ONLY (not for physical hardware)"
+        default n
+        help
+            Use Wokwi-GUEST station instead of physical device SoftAP.
+            Initialize the virtual 5kg HX711 using synthetic 0..2100 counts.
+            Virtual measurements must never be claimed as real hardware results.
+endmenu

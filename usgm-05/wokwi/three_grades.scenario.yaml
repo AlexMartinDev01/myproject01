@@ -1,0 +1,35 @@
+name: Three fruit size checks
+version: 1
+author: USGM-05
+steps:
+  - wait-serial: WOKWI_VIRTUAL_HX711
+  - set-control:
+      part-id: hx711
+      name: load
+      value: 0.0
+  - delay: 1200ms
+  - set-control:
+      part-id: hx711
+      name: load
+      value: 0.075
+  - wait-serial: 'USGM_GRADE grade=small'
+  - set-control:
+      part-id: hx711
+      name: load
+      value: 0.0
+  - delay: 1200ms
+  - set-control:
+      part-id: hx711
+      name: load
+      value: 0.095
+  - wait-serial: 'USGM_GRADE grade=medium'
+  - set-control:
+      part-id: hx711
+      name: load
+      value: 0.0
+  - delay: 1200ms
+  - set-control:
+      part-id: hx711
+      name: load
+      value: 0.135
+  - wait-serial: 'USGM_GRADE grade=large'

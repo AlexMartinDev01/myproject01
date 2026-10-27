@@ -1,7 +1,7 @@
 from pathlib import Path
 from bs4 import BeautifulSoup
 import re,base64,hashlib
-BASE=Path('/mnt/data/USGM-05_5kg圆形秤_手机调控全过程_可交互仿真.html')
+BASE=Path(__file__).resolve().parent/'base_mobile_simulator.html'
 ROOT=Path(__file__).resolve().parents[1]
 soup=BeautifulSoup(BASE.read_text(encoding='utf-8'),'html.parser')
 header=soup.select_one('.headbrand h1');header.string='USGM-05 · 数字孪生实验室'

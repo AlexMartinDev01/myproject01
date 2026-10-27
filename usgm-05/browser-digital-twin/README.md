@@ -26,7 +26,7 @@
 - `docs/index.html` / `docs/app.js` / `docs/report.mjs`：真实 ESP32-C3 固件网页的来源快照。浏览器加载其代码并用虚拟 HTTP 适配器驱动。
 - `src/scene3d.js`：浏览器三维几何建模（相机透视、轨道旋转、元器件与导线、故障注入）。使用 Canvas 绘制软件三维几何，**不是精密扫描 GLB、WebGL 物理引擎或 SPICE 电路仿真**。
 - `src/theme.css`：完整界面样式、手机布局和移动端适配。
-- `src/build_offline.py`：从项目已有旧版浏览器仿真 HTML 生成独立离线 HTML；原始 HTML 路径见脚本中的 `BASE`，本交付 ZIP 已自带成品，无需执行该脚本。
+- `src/build_offline.py`：从项目已有旧版浏览器仿真 HTML 生成独立离线 HTML；原始 HTML 模板为 `src/base_mobile_simulator.html`，可在修改 `src/scene3d.js` 或 `src/theme.css` 后运行 `python src/build_offline.py` 重建独立页面。
 
 ## 3. 验证方法
 

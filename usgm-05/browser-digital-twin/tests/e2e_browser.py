@@ -20,7 +20,7 @@ def step(page,n,g):
     page.wait_for_timeout(500)
 
 with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader'])
+    browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None,args=['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader'])
     page=browser.new_page(viewport={'width':1570,'height':960},device_scale_factor=1,accept_downloads=True)
     errors=[];page.on('pageerror',lambda e: errors.append(str(e)))
     page.set_content((ROOT/'index.html').read_text(encoding='utf-8'),wait_until='domcontentloaded')

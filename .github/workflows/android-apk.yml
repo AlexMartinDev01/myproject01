@@ -1,0 +1,56 @@
+name: Flutter Android APK · Knowledge Compass
+on:
+  push:
+    branches:
+      - main
+      - 'feature/knowledge-compass*'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend requirements
+        run: python -m pip install -r backend/requirements.txt
+      - name: Run security and contract tests
+        run: python -m pytest -q backend/tests
+  build-apk:
+    runs-on: ubuntu-latest
+    needs: backend-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android platform project
+        run: |
+          flutter create --project-name zhixing_compass --org com.zhixingcompass --platforms android .
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          text = p.read_text()
+          text = text.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />')
+          p.write_text(text)
+          PY
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+      - name: Static analyzer
+        run: flutter analyze --no-fatal-infos
+      - name: Flutter tests
+        run: flutter test
+      - name: Build Android release APK
+        run: flutter build apk --release
+      - name: Upload downloadable release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KnowledgeCompass-Android-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

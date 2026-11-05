@@ -44,3 +44,11 @@ def test_cloud_keeps_auth_and_nonprivate_chat_contract(monkeypatch):
     assert response.status_code == 401
     response = client.post("/v1/chat", headers=HEADERS, json={"question": "你好"})
     assert response.status_code == 503
+
+def test_cloud_rejects_legacy_pdf_before_file_parsing(monkeypatch):
+    monkeypatch.setenv("APP_DEVICE_TOKEN", "test-cloud-token")
+    monkeypatch.setenv("CLOUD_GATEWAY_MODE", "1")
+    response = client.post("/v1/pdf", headers=HEADERS,
+        files={"file": ("private.pdf", b"%PDF-1.7\\nprivate-bytes", "application/pdf")})
+    assert response.status_code == 403
+    assert "云端" in response.json()["detail"]

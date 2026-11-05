@@ -13,7 +13,8 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 
@@ -72,6 +73,17 @@ def configured_api_key() -> str:
 def cloud_gateway_mode() -> bool:
     """Restrict diary transfers while installed APK still labels the processor as Windows."""
     return os.getenv("CLOUD_GATEWAY_MODE", "0").lower() in ("1", "true", "yes")
+
+
+@app.middleware("http")
+async def refuse_legacy_cloud_private_uploads(request: Request, call_next):
+    # Reject before multipart bodies are parsed by FastAPI.
+    # Legacy APK labels these uploads as Windows-local, not cloud.
+    if cloud_gateway_mode() and request.url.path in ("/v1/consent", "/v1/pdf"):
+        return JSONResponse(status_code=403, content={
+            "detail": "此版本的 App 尚未支持云端私密资料授权，请先升级客户端"
+        })
+    return await call_next(request)
 
 
 @app.get("/livez")

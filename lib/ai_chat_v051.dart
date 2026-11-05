@@ -4,7 +4,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'main.dart';
-import 'screens.dart' show CardEditPage, DeviceSettingsPage,
+import 'screens.dart' show DeviceSettingsPage,
     KnowledgeDetailPage, SourceDetailPage;
 import 'core/ai.dart';
 import 'core/chat_store.dart';

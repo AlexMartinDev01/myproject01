@@ -69,6 +69,17 @@ def configured_api_key() -> str:
         return ""
 
 
+def cloud_gateway_mode() -> bool:
+    """Restrict diary transfers while installed APK still labels the processor as Windows."""
+    return os.getenv("CLOUD_GATEWAY_MODE", "0").lower() in ("1", "true", "yes")
+
+
+@app.get("/livez")
+def livez() -> dict:
+    """Token-free process liveness only; no key status, device details, or PII."""
+    return {"status": "ok"}
+
+
 @app.get("/health", dependencies=[Depends(require_device)])
 def health() -> dict:
     # Health reports configuration only; it must not pretend a successful provider call.
@@ -79,6 +90,8 @@ def health() -> dict:
 @app.post("/v1/consent", response_model=ConsentResult, dependencies=[Depends(require_device)])
 def consent(req: Consent) -> ConsentResult:
     """Called only *after* the user approves a one-request journal access dialog."""
+    if cloud_gateway_mode():
+        raise HTTPException(status_code=403, detail="云端私密日记访问暂不可用：请使用更新了云处理说明的客户端")
     token = secrets.token_urlsafe(32)
     digest = hashlib.sha256(req.private_text.encode()).hexdigest()
     with lock:
@@ -171,6 +184,8 @@ def build_context(req: ChatRequest) -> str:
 
 @app.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(require_device)])
 async def chat(req: ChatRequest) -> ChatResponse:
+    if req.private_text and cloud_gateway_mode():
+        raise HTTPException(status_code=403, detail="云端私密日记访问暂不可用：请使用更新了云处理说明的客户端")
     consume_consent(req)
     api_key = configured_api_key()
     if not api_key:

@@ -75,3 +75,12 @@
 - `.github/workflows/android-apk.yml` — GitHub Actions 构建 APK。
 
 完整需求来源：《知行罗盘完整 PRD 与技术架构 V2.0》。
+
+## V0.3.2 AI 稳定性（新增）
+
+- 当前 API 模型默认 `deepseek-flash`（官方支持）；可在 Windows 节点通过 `DEEPSEEK_MODEL=deepseek-v4-pro` 改成 Pro。
+- 推荐在 Windows 上运行 `python -m backend.setup_windows`，输入**新生成、未公开**的 API Key，密钥写入系统凭据管理器而不是 APK。
+- `GET /health` 的 `provider_configured=true` 不等于真实 DeepSeek 调用成功；请在手机设置页面点击“真实 AI 问答测试”。
+- 关键提醒：曾在聊天中展示的旧 API Key 请立即撤销并重置。
+
+本机普通笔记可以离线使用；网络 AI 的真实请求、设备配对和 Windows 服务持续运行需要由安装者配置。本项目不会把 API Key 放进仓库、CI 或安装包。

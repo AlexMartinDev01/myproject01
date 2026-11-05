@@ -6,6 +6,7 @@ import hmac
 import os
 import secrets
 import time
+from pathlib import Path
 from dataclasses import dataclass
 from threading import Lock
 from typing import Literal
@@ -14,12 +15,15 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field, field_validator
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 DEEPSEEK_ENDPOINT = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
 TIMEOUT_S = 70.0
 
-app = FastAPI(title="知行罗盘 私有 AI 节点", version="0.3.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="知行罗盘 私有 AI 节点", version="0.3.2", docs_url=None, redoc_url=None)
 
 
 def require_device(x_device_token: str | None = Header(default=None)) -> None:
@@ -49,9 +53,23 @@ pending: dict[str, PendingConsent] = {}
 lock = Lock()
 
 
+def configured_api_key() -> str:
+    """Use a local Windows credential vault when available; never expose this value."""
+    direct = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if direct:
+        return direct
+    try:
+        import keyring
+        return (keyring.get_password("zhixing-compass", "deepseek-api-key") or "").strip()
+    except Exception:
+        return ""
+
+
 @app.get("/health", dependencies=[Depends(require_device)])
 def health() -> dict:
-    return {"ok": True, "provider_configured": bool(os.getenv("DEEPSEEK_API_KEY")), "model": DEEPSEEK_MODEL}
+    # Health reports configuration only; it must not pretend a successful provider call.
+    return {"ok": True, "provider_configured": bool(configured_api_key()), "model": DEEPSEEK_MODEL,
+            "provider_tested": False, "service_version": "0.3.2"}
 
 
 @app.post("/v1/consent", response_model=ConsentResult, dependencies=[Depends(require_device)])
@@ -147,9 +165,11 @@ def build_context(req: ChatRequest) -> str:
 @app.post("/v1/chat", response_model=ChatResponse, dependencies=[Depends(require_device)])
 async def chat(req: ChatRequest) -> ChatResponse:
     consume_consent(req)
-    api_key = os.getenv("DEEPSEEK_API_KEY", "")
+    api_key = configured_api_key()
     if not api_key:
         raise HTTPException(status_code=503, detail="DeepSeek 服务端密钥未配置")
+    if DEEPSEEK_MODEL in {"deepseek-chat", "deepseek-reasoner"}:
+        raise HTTPException(status_code=503, detail="旧版 DeepSeek 模型名已停用，请使用 deepseek-flash 或 deepseek-v4-pro")
     # Deployers may use only HTTPS DeepSeek-compatible upstreams.
     url = DEEPSEEK_ENDPOINT + "/chat/completions"
     parsed = urlparse(url)
@@ -174,8 +194,19 @@ async def chat(req: ChatRequest) -> ChatResponse:
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="AI 回复超时，请重试") from exc
     except httpx.HTTPStatusError as exc:
-        # Deliberately never return the upstream response body: it might disclose sensitive data.
-        raise HTTPException(status_code=502, detail=f"AI 上游请求失败（HTTP {exc.response.status_code}）") from exc
+        # Provider body might contain sensitive data: return controlled, actionable errors.
+        status = exc.response.status_code
+        messages = {
+            400: "模型或请求参数无效，请检查模型配置",
+            401: "DeepSeek 密钥无效或已失效，请在电脑上重新配置",
+            402: "DeepSeek 账户余额不足，请检查额度",
+            403: "DeepSeek 账户无此模型访问权限",
+            404: "DeepSeek 模型不存在，请更新为当前有效的模型名",
+            429: "DeepSeek 调用过于频繁，请稍后重试",
+            500: "DeepSeek 上游服务暂时异常",
+            503: "DeepSeek 上游服务暂时不可用",
+        }
+        raise HTTPException(status_code=502, detail=messages.get(status, f"AI 上游失败（HTTP {status}）")) from exc
     except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="AI 服务返回异常，请检查节点日志") from exc
 

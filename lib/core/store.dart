@@ -54,7 +54,9 @@ class CompassStore extends ChangeNotifier {
 
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 1, onCreate: (Database database, int version) async {
+      version: 2, onUpgrade: (Database db, int oldV, int newV) async {
+        if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
           body TEXT NOT NULL, status TEXT NOT NULL, origin TEXT NOT NULL,
@@ -62,6 +64,7 @@ class CompassStore extends ChangeNotifier {
         )''');
         await database.execute('CREATE INDEX idx_entries_kind ON entries(kind)');
         await database.execute('CREATE INDEX idx_entries_updated ON entries(updated_at)');
+        await database.execute('CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();
@@ -162,6 +165,49 @@ class CompassStore extends ChangeNotifier {
       'format': 'zhixing-compass-v1', 'exported_at': DateTime.now().toIso8601String(),
       'entries': exportable, 'private_journals_excluded': true,
     });
+  }
+
+  /// Restore only regular entries. Validate the entire file before a single atomic transaction.
+  /// Existing IDs remain unchanged; duplicates are skipped, not overwritten.
+  Future<int> importJson(String raw) async {
+    final parsed = jsonDecode(raw);
+    if (parsed is! Map<String, dynamic> || parsed['format'] != 'zhixing-compass-v1' ||
+        parsed['entries'] is! List) {
+      throw const FormatException('不是受支持的知行罗盘普通数据备份');
+    }
+    final list = parsed['entries'] as List;
+    if (list.length > 100000) throw const FormatException('记录数量超出限制');
+    final validated = <Map<String, Object?>>[];
+    for (final item in list) {
+      if (item is! Map<String, dynamic>) throw const FormatException('备份记录格式错误');
+      const fields = ['id', 'kind', 'title', 'body', 'status', 'origin',
+        'created_at', 'updated_at', 'meta'];
+      if (fields.any((f) => item[f] is! String)) {
+        throw const FormatException('备份记录缺少必需字段');
+      }
+      final kind = item['kind'] as String;
+      if (kind == 'journal' || kind == 'private' || kind == 'consent') {
+        throw const FormatException('禁止通过普通备份导入私密数据');
+      }
+      if ((item['id'] as String).isEmpty || (item['title'] as String).length > 10000) {
+        throw const FormatException('备份记录 ID 或标题无效');
+      }
+      final meta = jsonDecode(item['meta'] as String);
+      if (meta is! Map<String, dynamic>) throw const FormatException('记录元数据无效');
+      DateTime.parse(item['created_at'] as String);
+      DateTime.parse(item['updated_at'] as String);
+      validated.add({for (final key in fields) key: item[key] as String});
+    }
+    var count = 0;
+    await _db.transaction((txn) async {
+      for (final row in validated) {
+        final inserted = await txn.insert('entries', row,
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+        if (inserted != 0) count++;
+      }
+    });
+    await reload();
+    return count;
   }
 
   @override

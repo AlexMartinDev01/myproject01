@@ -1063,6 +1063,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
   final token = TextEditingController();
   String status = '尚未测试连接';
   bool testing = false;
+  bool liveTesting = false;
   @override
   void initState() {
     super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1083,12 +1084,26 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
     setState(() {testing = true; status = '正在连接…';});
     try {
       await CompassScope.of(context).setConnection(server.text, token.text);
-      final configured = await AiClient(CompassScope.of(context)).check();
-      if (mounted) setState(() => status = configured ?
-        '节点已连接，DeepSeek 提供商密钥已配置（尚未执行实际问答）' :
-        '已连接节点，但服务端缺少 DeepSeek 密钥');
+      final health = await AiClient(CompassScope.of(context)).health();
+      if (mounted) setState(() => status = health.providerConfigured ?
+        '节点在线 · 模型 ${health.model} · 已配置密钥（尚未执行实际问答）' :
+        '节点在线 · 模型 ${health.model} · 未配置 DeepSeek 密钥');
     } catch (e) {if (mounted) setState(() => status = '无法连接：$e');}
     finally {if (mounted) setState(() => testing = false);}
+  }
+  Future<void> testRealAi() async {
+    if (liveTesting) return;
+    setState(() {liveTesting = true; status = '正在调用 DeepSeek 进行真实问答…';});
+    try {
+      await CompassScope.of(context).setConnection(server.text, token.text);
+      final result = await AiClient(CompassScope.of(context))
+          .ask('请用简短的一句话确认 AI 服务已连接。', mode: 'ask');
+      if (mounted) setState(() => status = '真实 AI 调用成功 · ${result.model} · ${result.answer}');
+    } catch (e) {
+      if (mounted) setState(() => status = '真实 AI 调用失败：$e');
+    } finally {
+      if (mounted) setState(() => liveTesting = false);
+    }
   }
   @override
   Widget build(BuildContext context) => PageFrame(title: '设备与 AI 设置',
@@ -1114,6 +1129,10 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
       const SizedBox(height: 10),
       OutlinedButton.icon(onPressed: testing ? null : test, icon: const Icon(Icons.wifi_tethering),
         label: Text(testing ? '正在测试…' : '测试节点连接')),
+      const SizedBox(height: 10),
+      FilledButton.icon(onPressed: liveTesting ? null : testRealAi,
+        icon: const Icon(Icons.verified_outlined),
+        label: Text(liveTesting ? 'DeepSeek 请求中…' : '真实 AI 问答测试（需要流量和额度）')),
       const SizedBox(height: 12),
       SoftCard(child: Text(status)),
       NavCard(icon: Icons.wifi_off, title: '离线状态说明',
@@ -1198,7 +1217,31 @@ class _PrivacyPageState extends State<PrivacyPage> {
           await Clipboard.setData(ClipboardData(text: json));
           if (context.mounted) setState(() => result = '已复制普通数据 JSON；请自行保存到安全文件中');
         }),
-      NavCard(icon: Icons.lock_outline, title: '查看私密日记',
+      NavCard(icon: Icons.restore, title: '恢复普通数据备份',
+         subtitle: '选择此前导出的 JSON；只导入新记录，不覆盖旧记录',
+         onTap: () async {
+           try {
+             final selection = await FilePicker.platform.pickFiles(
+               type: FileType.custom, allowedExtensions: ['json']);
+             if (selection == null || selection.files.isEmpty || !context.mounted) return;
+             final item = selection.files.single;
+             if (item.path == null || item.size > 15 * 1024 * 1024) {
+               notice(context, '无法读取或备份大于 15 MB'); return;
+             }
+             final approved = await showDialog<bool>(context: context,
+               builder: (ctx) => AlertDialog(title: const Text('确认恢复备份？'),
+                 content: const Text('仅添加当前设备不存在的普通记录，重复 ID 跳过，不覆盖私密日记。'),
+                 actions: [TextButton(onPressed: () => Navigator.pop(ctx, false),
+                   child: const Text('取消')),
+                   FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('开始恢复'))]));
+             if (approved != true || !context.mounted) return;
+             final count = await CompassScope.of(context).importJson(await File(item.path!).readAsString());
+             if (context.mounted) setState(() => result = '成功恢复 $count 条新记录；已有记录未覆盖');
+           } catch (e) {
+             if (context.mounted) setState(() => result = '恢复失败，原有记录未修改：$e');
+           }
+         }),
+       NavCard(icon: Icons.lock_outline, title: '查看私密日记',
         subtitle: '单次授权不会长期保存',
         onTap: () => openPage(context, const JournalPage())),
       NavCard(icon: Icons.manage_accounts_outlined, title: '设备连接令牌',

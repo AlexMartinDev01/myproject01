@@ -9,6 +9,13 @@ class AiResult {
   AiResult(this.answer, this.model, this.sourceIds);
 }
 
+class AiHealth {
+  final bool connected;
+  final bool providerConfigured;
+  final String model;
+  const AiHealth({required this.connected, required this.providerConfigured, required this.model});
+}
+
 class AiClient {
   final CompassStore store;
   AiClient(this.store);
@@ -24,13 +31,17 @@ class AiClient {
     'Content-Type': 'application/json', 'X-Device-Token': store.deviceToken,
   };
 
-  Future<bool> check() async {
+  Future<AiHealth> health() async {
     final response = await http.get(endpoint('/health'), headers: headers)
         .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) throw Exception('节点不可用（HTTP ${response.statusCode}）');
     final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-    return data['provider_configured'] == true;
+    return AiHealth(connected: data['ok'] == true,
+        providerConfigured: data['provider_configured'] == true,
+        model: data['model']?.toString() ?? 'unknown');
   }
+
+  Future<bool> check() async => (await health()).providerConfigured;
 
   Future<AiResult> ask(String question, {String mode = 'ask',
     List<CompassEntry> evidence = const [], String? privateText}) async {

@@ -591,6 +591,7 @@ class AiChatPage extends StatefulWidget {
 class _AiChatPageState extends State<AiChatPage> {
   final question = TextEditingController();
   bool busy = false;
+  bool privateAlreadySent = false;
   String? answer;
   String? model;
   String? error;
@@ -600,6 +601,19 @@ class _AiChatPageState extends State<AiChatPage> {
   Future<void> ask() async {
     if (question.text.trim().isEmpty) {notice(context, '请输入要思考的问题'); return;}
     if (busy) return;
+    if (widget.approvedPrivateText?.isNotEmpty == true) {
+      if (privateAlreadySent) {
+        final approved = await showDialog<bool>(context: context, barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('再次授权读取私密日记？'),
+            content: const Text('上一次授权已经失效。继续发送这一条问题将再次把当前日记正文发送到你的 AI 节点，且可能转发至 DeepSeek。'),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('拒绝')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('允许本次访问'))]));
+        if (approved != true || !mounted) return;
+      }
+      // Consumed before network work: any retry requires new explicit approval.
+      privateAlreadySent = true;
+    }
     setState(() {busy = true; error = null; answer = null; references = [];});
     final store = CompassScope.of(context);
     final candidates = widget.selectedEvidence.isNotEmpty ? widget.selectedEvidence :

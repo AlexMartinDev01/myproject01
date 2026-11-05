@@ -8,6 +8,8 @@ import 'screens.dart' show CardEditPage, DeviceSettingsPage,
     KnowledgeDetailPage, SourceDetailPage;
 import 'core/ai.dart';
 import 'core/chat_store.dart';
+import 'core/knowledge_candidates.dart';
+import 'knowledge_review_v052.dart';
 import 'core/store.dart';
 
 const _modes = <String, String>{
@@ -159,23 +161,26 @@ class _AiChatPageState extends State<AiChatPage> {
     }
   }
 
-  Future<void> extractDraft(String answer) async {
-    if (extracting) return;
+  Future<void> extractDraft(ChatLine message) async {
+    if (extracting || privateMode) return;
     final store = CompassScope.of(context);
     setState(() => extracting = true);
     try {
+      // A single-turn request without new endpoints: compatible with the old
+      // Render deployment. The source answer is not silently copied into a card.
       final result = await AiClient(store).ask(
-        '请只从以下回答中提炼可独立保存的一条核心知识卡草稿。'
-        '不要复制原文全文。使用“定义、适用条件、反例、下一步验证”四个小节，最多 500 字。'
-        '没有证据时明确标记待验证。以下是待提炼内容：\n'
-        + (answer.length > 7000 ? answer.substring(0, 7000) : answer),
-        mode: 'brief');
+        knowledgeExtractionPrompt(message.content), mode: 'ask');
+      final points = parseKnowledgeCandidates(result.answer);
       if (!mounted) return;
-      await openPage(context, CardEditPage(
-        initialTitle: 'AI 提炼 · 待人工确认',
-        initialBody: result.answer));
+      await openPage(context, KnowledgeReviewPage(
+        candidates: points,
+        conversationId: message.conversationId,
+        messageId: message.id,
+        offeredSourceIds: message.sourceIds,
+        inputWasTruncated: message.content.length > 6500,
+      ));
     } catch (e) {
-      if (mounted) notice(context, '知识提炼未完成：$e');
+      if (mounted) notice(context, 'AI 提炼失败，未保存知识卡：$e。可以重试。');
     } finally {
       if (mounted) setState(() => extracting = false);
     }
@@ -220,9 +225,9 @@ class _AiChatPageState extends State<AiChatPage> {
                 if (mounted) notice(context, '已复制');
               }),
             if (!user) TextButton.icon(
-              onPressed: extracting ? null : () => extractDraft(line.content),
+              onPressed: extracting ? null : () => extractDraft(line),
               icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-              label: Text(extracting ? '提炼中…' : 'AI 提炼知识卡草稿')),
+              label: Text(extracting ? '提炼中…' : '提炼多个知识点')),
           ]),
           if (!user && line.model.isNotEmpty)
             Text('模型：${line.model}', style: const TextStyle(fontSize: 10, color: Colors.grey)),

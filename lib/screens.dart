@@ -13,6 +13,8 @@ import 'main.dart';
 import 'core/store.dart';
 import 'core/ai.dart';
 import 'ai_chat_v051.dart';
+import 'core/knowledge_candidates.dart';
+import 'knowledge_review_v052.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -308,6 +310,50 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
       if (mounted) notice(context, 'AI 整理未完成：$e');
     } finally {if (mounted) setState(() => thinking = false);}
   }
+  Future<void> proposeKnowledgePoints(CompassEntry source) async {
+    if (thinking) return;
+    final store = CompassScope.of(context);
+    final notes = store.notesForSource(source.id);
+    final material = aiBrief?.trim().isNotEmpty == true ? aiBrief! :
+      [source.body,
+        ...notes.map((n) => '【${n.chapter.isEmpty ? n.title : n.chapter}】\n${n.body}')]
+          .where((text) => text.trim().isNotEmpty).join('\n\n');
+    if (material.trim().isEmpty) {
+      notice(context, '请先补充来源原文或阅读笔记，不能仅凭标题生成知识点');
+      return;
+    }
+    final approved = await showDialog<bool>(context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('提炼这份材料中的知识点？'),
+        content: const Text('会将素材前 6,500 个字符发送到你配置的 AI 网关及模型服务。'
+          'AI 只会生成候选知识点，不会自动保存；保存前可以逐条筛选和编辑。'
+          '私密日记不属于此操作范围。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('开始提炼')),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    setState(() => thinking = true);
+    try {
+      final result = await AiClient(store).ask(
+        knowledgeExtractionPrompt(material), mode: 'ask');
+      final points = parseKnowledgeCandidates(result.answer);
+      if (!mounted) return;
+      await openPage(context, KnowledgeReviewPage(
+        candidates: points, originalSourceId: source.id,
+        offeredSourceIds: [source.id], inputWasTruncated: material.length > 6500,
+      ));
+    } catch (e) {
+      if (mounted) notice(context, '知识提炼失败，尚未保存：$e');
+    } finally {
+      if (mounted) setState(() => thinking = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = CompassScope.of(context);
@@ -372,8 +418,7 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
         subtitle: '${n.chapter.isEmpty ? '随手记录' : n.chapter} · 第 ${n.revision} 版 · ${n.body.length > 40 ? '${n.body.substring(0, 40)}…' : n.body}',
         onTap: () => openPage(context, SourceNoteEditorPage(sourceId: source.id, noteId: n.id)))),
       const SectionHeading('AI 提炼'),
-      if (aiBrief != null) SoftCard(color: const Color(0xFFF1E9F6), child: SelectableText(aiBrief!,
-        style: const TextStyle(height: 1.6))),
+      if (aiBrief != null) SoftCard(color: const Color(0xFFF1E9F6), child: MessageMarkdown(data: aiBrief!)),
       SoftCard(child: Column(children: [
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: thinking ? null : () => summarize(source),
@@ -381,10 +426,14 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
           label: Text(thinking ? 'AI 正在整理…' : 'AI 提炼关键内容'))),
         const SizedBox(height: 8),
         SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: thinking ? null : () => proposeKnowledgePoints(source),
+          icon: const Icon(Icons.fact_check_outlined),
+          label: const Text('提炼多个知识点 · 勾选后保存'))),
+        SizedBox(width: double.infinity, child: TextButton.icon(
           onPressed: () => openPage(context, CardEditPage(
-            originalSourceId: source.id, initialTitle: source.title,
-            initialBody: aiBrief ?? source.body)),
-          icon: const Icon(Icons.library_add_outlined), label: const Text('创建我自己的知识卡'))),
+            originalSourceId: source.id)),
+          icon: const Icon(Icons.edit_note),
+          label: const Text('我自己新建一张空白知识卡'))),
         SizedBox(width: double.infinity, child: TextButton(
           onPressed: () async {
             await store.update(source.copyWith(status: '已整理'));
@@ -691,6 +740,7 @@ class CardEditPage extends StatefulWidget {
 class _CardEditPageState extends State<CardEditPage> {
   late final TextEditingController title;
   late final TextEditingController explanation;
+  late final TextEditingController conditions;
   late final TextEditingController counter;
   late final TextEditingController application;
   String topic = '自我成长';
@@ -699,6 +749,7 @@ class _CardEditPageState extends State<CardEditPage> {
     super.initState();
     title = TextEditingController(text: widget.initialTitle);
     explanation = TextEditingController(text: widget.initialBody);
+    conditions = TextEditingController();
     counter = TextEditingController(); application = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || widget.id == null) return;
@@ -706,6 +757,7 @@ class _CardEditPageState extends State<CardEditPage> {
       if (e != null) setState(() {
         title.text = e.title;
         explanation.text = e.body;
+        conditions.text = e.meta['conditions']?.toString() ?? '';
         counter.text = e.meta['counter']?.toString() ?? '';
         application.text = e.meta['application']?.toString() ?? '';
         topic = e.meta['topic']?.toString() ?? topic;
@@ -714,7 +766,8 @@ class _CardEditPageState extends State<CardEditPage> {
   }
   @override
   void dispose() {
-    title.dispose(); explanation.dispose(); counter.dispose(); application.dispose();
+    title.dispose(); explanation.dispose(); conditions.dispose();
+    counter.dispose(); application.dispose();
     super.dispose();
   }
   @override
@@ -732,6 +785,9 @@ class _CardEditPageState extends State<CardEditPage> {
       TextField(controller: explanation, minLines: 5, maxLines: 12,
         decoration: const InputDecoration(labelText: '核心概念与我的解释 *')),
       const SizedBox(height: 10),
+      TextField(controller: conditions, minLines: 2, maxLines: 5,
+        decoration: const InputDecoration(labelText: '适用条件与局限')),
+      const SizedBox(height: 10),
       TextField(controller: counter, minLines: 2, maxLines: 5,
         decoration: const InputDecoration(labelText: '反例与适用边界')),
       const SizedBox(height: 10),
@@ -743,7 +799,8 @@ class _CardEditPageState extends State<CardEditPage> {
           notice(context, '标题和自己的解释不能为空'); return;
         }
         final store = CompassScope.of(context);
-        final meta = {'topic': topic, 'counter': counter.text.trim(),
+        final meta = {'topic': topic, 'conditions': conditions.text.trim(),
+          'counter': counter.text.trim(),
           'application': application.text.trim(),
           if (widget.originalSourceId != null) 'source_id': widget.originalSourceId};
         if (widget.id == null) {
@@ -776,7 +833,11 @@ class KnowledgeDetailPage extends StatelessWidget {
         const SizedBox(height: 14),
         Text(entry.body, style: const TextStyle(fontSize: 16, height: 1.65)),
       ])),
-      const SectionHeading('反例与边界'),
+      if (entry.meta['conditions']?.toString().isNotEmpty == true) ...[
+         const SectionHeading('适用条件'),
+         SoftCard(child: Text(entry.meta['conditions'].toString())),
+       ],
+       const SectionHeading('反例与边界'),
       SoftCard(child: Text(entry.meta['counter']?.toString().isNotEmpty == true ?
         entry.meta['counter'].toString() : '还没有补充反例。')),
       const SectionHeading('应用到现实'),

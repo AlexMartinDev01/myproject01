@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'journal_vault.dart';
 import 'chat_store.dart';
+import 'knowledge_candidates.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart';
@@ -455,6 +456,126 @@ class CompassStore extends ChangeNotifier {
     if (result.isEmpty) throw StateError('来源历史版本不存在');
     await update(current.copyWith(title: result.first['title'] as String,
       body: result.first['body'] as String));
+  }
+
+
+  /// Persist only explicitly selected and edited AI candidates.
+  /// One transaction protects against half-saved batches and accidental
+  /// duplication of existing card titles. Old material and private journals
+  /// are never touched by this operation.
+  Future<List<String>> saveKnowledgeCandidates(
+    List<KnowledgeSaveDraft> drafts, {
+    String? conversationId,
+    String? messageId,
+    String? originalSourceId,
+    List<String> offeredSourceIds = const [],
+  }) async {
+    if (drafts.isEmpty || drafts.length > 8) {
+      throw const FormatException('一次只能确认保存 1–8 条知识点');
+    }
+    for (final draft in drafts) {
+      draft.validate();
+    }
+    final verifiedSourceIds = offeredSourceIds.where((id) {
+      final entry = byId(id);
+      return entry != null && (entry.kind == 'source' || entry.kind == 'card');
+    }).toSet().toList();
+    final verifiedOriginal = originalSourceId != null &&
+        byId(originalSourceId)?.kind == 'source' ? originalSourceId : null;
+    final ids = <String>[];
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _db.transaction((txn) async {
+      for (final draft in drafts) {
+        final title = draft.title.trim();
+        final core = draft.explanation.trim();
+        final mergeId = draft.mergeTargetId;
+        final attribution = <String, dynamic>{
+          'created_at': now,
+          'review': 'human_selected',
+          if (conversationId != null) 'conversation_id': conversationId,
+          if (messageId != null) 'message_id': messageId,
+          if (verifiedOriginal != null) 'original_source_id': verifiedOriginal,
+          'offered_source_ids': verifiedSourceIds,
+          'source_claim': 'not_verified',
+        };
+
+        if (mergeId == null) {
+          final existingTitles = await txn.query('entries',
+              columns: ['title'], where: "kind='card'");
+          if (existingTitles.any((row) =>
+              canonicalKnowledgeTitle(row['title'] as String) ==
+              canonicalKnowledgeTitle(title))) {
+            throw StateError('“$title”与现有知识卡标题相同，请选择合并或修改标题');
+          }
+          final id = '${newId()}_${ids.length}';
+          final meta = <String, dynamic>{
+            'topic': draft.topic,
+            'conditions': draft.conditions.trim(),
+            'counter': draft.counterexample.trim(),
+            'application': draft.application.trim(),
+            'ai_candidate_reviews': [attribution],
+            if (verifiedOriginal != null) 'source_id': verifiedOriginal,
+            'ai_assisted': true,
+          };
+          final item = CompassEntry(
+            id: id, kind: 'card', title: title, body: core,
+            status: '待验证', origin: 'AI 提炼 · 人工确认',
+            createdAt: DateTime.now(), updatedAt: DateTime.now(),
+            meta: meta,
+          );
+          await txn.insert('entries', item.toDb(),
+              conflictAlgorithm: ConflictAlgorithm.abort);
+          ids.add(id);
+        } else {
+          final rows = await txn.query('entries', where: 'id=?',
+              whereArgs: [mergeId], limit: 1);
+          if (rows.isEmpty || rows.first['kind'] != 'card') {
+            throw StateError('合并失败：目标知识卡已删除或不是知识卡');
+          }
+          final old = CompassEntry.fromDb(rows.first);
+          if (old.body.contains(core)) {
+            throw StateError('“$title”的内容已在目标知识卡中，已取消重复合并');
+          }
+          final updatedBody = [
+            old.body.trim(),
+            '【经人工确认的新知识点：$title】',
+            core,
+            if (draft.conditions.trim().isNotEmpty)
+              '适用条件：${draft.conditions.trim()}',
+          ].where((part) => part.isNotEmpty).join('\n\n');
+          String appendDistinct(Object? previous, String extra) {
+            final before = previous?.toString().trim() ?? '';
+            final after = extra.trim();
+            if (after.isEmpty || before.contains(after)) return before;
+            return before.isEmpty ? after : '$before\n\n$after';
+          }
+          final rawReviews = old.meta['ai_candidate_reviews'];
+          final reviews = <dynamic>[
+            if (rawReviews is List) ...rawReviews,
+            attribution,
+          ];
+          if (reviews.length > 50) reviews.removeRange(0, reviews.length - 50);
+          final meta = <String, dynamic>{
+            ...old.meta,
+            'conditions': appendDistinct(old.meta['conditions'], draft.conditions),
+            'counter': appendDistinct(old.meta['counter'], draft.counterexample),
+            'application': appendDistinct(old.meta['application'], draft.application),
+            'ai_candidate_reviews': reviews,
+            'ai_assisted': true,
+          };
+          if (verifiedOriginal != null && !meta.containsKey('source_id')) {
+            meta['source_id'] = verifiedOriginal;
+          }
+          final updated = old.copyWith(body: updatedBody,
+              status: '待验证', meta: meta);
+          await txn.update('entries', updated.toDb(),
+              where: "id=? AND kind='card'", whereArgs: [old.id]);
+          ids.add(old.id);
+        }
+      }
+    });
+    await reload();
+    return ids;
   }
 
   Future<String> exportJson() async {

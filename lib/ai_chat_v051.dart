@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'main.dart';
 import 'screens.dart' show CardEditPage, DeviceSettingsPage,
-    KnowledgeDetailPage, SourceDetailPage, notice, openPage;
+    KnowledgeDetailPage, SourceDetailPage;
 import 'core/ai.dart';
 import 'core/chat_store.dart';
 import 'core/store.dart';

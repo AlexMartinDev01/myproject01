@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'journal_vault.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart';
@@ -64,10 +66,11 @@ class SourceNote {
 }
 
 class CompassStore extends ChangeNotifier {
-  CompassStore._(this._db, this._prefs, this._secure);
+  CompassStore._(this._db, this._prefs, this._secure, this._vault);
   final Database _db;
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
+  final JournalVault _vault;
   List<CompassEntry> items = [];
   List<SourceNote> notes = [];
   List<SourceNote> notesForSource(String sourceId) =>
@@ -96,9 +99,106 @@ class CompassStore extends ChangeNotifier {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_versions_source ON source_versions(source_id, created_at)');
   }
 
+
+  static Future<void> createJournalSchema(Database db) async {
+    await db.execute('''CREATE TABLE IF NOT EXISTS journal_revisions (
+      revision_id TEXT PRIMARY KEY, journal_id TEXT NOT NULL,
+      byte_count INTEGER NOT NULL, saved_at TEXT NOT NULL,
+      FOREIGN KEY(journal_id) REFERENCES entries(id) ON DELETE CASCADE)''');
+    await db.execute('''CREATE TABLE IF NOT EXISTS journal_attachments (
+      id TEXT PRIMARY KEY, journal_id TEXT NOT NULL, filename TEXT NOT NULL,
+      mime TEXT NOT NULL, byte_count INTEGER NOT NULL, saved_at TEXT NOT NULL,
+      FOREIGN KEY(journal_id) REFERENCES entries(id) ON DELETE CASCADE)''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_journal_rev ON journal_revisions(journal_id,saved_at)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_journal_asset ON journal_attachments(journal_id,saved_at)');
+  }
+
+  Future<void> migrateLegacyJournals() async {
+    for (final e in items.where((i) => i.kind == 'journal')) {
+      final existing = await _db.query('journal_revisions', where: 'journal_id=?',
+          whereArgs: [e.id], limit: 1);
+      if (existing.isNotEmpty) continue;
+      final legacy = await _secure.read(key: 'journal:' + e.id);
+      if (legacy == null) continue;
+      final revision = await _vault.writeText(e.id, legacy);
+      await _db.insert('journal_revisions', {
+        'revision_id': revision, 'journal_id': e.id,
+        'byte_count': utf8.encode(legacy).length,
+        'saved_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      if (await _vault.readText(e.id, revision) != legacy) {
+        throw StateError('旧日记加密迁移校验失败');
+      }
+      // Erase old secure-storage value only after verified migration.
+      await _secure.delete(key: 'journal:' + e.id);
+    }
+  }
+
+  Future<List<Map<String, Object?>>> journalHistory(String id) async =>
+      _db.query('journal_revisions', where: 'journal_id=?',
+          whereArgs: [id], orderBy: 'saved_at DESC');
+
+  Future<void> restoreJournalRevision(String id, String revision) async {
+    final rows = await _db.query('journal_revisions',
+        where: 'journal_id=? AND revision_id=?',
+        whereArgs: [id, revision], limit: 1);
+    if (rows.isEmpty) throw StateError('日记历史版本不存在');
+    final content = await _vault.readText(id, revision);
+    final entry = byId(id);
+    if (entry == null || entry.kind != 'journal') throw StateError('日记不存在');
+    await update(entry.copyWith(), privateBody: content);
+  }
+
+  Future<List<Map<String, Object?>>> journalAttachments(String id) async =>
+      _db.query('journal_attachments', where: 'journal_id=?',
+          whereArgs: [id], orderBy: 'saved_at DESC');
+
+  Future<void> addJournalAttachment(String journalId, File file, String name) async {
+    final entry = byId(journalId);
+    if (entry == null || entry.kind != 'journal') throw StateError('请先保存日记');
+    final size = await file.length();
+    if (size <= 0 || size > 40 * 1024 * 1024) {
+      throw const FormatException('附件须为 1 字节至 40 MB');
+    }
+    final suffix = name.toLowerCase();
+    final mime = suffix.endsWith('.pdf') ? 'application/pdf'
+        : suffix.endsWith('.docx')
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : '';
+    if (mime.isEmpty) throw const FormatException('仅支持 PDF 或 DOCX');
+    final reader = await file.open();
+    final bytes = await reader.read(5);
+    await reader.close();
+    final valid = mime == 'application/pdf'
+        ? bytes.length == 5 && String.fromCharCodes(bytes) == '%PDF-'
+        : bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4b;
+    if (!valid) throw const FormatException('文件内容与扩展名不匹配');
+    final id = newId();
+    await _vault.encryptAttachment(journalId, id, file);
+    try {
+      await _db.insert('journal_attachments', {
+        'id': id, 'journal_id': journalId, 'filename': basename(name),
+        'mime': mime, 'byte_count': size,
+        'saved_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (_) {
+      await _vault.removeAttachment(journalId, id);
+      rethrow;
+    }
+    notifyListeners();
+  }
+
+  Future<void> removeJournalAttachment(String journalId, String id) async {
+    final count = await _db.delete('journal_attachments',
+        where: 'id=? AND journal_id=?', whereArgs: [id, journalId]);
+    if (count == 0) throw StateError('附件不存在');
+    await _vault.removeAttachment(journalId, id);
+    notifyListeners();
+  }
+
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 3, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+      version: 4, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onUpgrade: (Database db, int oldV, int newV) async {
         if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         if (oldV < 3) {
@@ -108,6 +208,7 @@ class CompassStore extends ChangeNotifier {
             SELECT id || ':legacy-v1', id, title, body, created_at FROM entries
             WHERE kind='source' AND length(body) > 0''');
         }
+        if (oldV < 4) await createJournalSchema(db);
       }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
@@ -118,14 +219,17 @@ class CompassStore extends ChangeNotifier {
         await database.execute('CREATE INDEX idx_entries_updated ON entries(updated_at)');
         await database.execute('CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         await createNotesSchema(database);
+        await createJournalSchema(database);
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();
-    final store = CompassStore._(db, prefs, secure);
+    final vault = JournalVault(secure, Directory(join(await getDatabasesPath(), 'journal_vault_v1')));
+    final store = CompassStore._(db, prefs, secure, vault);
     store.serverUrl = prefs.getString('server_url') ?? '';
     store.deviceToken = await secure.read(key: 'device_token') ?? '';
     store.onboarded = prefs.getBool('onboarded') ?? false;
     await store.reload();
+    await store.migrateLegacyJournals();
     return store;
   }
 
@@ -157,26 +261,44 @@ class CompassStore extends ChangeNotifier {
     final item = CompassEntry(id: newId(), kind: kind, title: title.trim(),
       body: kind == 'journal' ? '' : body, status: status, origin: origin,
       createdAt: now, updatedAt: now, meta: meta);
-    if (kind == 'journal') {
-      await _secure.write(key: 'journal:${item.id}', value: body);
+    final revision = kind == 'journal' ? await _vault.writeText(item.id, body) : null;
+    try {
+      await _db.transaction((txn) async {
+        await txn.insert('entries', item.toDb(), conflictAlgorithm: ConflictAlgorithm.abort);
+        if (revision != null) {
+          await txn.insert('journal_revisions', {'revision_id': revision,
+            'journal_id': item.id, 'byte_count': utf8.encode(body).length,
+            'saved_at': now.toUtc().toIso8601String()});
+        }
+        if (kind == 'source' && body.isNotEmpty) {
+          await txn.insert('source_versions', {'id': newId(), 'source_id': item.id,
+            'title': item.title, 'body': body, 'created_at': now.toIso8601String()});
+        }
+      });
+    } catch (_) {
+      if (revision != null) await _vault.removeRevision(item.id, revision);
+      rethrow;
     }
-    await _db.transaction((txn) async {
-      await txn.insert('entries', item.toDb(), conflictAlgorithm: ConflictAlgorithm.abort);
-      if (kind == 'source' && body.isNotEmpty) {
-        await txn.insert('source_versions', {'id': newId(), 'source_id': item.id,
-          'title': item.title, 'body': body, 'created_at': now.toIso8601String()});
-      }
-    });
     await reload();
     return item;
   }
 
   Future<void> update(CompassEntry entry, {String? privateBody}) async {
     final toSave = entry.kind == 'journal' ? entry.copyWith(body: '') : entry;
-    if (entry.kind == 'journal' && privateBody != null) {
-      await _secure.write(key: 'journal:${entry.id}', value: privateBody);
+    String? revision;
+    if (entry.kind == 'journal' && privateBody != null &&
+        privateBody != await privateJournalBody(entry.id)) {
+      revision = await _vault.writeText(entry.id, privateBody);
     }
-    await _db.transaction((txn) async {
+    try {
+      await _db.transaction((txn) async {
+        if (revision != null) {
+          await txn.insert('journal_revisions', {
+            'revision_id': revision, 'journal_id': entry.id,
+            'byte_count': utf8.encode(privateBody!).length,
+            'saved_at': DateTime.now().toUtc().toIso8601String(),
+          });
+        }
       if (toSave.kind == 'source') {
         final before = await txn.query('entries', columns: ['title', 'body'],
           where: 'id=? AND kind=?', whereArgs: [toSave.id, 'source'], limit: 1);
@@ -188,20 +310,31 @@ class CompassStore extends ChangeNotifier {
         }
       }
       await txn.update('entries', toSave.toDb(), where: 'id=?', whereArgs: [entry.id]);
-    });
+      });
+    } catch (_) {
+      if (revision != null) await _vault.removeRevision(entry.id, revision);
+      rethrow;
+    }
     await reload();
   }
 
   Future<void> remove(CompassEntry entry) async {
-    if (entry.kind == 'journal') {
-      await _secure.delete(key: 'journal:${entry.id}');
-    }
     await _db.delete('entries', where: 'id=?', whereArgs: [entry.id]);
+    if (entry.kind == 'journal') {
+      await _vault.deleteJournal(entry.id);
+      await _secure.delete(key: 'journal:' + entry.id);
+    }
     await reload();
   }
 
-  Future<String> privateJournalBody(String id) async =>
-      await _secure.read(key: 'journal:$id') ?? '';
+  Future<String> privateJournalBody(String id) async {
+    final rows = await _db.query('journal_revisions', where: 'journal_id=?',
+        whereArgs: [id], orderBy: 'saved_at DESC', limit: 1);
+    if (rows.isNotEmpty) {
+      return _vault.readText(id, rows.first['revision_id'] as String);
+    }
+    return await _secure.read(key: 'journal:' + id) ?? '';
+  }
 
   List<CompassEntry> search(String value, {bool includeJournals = false}) {
     final query = value.trim().toLowerCase();

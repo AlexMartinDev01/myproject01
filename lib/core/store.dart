@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'journal_vault.dart';
+import 'chat_store.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart';
@@ -71,6 +72,7 @@ class CompassStore extends ChangeNotifier {
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
   final JournalVault _vault;
+  late final ChatStore chats = ChatStore(_db, _vault);
   List<CompassEntry> items = [];
   List<SourceNote> notes = [];
   List<SourceNote> notesForSource(String sourceId) =>
@@ -201,7 +203,7 @@ class CompassStore extends ChangeNotifier {
 
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 4, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+      version: 5, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onUpgrade: (Database db, int oldV, int newV) async {
         if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         if (oldV < 3) {
@@ -212,6 +214,7 @@ class CompassStore extends ChangeNotifier {
             WHERE kind='source' AND length(body) > 0''');
         }
         if (oldV < 4) await createJournalSchema(db);
+        if (oldV < 5) await ChatStore.createSchema(db);
       }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
@@ -223,6 +226,7 @@ class CompassStore extends ChangeNotifier {
         await database.execute('CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         await createNotesSchema(database);
         await createJournalSchema(database);
+        await ChatStore.createSchema(database);
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();

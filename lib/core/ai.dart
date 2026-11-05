@@ -44,7 +44,8 @@ class AiClient {
   Future<bool> check() async => (await health()).providerConfigured;
 
   Future<AiResult> ask(String question, {String mode = 'ask',
-    List<CompassEntry> evidence = const [], String? privateText}) async {
+    List<CompassEntry> evidence = const [], String? privateText,
+    List<Map<String, String>> history = const []}) async {
     final requestId = 'req_${CompassStore.newId()}';
     String? consentToken;
     if (privateText != null && privateText.isNotEmpty) {
@@ -56,6 +57,7 @@ class AiClient {
     }
     final payload = <String, dynamic>{
       'question': question, 'mode': mode,
+      'history': history.take(40).map((m) => {'role': m['role'], 'content': m['content']}).toList(),
       'evidence': evidence.take(12).where((e) => e.body.trim().isNotEmpty && e.kind != 'journal')
           .map((e) => <String, String>{'source_id': e.id,
              'title': e.title.length > 200 ? e.title.substring(0, 200) : e.title,

@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'main.dart';
 import 'core/store.dart';
 import 'core/ai.dart';
+import 'ai_chat_v051.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -31,7 +32,7 @@ class WelcomePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('你的知识，由你掌控', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             SizedBox(height: 8),
-            Text('手机离线保存内容；可选连接自己的 Windows AI 工作站。'),
+            Text('手机离线保存内容；可选连接自己的 云端 AI 网关。'),
             SizedBox(height: 10),
             Text('私密日记只有每次明确授权，才会发送给 AI 分析。'),
           ])),
@@ -341,7 +342,7 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
         style: const TextStyle(height: 1.65))),
       if (source.origin.toLowerCase().endsWith('.pdf') && !full)
         NavCard(icon: Icons.picture_as_pdf_outlined, title: '从本地 PDF 提取文字',
-          subtitle: '使用已配对的 Windows AI 工作站，不会绕过加密',
+          subtitle: '使用已配对的 云端 AI 网关，不会绕过加密',
           onTap: () async {
             try {
               final extracted = await AiClient(store).extractPdf(source.origin);
@@ -816,6 +817,9 @@ class AiHubPage extends StatelessWidget {
         Text('基于你允许使用的知识材料回答，也会提出不同的观点。没有依据时会说明不知道。',
           style: TextStyle(height: 1.6)),
       ])),
+      NavCard(icon: Icons.history, title: '历史对话',
+        subtitle: '本机加密保存 · 重命名、搜索和继续追问',
+        onTap: () => openPage(context, const ChatHistoryPage())),
       NavCard(icon: Icons.question_answer_outlined, title: '从知识库提问',
         subtitle: '带来源的问答', onTap: () => openPage(context, const AiChatPage(mode: 'ask'))),
       NavCard(icon: Icons.school_outlined, title: '费曼学习教练',
@@ -828,99 +832,6 @@ class AiHubPage extends StatelessWidget {
         subtitle: '设置 DeepSeek 私有代理或 Windows 节点',
         onTap: () => openPage(context, const DeviceSettingsPage())),
     ]);
-}
-
-class AiChatPage extends StatefulWidget {
-  final String mode;
-  final List<CompassEntry> selectedEvidence;
-  final String? approvedPrivateText;
-  const AiChatPage({super.key, this.mode = 'ask', this.selectedEvidence = const [], this.approvedPrivateText});
-  @override
-  State<AiChatPage> createState() => _AiChatPageState();
-}
-class _AiChatPageState extends State<AiChatPage> {
-  final question = TextEditingController();
-  bool busy = false;
-  bool privateAlreadySent = false;
-  String? answer;
-  String? model;
-  String? error;
-  List<String> references = [];
-  @override
-  void dispose() {question.dispose(); super.dispose();}
-  Future<void> ask() async {
-    if (question.text.trim().isEmpty) {notice(context, '请输入要思考的问题'); return;}
-    if (busy) return;
-    if (widget.approvedPrivateText?.isNotEmpty == true) {
-      if (privateAlreadySent) {
-        final approved = await showDialog<bool>(context: context, barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: const Text('再次授权读取私密日记？'),
-            content: const Text('上一次授权已经失效。继续发送这一条问题将再次把当前日记正文发送到你的 AI 节点，且可能转发至 DeepSeek。'),
-            actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('拒绝')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('允许本次访问'))]));
-        if (approved != true || !mounted) return;
-      }
-      // Consumed before network work: any retry requires new explicit approval.
-      privateAlreadySent = true;
-    }
-    setState(() {busy = true; error = null; answer = null; references = [];});
-    final store = CompassScope.of(context);
-    final candidates = widget.selectedEvidence.isNotEmpty ? widget.selectedEvidence :
-        store.items.where((e) => (e.kind == 'card' || e.kind == 'source') && e.body.isNotEmpty).take(8).toList();
-    try {
-      final response = await AiClient(store).ask(question.text.trim(), mode: widget.mode,
-        evidence: candidates, privateText: widget.approvedPrivateText);
-      if (mounted) setState(() {
-        answer = response.answer; model = response.model; references = response.sourceIds;
-      });
-    } catch (e) {
-      if (mounted) setState(() => error = e.toString());
-    } finally {if (mounted) setState(() => busy = false);}
-  }
-  @override
-  Widget build(BuildContext context) {
-    final titles = {'ask': '知识问答', 'learn': '费曼学习', 'challenge': '反方思辨',
-      'decision': '决策分析', 'review': '复盘教练', 'brief': '资料提炼'};
-    final store = CompassScope.of(context);
-    return PageFrame(title: titles[widget.mode] ?? 'AI 思考',
-      subtitle: widget.approvedPrivateText == null ?
-        '只引用有权访问的知识卡与用户提供的正文，不自动读取私密日记。' :
-        '已授权单次发送私密日记内容到你的 AI 工作站；不会自动保存日记到聊天记录。',
-      children: [
-        if (store.serverUrl.isEmpty) NavCard(icon: Icons.wifi_off_outlined,
-          title: 'AI 节点尚未配置', subtitle: '笔记功能继续离线可用。请先连接 AI 工作站。',
-          onTap: () => openPage(context, const DeviceSettingsPage())),
-        TextField(controller: question, minLines: 3, maxLines: 8,
-          textInputAction: TextInputAction.newline,
-          decoration: const InputDecoration(labelText: '写下你想理解或判断的问题',
-            hintText: '例如：我总在重大选择前犹豫，真正需要补哪些信息？')),
-        const SizedBox(height: 12),
-        FilledButton.icon(onPressed: busy ? null : ask,
-          icon: Icon(busy ? Icons.hourglass_top : Icons.auto_awesome),
-          label: Text(busy ? '正在请求 AI…' : '开始深度思考')),
-        if (busy) const Padding(padding: EdgeInsets.all(18), child: LinearProgressIndicator()),
-        if (error != null) SoftCard(color: const Color(0xFFFFF0EF),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(error!, style: const TextStyle(color: Color(0xFFA22B35))),
-            TextButton(onPressed: () => openPage(context, const DeviceSettingsPage()),
-              child: const Text('检查设备连接')),
-          ])),
-        if (answer != null) ...[
-          const SectionHeading('AI 的分析'),
-          SoftCard(color: const Color(0xFFF3EDF7), child: SelectableText(answer!,
-            style: const TextStyle(fontSize: 15, height: 1.7))),
-          Text('模型：${model ?? '-'} · 已提供 ${references.length} 个可用来源 ID，具体引用以回答中的标注为准',
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(onPressed: () => Clipboard.setData(ClipboardData(text: answer!)),
-            icon: const Icon(Icons.copy), label: const Text('复制分析文本')),
-          if (widget.mode != 'decision') OutlinedButton.icon(onPressed: () =>
-            openPage(context, CardEditPage(initialTitle: question.text.trim(), initialBody: answer!)),
-            icon: const Icon(Icons.bookmark_add_outlined), label: const Text('整理为知识卡草稿')),
-        ],
-      ]);
-  }
 }
 
 class DecisionPage extends StatelessWidget {
@@ -1660,7 +1571,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
       const SoftCard(color: Color(0xFFF4EDF9), child: Column(children: [
         Icon(Icons.computer_outlined, color: grape, size: 33),
         SizedBox(height: 8),
-        Text('Windows 私人 AI 工作站', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text('云端 AI 网关', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         SizedBox(height: 8),
         Text('电脑离线不影响手机记笔记；在线且正确配置服务端密钥后可使用 AI。',
           textAlign: TextAlign.center),

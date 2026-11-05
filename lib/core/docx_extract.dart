@@ -13,11 +13,11 @@ Future<String> extractDocxText(File file) async {
 }
 
 String parseDocxBytes(Uint8List data) {
-  final zip = ZipDecoder().decodeBytes(data);
+  final zip = ZipDecoder().decodeBytes(data, verify: true);
   final xml = zip.findFile('word/document.xml');
   if (xml == null) throw const FormatException('不是有效的 DOCX');
-  final bytes = xml.content as List<int>;
-  if (bytes.length > 60 * 1024 * 1024) throw const FormatException('文件解压后过大');
+  if (xml.size > 60 * 1024 * 1024) throw const FormatException('文件解压后过大');
+  final bytes = xml.content;
   final root = XmlDocument.parse(utf8.decode(bytes));
   final lines = <String>[];
   for (final p in root.findAllElements('w:p')) {

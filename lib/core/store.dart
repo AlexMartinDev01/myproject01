@@ -144,6 +144,9 @@ class CompassStore extends ChangeNotifier {
         whereArgs: [id, revision], limit: 1);
     if (rows.isEmpty) throw StateError('日记历史版本不存在');
     final content = await _vault.readText(id, revision);
+    if (utf8.encode(content).length != rows.first['byte_count']) {
+      throw StateError('历史日记密文不完整，已停止恢复');
+    }
     final entry = byId(id);
     if (entry == null || entry.kind != 'journal') throw StateError('日记不存在');
     await update(entry.copyWith(), privateBody: content);
@@ -331,7 +334,11 @@ class CompassStore extends ChangeNotifier {
     final rows = await _db.query('journal_revisions', where: 'journal_id=?',
         whereArgs: [id], orderBy: 'saved_at DESC', limit: 1);
     if (rows.isNotEmpty) {
-      return _vault.readText(id, rows.first['revision_id'] as String);
+      final text = await _vault.readText(id, rows.first['revision_id'] as String);
+      if (utf8.encode(text).length != rows.first['byte_count']) {
+        throw StateError('私密日记密文不完整，已停止读取，请从加密备份恢复');
+      }
+      return text;
     }
     return await _secure.read(key: 'journal:' + id) ?? '';
   }

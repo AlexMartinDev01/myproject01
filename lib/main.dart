@@ -125,7 +125,7 @@ class SoftCard extends StatelessWidget {
     decoration: BoxDecoration(color: color ?? Colors.white,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: const Color(0xFFECE3F0))),
-    child: child,
+    child: Material(type: MaterialType.transparency, child: child),
   );
 }
 

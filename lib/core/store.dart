@@ -41,21 +41,73 @@ class CompassEntry {
     meta: meta ?? this.meta);
 }
 
+class SourceNote {
+  final String id;
+  final String sourceId;
+  final String title;
+  final String body;
+  final String chapter;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int revision;
+  const SourceNote({required this.id, required this.sourceId, required this.title,
+    required this.body, required this.chapter, required this.createdAt,
+    required this.updatedAt, required this.revision});
+  factory SourceNote.fromDb(Map<String, Object?> row) => SourceNote(
+    id: row['id'] as String, sourceId: row['source_id'] as String,
+    title: row['title'] as String, body: row['body'] as String,
+    chapter: row['chapter'] as String,
+    createdAt: DateTime.parse(row['created_at'] as String),
+    updatedAt: DateTime.parse(row['updated_at'] as String),
+    revision: row['revision'] as int,
+  );
+}
+
 class CompassStore extends ChangeNotifier {
   CompassStore._(this._db, this._prefs, this._secure);
   final Database _db;
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
   List<CompassEntry> items = [];
+  List<SourceNote> notes = [];
+  List<SourceNote> notesForSource(String sourceId) =>
+      notes.where((n) => n.sourceId == sourceId).toList(growable: false);
   String serverUrl = '';
   String deviceToken = '';
   bool onboarded = false;
   String? lastError;
 
+  static Future<void> createNotesSchema(Database db) async {
+    await db.execute('''CREATE TABLE IF NOT EXISTS source_notes (
+      id TEXT PRIMARY KEY, source_id TEXT NOT NULL, title TEXT NOT NULL,
+      body TEXT NOT NULL, chapter TEXT NOT NULL, revision INTEGER NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT,
+      FOREIGN KEY(source_id) REFERENCES entries(id) ON DELETE CASCADE)''');
+    await db.execute('''CREATE TABLE IF NOT EXISTS note_revisions (
+      note_id TEXT NOT NULL, revision INTEGER NOT NULL, title TEXT NOT NULL,
+      body TEXT NOT NULL, chapter TEXT NOT NULL, saved_at TEXT NOT NULL,
+      PRIMARY KEY(note_id,revision),
+      FOREIGN KEY(note_id) REFERENCES source_notes(id) ON DELETE CASCADE)''');
+    await db.execute('''CREATE TABLE IF NOT EXISTS source_versions (
+      id TEXT PRIMARY KEY, source_id TEXT NOT NULL, title TEXT NOT NULL,
+      body TEXT NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY(source_id) REFERENCES entries(id) ON DELETE CASCADE)''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_notes_source ON source_notes(source_id, updated_at)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_versions_source ON source_versions(source_id, created_at)');
+  }
+
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 2, onUpgrade: (Database db, int oldV, int newV) async {
+      version: 3, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+      onUpgrade: (Database db, int oldV, int newV) async {
         if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        if (oldV < 3) {
+          await createNotesSchema(db);
+          // One immutable baseline per legacy source. Do not overwrite entries/IDs.
+          await db.execute('''INSERT OR IGNORE INTO source_versions (id, source_id, title, body, created_at)
+            SELECT id || ':legacy-v1', id, title, body, created_at FROM entries
+            WHERE kind='source' AND length(body) > 0''');
+        }
       }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
@@ -65,6 +117,7 @@ class CompassStore extends ChangeNotifier {
         await database.execute('CREATE INDEX idx_entries_kind ON entries(kind)');
         await database.execute('CREATE INDEX idx_entries_updated ON entries(updated_at)');
         await database.execute('CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        await createNotesSchema(database);
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();
@@ -91,6 +144,9 @@ class CompassStore extends ChangeNotifier {
   Future<void> reload() async {
     final rows = await _db.query('entries', orderBy: 'updated_at DESC');
     items = rows.map(CompassEntry.fromDb).toList();
+    final noteRows = await _db.query('source_notes', where: 'deleted_at IS NULL',
+      orderBy: 'updated_at DESC');
+    notes = noteRows.map(SourceNote.fromDb).toList();
     notifyListeners();
   }
 
@@ -104,7 +160,13 @@ class CompassStore extends ChangeNotifier {
     if (kind == 'journal') {
       await _secure.write(key: 'journal:${item.id}', value: body);
     }
-    await _db.insert('entries', item.toDb(), conflictAlgorithm: ConflictAlgorithm.abort);
+    await _db.transaction((txn) async {
+      await txn.insert('entries', item.toDb(), conflictAlgorithm: ConflictAlgorithm.abort);
+      if (kind == 'source' && body.isNotEmpty) {
+        await txn.insert('source_versions', {'id': newId(), 'source_id': item.id,
+          'title': item.title, 'body': body, 'created_at': now.toIso8601String()});
+      }
+    });
     await reload();
     return item;
   }
@@ -114,7 +176,19 @@ class CompassStore extends ChangeNotifier {
     if (entry.kind == 'journal' && privateBody != null) {
       await _secure.write(key: 'journal:${entry.id}', value: privateBody);
     }
-    await _db.update('entries', toSave.toDb(), where: 'id=?', whereArgs: [entry.id]);
+    await _db.transaction((txn) async {
+      if (toSave.kind == 'source') {
+        final before = await txn.query('entries', columns: ['title', 'body'],
+          where: 'id=? AND kind=?', whereArgs: [toSave.id, 'source'], limit: 1);
+        if (before.isNotEmpty &&
+          (before.first['title'] != toSave.title || before.first['body'] != toSave.body)) {
+          await txn.insert('source_versions', {'id': newId(), 'source_id': toSave.id,
+            'title': toSave.title, 'body': toSave.body,
+            'created_at': DateTime.now().toIso8601String()});
+        }
+      }
+      await txn.update('entries', toSave.toDb(), where: 'id=?', whereArgs: [entry.id]);
+    });
     await reload();
   }
 
@@ -132,8 +206,12 @@ class CompassStore extends ChangeNotifier {
   List<CompassEntry> search(String value, {bool includeJournals = false}) {
     final query = value.trim().toLowerCase();
     if (query.isEmpty) return items.where((e) => includeJournals || e.kind != 'journal').toList();
+    final linkedSourceIds = notes.where((n) =>
+      ('${n.title}\n${n.chapter}\n${n.body}'.toLowerCase().contains(query)))
+      .map((n) => n.sourceId).toSet();
     return items.where((e) => (includeJournals || e.kind != 'journal') &&
-      ('${e.title}\n${e.body}\n${e.origin}'.toLowerCase().contains(query))).toList();
+      (linkedSourceIds.contains(e.id) ||
+       '${e.title}\n${e.body}\n${e.origin}'.toLowerCase().contains(query))).toList();
   }
 
   Future<void> setOnboarded() async {
@@ -158,52 +236,190 @@ class CompassStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<SourceNote> addNote({required String sourceId, required String title,
+    required String body, String chapter = ''}) async {
+    final source = byId(sourceId);
+    if (source == null || source.kind != 'source') {
+      throw const FormatException('对应来源不存在');
+    }
+    if (body.trim().isEmpty && title.trim().isEmpty) {
+      throw const FormatException('笔记内容或标题不能为空');
+    }
+    final now = DateTime.now().toUtc().toIso8601String();
+    final id = newId();
+    await _db.transaction((txn) async {
+      await txn.insert('source_notes', {'id': id, 'source_id': sourceId,
+        'title': title.trim(), 'body': body, 'chapter': chapter.trim(),
+        'created_at': now, 'updated_at': now, 'revision': 1});
+      await txn.insert('note_revisions', {'note_id': id, 'revision': 1,
+        'title': title.trim(), 'body': body, 'chapter': chapter.trim(), 'saved_at': now});
+    });
+    await reload();
+    return notes.firstWhere((n) => n.id == id);
+  }
+
+  Future<void> updateNote(SourceNote previous, {required String title,
+    required String body, required String chapter}) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _db.transaction((txn) async {
+      final rows = await txn.query('source_notes',
+        where: 'id=? AND deleted_at IS NULL', whereArgs: [previous.id], limit: 1);
+      if (rows.isEmpty || rows.first['revision'] != previous.revision) {
+        throw StateError('笔记已在其他操作中发生变化，请刷新后再编辑');
+      }
+      if (rows.first['title'] == title.trim() && rows.first['body'] == body &&
+          rows.first['chapter'] == chapter.trim()) return;
+      final revision = previous.revision + 1;
+      await txn.update('source_notes', {'title': title.trim(), 'body': body,
+        'chapter': chapter.trim(), 'revision': revision, 'updated_at': now},
+        where: 'id=?', whereArgs: [previous.id]);
+      await txn.insert('note_revisions', {'note_id': previous.id, 'revision': revision,
+        'title': title.trim(), 'body': body, 'chapter': chapter.trim(), 'saved_at': now});
+    });
+    await reload();
+  }
+
+  Future<List<Map<String, Object?>>> noteHistory(String noteId) async =>
+    await _db.query('note_revisions', where: 'note_id=?', whereArgs: [noteId],
+      orderBy: 'revision DESC');
+
+  Future<void> restoreNote(SourceNote current, int revision) async {
+    final history = await _db.query('note_revisions',
+      where: 'note_id=? AND revision=?', whereArgs: [current.id, revision], limit: 1);
+    if (history.isEmpty) throw StateError('历史版本不存在');
+    final target = history.first;
+    await updateNote(current, title: target['title'] as String,
+      body: target['body'] as String, chapter: target['chapter'] as String);
+  }
+
+  Future<void> removeNote(SourceNote note) async {
+    final updated = await _db.update('source_notes',
+      {'deleted_at': DateTime.now().toUtc().toIso8601String()},
+      where: 'id=? AND deleted_at IS NULL', whereArgs: [note.id]);
+    if (updated == 0) throw StateError('笔记已删除');
+    await reload();
+  }
+
+  Future<List<Map<String, Object?>>> sourceVersions(String sourceId) async =>
+      await _db.query('source_versions', where: 'source_id=?',
+        whereArgs: [sourceId], orderBy: 'created_at DESC');
+
+  Future<void> restoreSourceVersion(CompassEntry current, String versionId) async {
+    if (current.kind != 'source') throw StateError('不是来源记录');
+    final result = await _db.query('source_versions', where: 'id=? AND source_id=?',
+      whereArgs: [versionId, current.id], limit: 1);
+    if (result.isEmpty) throw StateError('来源历史版本不存在');
+    await update(current.copyWith(title: result.first['title'] as String,
+      body: result.first['body'] as String));
+  }
+
   Future<String> exportJson() async {
     final exportable = items.where((e) => e.kind != 'journal').map((e) => e.toDb()).toList();
     // Private journal export intentionally requires separate future user-encrypted export flow.
+    final noteRows = await _db.query('source_notes');
+    final noteRevisionRows = await _db.query('note_revisions');
+    final sourceVersionRows = await _db.query('source_versions');
     return const JsonEncoder.withIndent('  ').convert({
-      'format': 'zhixing-compass-v1', 'exported_at': DateTime.now().toIso8601String(),
-      'entries': exportable, 'private_journals_excluded': true,
+      'format': 'zhixing-compass-v2', 'exported_at': DateTime.now().toIso8601String(),
+      'entries': exportable, 'source_notes': noteRows,
+      'note_revisions': noteRevisionRows, 'source_versions': sourceVersionRows,
+      'private_journals_excluded': true,
+      'binary_attachments_excluded': true,
     });
   }
 
-  /// Restore only regular entries. Validate the entire file before a single atomic transaction.
-  /// Existing IDs remain unchanged; duplicates are skipped, not overwritten.
+  /// Atomic import of ordinary data and note history. Never replaces existing IDs.
+  /// V1 backups are still supported; private diary and binary files remain excluded.
   Future<int> importJson(String raw) async {
     final parsed = jsonDecode(raw);
-    if (parsed is! Map<String, dynamic> || parsed['format'] != 'zhixing-compass-v1' ||
+    if (parsed is! Map<String, dynamic> ||
+        !['zhixing-compass-v1', 'zhixing-compass-v2'].contains(parsed['format']) ||
         parsed['entries'] is! List) {
-      throw const FormatException('不是受支持的知行罗盘普通数据备份');
+      throw const FormatException('不是受支持的知行罗盘备份');
     }
     final list = parsed['entries'] as List;
     if (list.length > 100000) throw const FormatException('记录数量超出限制');
-    final validated = <Map<String, Object?>>[];
-    for (final item in list) {
-      if (item is! Map<String, dynamic>) throw const FormatException('备份记录格式错误');
-      const fields = ['id', 'kind', 'title', 'body', 'status', 'origin',
-        'created_at', 'updated_at', 'meta'];
-      if (fields.any((f) => item[f] is! String)) {
-        throw const FormatException('备份记录缺少必需字段');
+    Map<String, Object?> validateRow(dynamic item, List<String> required,
+        {List<String> optional = const []}) {
+      if (item is! Map<String, dynamic>) throw const FormatException('记录格式错误');
+      if (required.any((key) => item[key] is! String)) {
+        throw const FormatException('记录字段不完整');
       }
-      final kind = item['kind'] as String;
-      if (kind == 'journal' || kind == 'private' || kind == 'consent') {
-        throw const FormatException('禁止通过普通备份导入私密数据');
+      for (final key in optional) {
+        if (item[key] != null && item[key] is! String) {
+          throw const FormatException('附加字段格式错误');
+        }
       }
-      if ((item['id'] as String).isEmpty || (item['title'] as String).length > 10000) {
-        throw const FormatException('备份记录 ID 或标题无效');
+      return <String, Object?>{
+        for (final field in [...required, ...optional])
+          if (item.containsKey(field)) field: item[field],
+      };
+    }
+    const entryFields = ['id', 'kind', 'title', 'body', 'status',
+      'origin', 'created_at', 'updated_at', 'meta'];
+    final entries = list.map((item) => validateRow(item, entryFields)).toList();
+    for (final entry in entries) {
+      if (['journal', 'private', 'consent'].contains(entry['kind']) ||
+          (entry['id'] as String).isEmpty) {
+        throw const FormatException('普通备份不能含私密数据或空 ID');
       }
-      final meta = jsonDecode(item['meta'] as String);
-      if (meta is! Map<String, dynamic>) throw const FormatException('记录元数据无效');
-      DateTime.parse(item['created_at'] as String);
-      DateTime.parse(item['updated_at'] as String);
-      validated.add({for (final key in fields) key: item[key] as String});
+      if (jsonDecode(entry['meta'] as String) is! Map<String, dynamic>) {
+        throw const FormatException('元数据 JSON 无效');
+      }
+      DateTime.parse(entry['created_at'] as String);
+      DateTime.parse(entry['updated_at'] as String);
+    }
+    final isV2 = parsed['format'] == 'zhixing-compass-v2';
+    List<Map<String, Object?>> validateTable(String key,
+        List<String> required, {List<String> optional = const []}) {
+      final input = isV2 ? parsed[key] : null;
+      if (input == null) return [];
+      if (input is! List || input.length > 100000) {
+        throw FormatException('无效的 $key 记录列表');
+      }
+      return input.map((x) => validateRow(x, required, optional: optional)).toList();
+    }
+    final notesData = validateTable('source_notes',
+      ['id', 'source_id', 'title', 'body', 'chapter', 'created_at', 'updated_at'],
+      optional: ['deleted_at']);
+    final revisionsData = validateTable('note_revisions',
+      ['note_id', 'title', 'body', 'chapter', 'saved_at']);
+    final versionsData = validateTable('source_versions',
+      ['id', 'source_id', 'title', 'body', 'created_at']);
+    // Keep integer revision values (do not coerce arbitrary data to 0).
+    if (isV2) {
+      for (var i = 0; i < notesData.length; i++) {
+        final n = (parsed['source_notes'] as List)[i];
+        if (n['revision'] is! int || n['revision'] < 1) {
+          throw const FormatException('笔记版本号无效');
+        }
+        notesData[i]['revision'] = n['revision'];
+      }
+      for (var i = 0; i < revisionsData.length; i++) {
+        final r = (parsed['note_revisions'] as List)[i];
+        if (r['revision'] is! int || r['revision'] < 1) {
+          throw const FormatException('历史版本号无效');
+        }
+        revisionsData[i]['revision'] = r['revision'];
+      }
     }
     var count = 0;
     await _db.transaction((txn) async {
-      for (final row in validated) {
-        final inserted = await txn.insert('entries', row,
+      for (final entry in entries) {
+        final id = await txn.insert('entries', entry,
           conflictAlgorithm: ConflictAlgorithm.ignore);
-        if (inserted != 0) count++;
+        if (id > 0) count++;
+      }
+      for (final note in notesData) {
+        await txn.insert('source_notes', note, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      for (final revision in revisionsData) {
+        await txn.insert('note_revisions', revision,
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      for (final version in versionsData) {
+        await txn.insert('source_versions', version,
+          conflictAlgorithm: ConflictAlgorithm.ignore);
       }
     });
     await reload();

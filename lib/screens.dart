@@ -167,7 +167,7 @@ class _InboxPageState extends State<InboxPage> {
           padding: const EdgeInsets.all(16), child: const Icon(Icons.delete, color: Colors.white)),
         confirmDismiss: (_) async => await showDialog<bool>(context: context,
           builder: (c) => AlertDialog(title: const Text('删除这条收集？'),
-            content: const Text('删除后无法恢复。'), actions: [
+            content: const Text('删除来源也会删除该来源下的持续笔记和版本历史，操作无法撤销，请先备份。'), actions: [
               TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('取消')),
               TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('删除'))])) ?? false,
         onDismissed: (_) => store.remove(item),
@@ -218,8 +218,19 @@ class _CapturePageState extends State<CapturePage> {
       final store = CompassScope.of(context);
       final raw = url.text.trim();
       final isWeb = raw.startsWith('http://') || raw.startsWith('https://');
-      final duplicate = isWeb && store.ofKind('source').any((e) => e.origin == raw);
-      if (duplicate) { notice(context, '这条链接已经在收集箱中'); return; }
+      final matches = isWeb ? store.ofKind('source').where((e) => e.origin == raw).toList() : <CompassEntry>[];
+      if (matches.isNotEmpty) {
+        if (body.text.trim().isNotEmpty) {
+          await store.addNote(sourceId: matches.first.id,
+            title: title.text.trim().isEmpty ? '新增摘录 / 笔记' : title.text.trim(),
+            body: body.text.trim());
+          if (mounted) {notice(context, '内容已追加到原来源下，不会覆盖以前的笔记'); Navigator.pop(context);}
+        } else if (mounted) {
+          notice(context, '这个链接已经收藏；可以在原来源下继续追加笔记');
+          Navigator.pop(context);
+        }
+        return;
+      }
       await store.add(kind: 'source', title: title.text.trim().isEmpty ?
           (raw.isEmpty ? body.text.trim().split('\n').first : raw) : title.text.trim(),
         body: body.text.trim(), origin: raw,
@@ -270,14 +281,22 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
   bool thinking = false;
   String? aiBrief;
   Future<void> summarize(CompassEntry source) async {
-    if (source.body.trim().isEmpty) {
+    final notes = CompassScope.of(context).notesForSource(source.id);
+    if (source.body.trim().isEmpty && notes.isEmpty) {
       openPage(context, SourceMissingPage(sourceId: source.id)); return;
     }
+    final evidence = <CompassEntry>[
+      if (source.body.trim().isNotEmpty) source,
+      ...notes.where((n) => n.body.trim().isNotEmpty).take(10).map((n) => CompassEntry(
+        id: 'note-${n.id}', kind: 'note', title: n.title.isEmpty ? source.title : n.title,
+        body: n.body, createdAt: n.createdAt, updatedAt: n.updatedAt)),
+    ];
+    if (evidence.isEmpty) {notice(context, '当前还没有可以整理的笔记正文'); return;}
     setState(() => thinking = true);
     try {
       final result = await AiClient(CompassScope.of(context)).ask(
-        '请忠实提炼这篇资料，注意正文是用户上传或摘录的内容，并不保证完整。',
-        mode: 'brief', evidence: [source]);
+        '请忠实提炼当前已经提供的来源原文和阅读笔记，明确说明资料可能不完整。',
+        mode: 'brief', evidence: evidence);
       if (!mounted) return;
       setState(() => aiBrief = result.answer);
     } catch (e) {
@@ -307,8 +326,14 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
             }
           }, icon: const Icon(Icons.open_in_new), label: const Text('打开原始链接')),
       ])),
+      NavCard(icon: Icons.edit_note_outlined, title: '编辑来源正文和标题',
+        subtitle: '修改会自动记录历史版本，不会覆盖旧版本',
+        onTap: () => openPage(context, SourceEditorPage(sourceId: source.id))),
+      NavCard(icon: Icons.history, title: '来源版本历史',
+        subtitle: '查看原文旧版本，支持恢复',
+        onTap: () => openPage(context, SourceHistoryPage(sourceId: source.id))),
       SectionHeading('原文 / 用户提供的材料'),
-      SoftCard(child: Text(full ? source.body : '当前仅保存了链接或书目信息，尚无可分析的完整正文。',
+      SoftCard(child: SelectableText(full ? source.body : '当前仅保存了链接或书目信息，尚无可分析的完整正文。',
         style: const TextStyle(height: 1.65))),
       if (source.origin.toLowerCase().endsWith('.pdf') && !full)
         NavCard(icon: Icons.picture_as_pdf_outlined, title: '从本地 PDF 提取文字',
@@ -330,6 +355,17 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
       if (!full) NavCard(icon: Icons.edit_note, title: '补录字幕或原文',
         subtitle: '补全材料后才可做基于正文的 AI 摘要',
         onTap: () => openPage(context, SourceMissingPage(sourceId: source.id))),
+      const SectionHeading('我的持续笔记'),
+      NavCard(icon: Icons.note_add_outlined, title: '追加一条读书 / 视频笔记',
+        subtitle: '可按章节、日期不断添加，不覆盖原来的记录',
+        onTap: () => openPage(context, SourceNoteEditorPage(sourceId: source.id))),
+      if (store.notesForSource(source.id).isEmpty)
+        const SoftCard(child: Text('还没有追加笔记，可以边读边记录，所有内容都会保存在这个来源下。')),
+      ...store.notesForSource(source.id).map((n) => NavCard(
+        icon: Icons.sticky_note_2_outlined,
+        title: n.title.isEmpty ? '阅读笔记 · ${n.createdAt.month}/${n.createdAt.day}' : n.title,
+        subtitle: '${n.chapter.isEmpty ? '随手记录' : n.chapter} · 第 ${n.revision} 版 · ${n.body.length > 40 ? '${n.body.substring(0, 40)}…' : n.body}',
+        onTap: () => openPage(context, SourceNoteEditorPage(sourceId: source.id, noteId: n.id)))),
       const SectionHeading('AI 提炼'),
       if (aiBrief != null) SoftCard(color: const Color(0xFFF1E9F6), child: SelectableText(aiBrief!,
         style: const TextStyle(height: 1.6))),
@@ -350,6 +386,216 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
             if (context.mounted) notice(context, '已标记为整理完成');
           }, child: const Text('标记为已整理'))),
       ])),
+    ]);
+  }
+}
+
+/// Edit the original material without conflating it with personal reading notes.
+class SourceEditorPage extends StatefulWidget {
+  final String sourceId;
+  const SourceEditorPage({super.key, required this.sourceId});
+  @override
+  State<SourceEditorPage> createState() => _SourceEditorPageState();
+}
+class _SourceEditorPageState extends State<SourceEditorPage> {
+  final title = TextEditingController();
+  final body = TextEditingController();
+  bool busy = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final e = CompassScope.of(context).byId(widget.sourceId);
+      if (e != null) { title.text = e.title; body.text = e.body; }
+    });
+  }
+  @override
+  void dispose() { title.dispose(); body.dispose(); super.dispose(); }
+  Future<void> save() async {
+    if (busy) return;
+    if (title.text.trim().isEmpty) { notice(context, '请输入标题'); return; }
+    final store = CompassScope.of(context);
+    final entry = store.byId(widget.sourceId);
+    if (entry == null || entry.kind != 'source') { notice(context, '来源不存在'); return; }
+    setState(() => busy = true);
+    try {
+      await store.update(entry.copyWith(title: title.text.trim(), body: body.text,
+        status: body.text.trim().isEmpty ? '需补内容' : entry.status,
+        meta: {...entry.meta, if (body.text != entry.body)
+          'content_level': body.text.trim().isEmpty ? 'metadata_only' : 'user_supplied'}));
+      if (mounted) { notice(context, '保存成功，已保留原文版本历史'); Navigator.pop(context); }
+    } catch (e) { if (mounted) notice(context, '保存失败：$e'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+  @override
+  Widget build(BuildContext context) => PageFrame(title: '编辑来源材料',
+    subtitle: '来源原文和个人笔记分开管理。每次修改都会保留旧版本。', children: [
+    TextField(controller: title, decoration: const InputDecoration(labelText: '标题')),
+    const SizedBox(height: 12),
+    TextField(controller: body, minLines: 12, maxLines: 24,
+      decoration: const InputDecoration(labelText: '已授权的原文、摘录、字幕')),
+    const SizedBox(height: 12),
+    FilledButton.icon(onPressed: busy ? null : save,
+      icon: const Icon(Icons.save_outlined), label: Text(busy ? '保存中…' : '保存并记录版本')),
+  ]);
+}
+
+class SourceNoteEditorPage extends StatefulWidget {
+  final String sourceId;
+  final String? noteId;
+  const SourceNoteEditorPage({super.key, required this.sourceId, this.noteId});
+  @override
+  State<SourceNoteEditorPage> createState() => _SourceNoteEditorPageState();
+}
+class _SourceNoteEditorPageState extends State<SourceNoteEditorPage> {
+  final title = TextEditingController();
+  final chapter = TextEditingController();
+  final body = TextEditingController();
+  bool busy = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.noteId == null) return;
+      final found = CompassScope.of(context).notes.where((n) => n.id == widget.noteId).toList();
+      if (found.isNotEmpty) {
+        title.text = found.first.title;
+        chapter.text = found.first.chapter;
+        body.text = found.first.body;
+      }
+    });
+  }
+  @override
+  void dispose() { title.dispose(); chapter.dispose(); body.dispose(); super.dispose(); }
+  Future<void> save() async {
+    if (busy) return;
+    if (body.text.trim().isEmpty && title.text.trim().isEmpty) {
+      notice(context, '至少写一条标题或笔记内容'); return;
+    }
+    final store = CompassScope.of(context);
+    setState(() => busy = true);
+    try {
+      if (widget.noteId == null) {
+        await store.addNote(sourceId: widget.sourceId, title: title.text,
+          body: body.text, chapter: chapter.text);
+      } else {
+        final current = store.notes.where((n) => n.id == widget.noteId).toList();
+        if (current.isEmpty) throw StateError('笔记已删除');
+        await store.updateNote(current.first, title: title.text,
+          body: body.text, chapter: chapter.text);
+      }
+      if (mounted) { notice(context, '已保存笔记和版本历史'); Navigator.pop(context); }
+    } catch (e) { if (mounted) notice(context, '保存失败：$e'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    final note = CompassScope.of(context).notes.where((n) => n.id == widget.noteId).toList();
+    return PageFrame(title: widget.noteId == null ? '追加笔记' : '编辑阅读笔记',
+      subtitle: '同一来源可无限次追加。历史版本不会因编辑而消失。', children: [
+      TextField(controller: title, maxLength: 160,
+        decoration: const InputDecoration(labelText: '本条笔记标题（可选）')),
+      const SizedBox(height: 10),
+      TextField(controller: chapter,
+        decoration: const InputDecoration(labelText: '章节 / 页码 / 时间码（可选）')),
+      const SizedBox(height: 10),
+      TextField(controller: body, minLines: 10, maxLines: 22,
+        decoration: const InputDecoration(labelText: '我的摘录、思考与质疑')),
+      const SizedBox(height: 12),
+      FilledButton.icon(onPressed: busy ? null : save,
+        icon: const Icon(Icons.save_outlined), label: Text(busy ? '正在保存…' : '保存笔记')),
+      if (note.isNotEmpty) ...[
+        NavCard(icon: Icons.history, title: '查看与恢复编辑历史',
+          subtitle: '当前第 ${note.first.revision} 版',
+          onTap: () async {
+            await openPage(context, NoteHistoryPage(noteId: note.first.id));
+            if (!mounted) return;
+            final fresh = CompassScope.of(context).notes.where((n) => n.id == note.first.id).toList();
+            if (fresh.isNotEmpty) {
+              setState(() { title.text = fresh.first.title; chapter.text = fresh.first.chapter;
+                body.text = fresh.first.body; });
+            }
+          }),
+        OutlinedButton.icon(onPressed: () async {
+          final yes = await showDialog<bool>(context: context,
+            builder: (ctx) => AlertDialog(title: const Text('删除这条笔记？'),
+              content: const Text('删除后不会再出现在来源笔记列表里。'),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除'))]));
+          if (yes != true || !context.mounted) return;
+          await CompassScope.of(context).removeNote(note.first);
+          if (context.mounted) Navigator.pop(context);
+        }, icon: const Icon(Icons.delete_outline), label: const Text('删除笔记')),
+      ],
+    ]);
+  }
+}
+
+class NoteHistoryPage extends StatelessWidget {
+  final String noteId;
+  const NoteHistoryPage({super.key, required this.noteId});
+  @override
+  Widget build(BuildContext context) {
+    final store = CompassScope.of(context);
+    return PageFrame(title: '笔记版本历史', subtitle: '点击历史版本可查看并恢复，不覆盖当前版本。', children: [
+      FutureBuilder<List<Map<String, Object?>>>(
+        future: store.noteHistory(noteId),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          return Column(children: snapshot.data!.map((row) => NavCard(
+            icon: Icons.history,
+            title: '第 ${row['revision']} 版 · ${row['title']}',
+            subtitle: '${row['saved_at']} · ${(row['body'] as String).length > 50 ? (row['body'] as String).substring(0, 50) : row['body']}',
+            onTap: () async {
+              final ok = await showDialog<bool>(context: context,
+                builder: (ctx) => AlertDialog(title: const Text('恢复此历史版本？'),
+                  content: SelectableText((row['body'] as String).length > 1200 ?
+                    '${(row['body'] as String).substring(0, 1200)}…' : row['body'] as String),
+                  actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('恢复为新版'))]));
+              if (ok != true || !context.mounted) return;
+              final notes = store.notes.where((n) => n.id == noteId).toList();
+              if (notes.isEmpty) { notice(context, '笔记已不存在'); return; }
+              try {
+                await store.restoreNote(notes.first, row['revision'] as int);
+                if (context.mounted) { notice(context, '已恢复，旧版本仍保留'); Navigator.pop(context); }
+              } catch (e) { if (context.mounted) notice(context, '恢复失败：$e'); }
+            })).toList());
+        }),
+    ]);
+  }
+}
+
+class SourceHistoryPage extends StatelessWidget {
+  final String sourceId;
+  const SourceHistoryPage({super.key, required this.sourceId});
+  @override
+  Widget build(BuildContext context) {
+    final store = CompassScope.of(context);
+    return PageFrame(title: '原始来源版本历史', children: [
+      FutureBuilder<List<Map<String, Object?>>>(future: store.sourceVersions(sourceId),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          return Column(children: snapshot.data!.map((row) => NavCard(
+            icon: Icons.history,
+            title: '${row['title']}', subtitle: '保存于 ${row['created_at']}',
+            onTap: () async {
+              final ok = await showDialog<bool>(context: context,
+                builder: (ctx) => AlertDialog(title: const Text('恢复此来源版本？'),
+                  content: SelectableText((row['body'] as String).length > 1500 ?
+                    '${(row['body'] as String).substring(0, 1500)}…' : row['body'] as String),
+                  actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('恢复'))]));
+              if (ok != true || !context.mounted) return;
+              final source = store.byId(sourceId);
+              if (source == null) return;
+              try {
+                await store.restoreSourceVersion(source, row['id'] as String);
+                if (context.mounted) { notice(context, '来源已恢复到指定版本'); Navigator.pop(context); }
+              } catch (e) { if (context.mounted) notice(context, '恢复失败：$e'); }
+            })).toList());
+        }),
     ]);
   }
 }

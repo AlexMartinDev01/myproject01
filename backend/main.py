@@ -35,6 +35,8 @@ def require_device(x_device_token: str | None = Header(default=None)) -> None:
 class Consent(BaseModel):
     private_text: str = Field(min_length=1, max_length=24000)
     request_id: str = Field(min_length=8, max_length=100)
+    question: str = Field(min_length=1, max_length=8000)
+    mode: Literal["ask", "brief", "learn", "challenge", "decision", "review"] = "ask"
 
 
 class ConsentResult(BaseModel):
@@ -46,6 +48,8 @@ class ConsentResult(BaseModel):
 class PendingConsent:
     digest: str
     request_id: str
+    question_digest: str
+    mode: str
     expires_at: float
 
 
@@ -82,7 +86,8 @@ def consent(req: Consent) -> ConsentResult:
         for key, value in list(pending.items()):
             if value.expires_at < now:
                 pending.pop(key, None)
-        pending[token] = PendingConsent(digest, req.request_id, now + 90)
+        question_digest = hashlib.sha256(req.question.strip().encode()).hexdigest()
+        pending[token] = PendingConsent(digest, req.request_id, question_digest, req.mode, now + 90)
     return ConsentResult(token=token)
 
 
@@ -148,6 +153,8 @@ def consume_consent(req: ChatRequest) -> None:
         and saved.expires_at >= time.monotonic()
         and hmac.compare_digest(saved.request_id, req.request_id)
         and hmac.compare_digest(saved.digest, hashlib.sha256(req.private_text.encode()).hexdigest())
+        and hmac.compare_digest(saved.question_digest, hashlib.sha256(req.question.strip().encode()).hexdigest())
+        and hmac.compare_digest(saved.mode, req.mode)
     )
     if not correct:
         raise HTTPException(status_code=403, detail="授权无效、已过期或已被使用")

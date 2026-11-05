@@ -5,6 +5,9 @@ on:
       - main
       - 'feature/knowledge-compass*'
   workflow_dispatch:
+concurrency:
+  group: knowledge-compass-release-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -44,7 +47,7 @@ jobs:
       - name: Static analyzer
         run: flutter analyze --no-fatal-infos
       - name: Flutter tests
-        run: flutter test --concurrency=1
+        run: flutter test --concurrency=1 --reporter expanded --timeout 2m
       - name: Build Android release APK
         run: flutter build apk --release
       - name: Upload downloadable release APK

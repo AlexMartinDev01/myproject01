@@ -426,6 +426,9 @@ class CompassStore extends ChangeNotifier {
     return count;
   }
 
+  @visibleForTesting
+  Future<void> closeForTests() => _db.close();
+
   @override
   void dispose() {
     _db.close();

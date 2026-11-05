@@ -41,7 +41,7 @@ void main() {
     expect(store.notesForSource(source.id).single.body, '今天想到了一个反例。');
     expect(store.byId(source.id)?.body, '原文不变');
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-    store.dispose();
+    await store.closeForTests();
     await tester.pump(const Duration(milliseconds: 50));
   });
 }

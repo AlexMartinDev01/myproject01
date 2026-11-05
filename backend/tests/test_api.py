@@ -35,7 +35,7 @@ def test_no_private_access_without_per_request_consent():
 
 def test_consent_is_one_shot_even_on_upstream_error():
     token_response = client.post("/v1/consent", headers=HEADERS,
-        json={"private_text": "私密日记内容", "request_id": "request-A"})
+        json={"private_text": "私密日记内容", "request_id": "request-A", "question": "请帮助我反思"})
     assert token_response.status_code == 200
     token = token_response.json()["token"]
     req = {"question": "请帮助我反思", "private_text": "私密日记内容",
@@ -46,7 +46,7 @@ def test_consent_is_one_shot_even_on_upstream_error():
 
 def test_consent_scope_cannot_change():
     token = client.post("/v1/consent", headers=HEADERS,
-        json={"private_text": "允许的文本", "request_id": "request-B"}).json()["token"]
+        json={"private_text": "允许的文本", "request_id": "request-B", "question": "分析"}).json()["token"]
     req = {"question": "分析", "private_text": "偷偷扩展的文本",
            "request_id": "request-B", "consent_token": token}
     assert client.post("/v1/chat", headers=HEADERS, json=req).status_code == 403
@@ -54,3 +54,21 @@ def test_consent_scope_cannot_change():
 
 def test_blank_question_rejected():
     assert client.post("/v1/chat", headers=HEADERS, json={"question": "   "}).status_code == 422
+
+
+def test_consent_is_bound_to_exact_question():
+    token = client.post("/v1/consent", headers=HEADERS,
+        json={"private_text": "私人内容", "request_id": "request-C",
+              "question": "原来的问题", "mode": "challenge"}).json()["token"]
+    forged = {"question": "新的问题", "mode": "challenge", "private_text": "私人内容",
+              "request_id": "request-C", "consent_token": token}
+    assert client.post("/v1/chat", headers=HEADERS, json=forged).status_code == 403
+
+
+def test_consent_cannot_change_ai_mode():
+    token = client.post("/v1/consent", headers=HEADERS,
+        json={"private_text": "私人内容", "request_id": "request-D",
+              "question": "原来的问题", "mode": "review"}).json()["token"]
+    forged = {"question": "原来的问题", "mode": "decision", "private_text": "私人内容",
+              "request_id": "request-D", "consent_token": token}
+    assert client.post("/v1/chat", headers=HEADERS, json=forged).status_code == 403

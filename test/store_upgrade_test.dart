@@ -47,7 +47,7 @@ void main() {
     await store.addNote(sourceId: 'legacy-book', title: '第一章',
       body: '新的补充理解', chapter: '第 1 章');
     expect(store.notesForSource('legacy-book'), hasLength(1));
-    store.dispose();
+    await store.closeForTests();
   });
 
   test('append, edit, revision history, restore and delete are persistent', () async {
@@ -73,7 +73,7 @@ void main() {
     await store.removeNote(restored);
     expect(store.notesForSource(source.id), isEmpty);
     expect(store.byId(source.id)?.body, '原始摘录');
-    store.dispose();
+    await store.closeForTests();
   });
 
   test('V2 backup imports note history atomically and rejects private journals', () async {
@@ -83,7 +83,7 @@ void main() {
     final backup = await store.exportJson();
     expect(backup, contains('zhixing-compass-v2'));
     expect(backup, isNot(contains('私密的日记正文')));
-    store.dispose();
+    await store.closeForTests();
     await Future<void>.delayed(const Duration(milliseconds: 35));
     await deleteDatabase(dbPath);
 
@@ -101,6 +101,6 @@ void main() {
     });
     await expectLater(fresh.importJson(jsonEncode(tampered)), throwsFormatException);
     expect(fresh.byId('hidden'), isNull);
-    fresh.dispose();
+    await fresh.closeForTests();
   });
 }

@@ -49,7 +49,7 @@ class AiClient {
     String? consentToken;
     if (privateText != null && privateText.isNotEmpty) {
       final response = await http.post(endpoint('/v1/consent'), headers: headers,
-        body: jsonEncode({'private_text': privateText, 'request_id': requestId}))
+        body: jsonEncode({'private_text': privateText, 'request_id': requestId, 'question': question, 'mode': mode}))
         .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) throw Exception('日记本次授权失败（${response.statusCode}）');
       consentToken = (jsonDecode(utf8.decode(response.bodyBytes)) as Map)['token'] as String;
@@ -61,7 +61,7 @@ class AiClient {
              'title': e.title.length > 200 ? e.title.substring(0, 200) : e.title,
              'text': e.body.length > 6000 ? e.body.substring(0, 6000) : e.body}).toList(),
       if (privateText != null && privateText.isNotEmpty) ...{
-        'private_text': privateText, 'request_id': requestId, 'consent_token': consentToken,
+        'private_text': privateText, 'request_id': requestId, 'question': question, 'mode': mode, 'consent_token': consentToken,
       }
     };
     final response = await http.post(endpoint('/v1/chat'), headers: headers,

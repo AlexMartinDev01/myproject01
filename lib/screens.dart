@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1456,12 +1458,23 @@ class _PrivacyPageState extends State<PrivacyPage> {
           '• 公开版多用户账号与云同步尚未启用。',
           style: TextStyle(height: 1.7)),
       ])),
-      NavCard(icon: Icons.file_download_outlined, title: '导出普通知识数据',
-        subtitle: '复制 JSON 到剪贴板（私密日记不包含在内）',
+      NavCard(icon: Icons.file_download_outlined, title: '保存普通数据备份文件',
+        subtitle: '选择保存位置并导出 JSON；不包含私密日记和二进制附件',
         onTap: () async {
-          final json = await CompassScope.of(context).exportJson();
-          await Clipboard.setData(ClipboardData(text: json));
-          if (context.mounted) setState(() => result = '已复制普通数据 JSON；请自行保存到安全文件中');
+          try {
+            final json = await CompassScope.of(context).exportJson();
+            final today = DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', '');
+            final saved = await FilePicker.platform.saveFile(
+              dialogTitle: '保存知行罗盘普通数据备份',
+              fileName: 'zhixing-backup-$today.json',
+              type: FileType.custom, allowedExtensions: ['json'],
+              bytes: Uint8List.fromList(utf8.encode(json)));
+            if (context.mounted && saved != null) {
+              setState(() => result = '已请求系统保存普通数据备份到所选位置：$saved');
+            }
+          } catch (e) {
+            if (context.mounted) setState(() => result = '文件备份失败：$e');
+          }
         }),
       NavCard(icon: Icons.restore, title: '恢复普通数据备份',
          subtitle: '选择此前导出的 JSON；只导入新记录，不覆盖旧记录',

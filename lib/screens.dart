@@ -917,7 +917,7 @@ class _LearningPageState extends State<LearningPage> {
                   TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('删除'))]));
               if (yes == true) store.remove(task);
             }),
-          onChanged: (value) => store.update(task.copyWith(status: value == true ? '已完成' : '进行中')))),
+          onChanged: (value) => store.update(task.copyWith(status: value == true ? '已完成' : '进行中'))))),
       OutlinedButton.icon(onPressed: createTask, icon: const Icon(Icons.add_task),
         label: const Text('添加行动任务')),
       const SectionHeading('主动复述'),

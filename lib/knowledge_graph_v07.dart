@@ -51,15 +51,17 @@ class KnowledgeGraphSnapshot {
   }) {
     final cards = all.where((e) => e.kind == 'card').toList()
       ..sort((a,b) => a.title.compareTo(b.title));
-    final selected = cards.where((e) =>
+    final filtered = cards.where((e) =>
       (topic == '全部' || e.meta['topic'] == topic) &&
       ('${e.title} ${e.body}'.toLowerCase().contains(query.trim().toLowerCase())))
-        .take(limit).toList();
+        .toList();
+    final selected = filtered.take(limit).toList();
     final selectedIds = selected.map((e) => e.id).toSet();
     final nodes = selected.map((e) => GraphNode(e.id, e.title,
       e.meta['topic']?.toString() ?? '未分类')).toList();
     final edges = <GraphEdge>[];
     final dedup = <String>{};
+    final nodeIds = nodes.map((n) => n.id).toSet();
     for (final card in selected) {
       for (final id in relations(card)) {
         if (!selectedIds.contains(id)) continue;
@@ -73,7 +75,7 @@ class KnowledgeGraphSnapshot {
     for (final card in selected) {
       final sourceId = card.meta['source_id'];
       if (sourceId is! String || !sources.containsKey(sourceId)) continue;
-      if (!nodes.any((n) => n.id == sourceId)) {
+      if (nodeIds.add(sourceId)) {
         final source = sources[sourceId]!;
         nodes.add(GraphNode(source.id, source.title, '原始来源', isSource: true));
       }
@@ -81,9 +83,7 @@ class KnowledgeGraphSnapshot {
         relation: '来源'));
     }
     return KnowledgeGraphSnapshot(nodes, edges,
-      cards.where((e) => (topic == '全部' || e.meta['topic'] == topic) &&
-        ('${e.title} ${e.body}'.toLowerCase().contains(query.trim().toLowerCase()))).length
-        - selected.length);
+      filtered.length - selected.length);
   }
 }
 
@@ -94,11 +94,30 @@ class KnowledgeGraphPage extends StatefulWidget {
 }
 class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
   final search = TextEditingController();
+  final graphController = TransformationController();
+  String? focusedId;
   String topic = '全部';
   bool showSources = true;
   String selectedRelation = '全部';
   @override
-  void dispose() { search.dispose(); super.dispose(); }
+  void dispose() {
+    search.dispose(); graphController.dispose(); super.dispose();
+  }
+
+  void resetView() {
+    graphController.value = Matrix4.identity();
+    setState(() => focusedId = null);
+  }
+
+  void focusNode(String id, Offset position) {
+    const zoom = 0.85;
+    const viewportCenter = Offset(165, 235);
+    graphController.value = Matrix4.identity()
+      ..translate(viewportCenter.dx - position.dx * zoom,
+                 viewportCenter.dy - position.dy * zoom)
+      ..scale(zoom);
+    setState(() => focusedId = id);
+  }
 
   Map<String, Offset> positions(List<GraphNode> nodes) {
     final result = <String, Offset>{};
@@ -107,11 +126,14 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
       (groups[node.topic] ??= []).add(node);
     }
     final topics = groups.keys.toList()..sort();
+    // Each topic has an independent cell, avoiding inter-topic overlap.
+    final columns = math.max(1, math.sqrt(topics.length).ceil());
+    const cellWidth = 650.0;
+    const cellHeight = 570.0;
     for (var t=0;t<topics.length;t++) {
       final cluster = groups[topics[t]]!;
-      final mainAngle = 2 * math.pi * t / math.max(1,topics.length)-math.pi/2;
-      final center = Offset(490+290*math.cos(mainAngle),
-        400+250*math.sin(mainAngle));
+      final center = Offset(325.0 + (t % columns) * cellWidth,
+        285.0 + (t ~/ columns) * cellHeight);
       // Stable concentric hexagonal rows with increasing capacity.
       // Ring r has 6*r slots; spacing remains proportional as nodes grow.
       for (var i=0;i<cluster.length;i++) {
@@ -125,7 +147,7 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
         final slot=i-completed;
         final angle=2*math.pi*slot/(6*ring)-math.pi/2;
         result[cluster[i].id] = center+Offset(
-          ring*118.0*math.cos(angle),ring*86.0*math.sin(angle));
+          ring*122.0*math.cos(angle),ring*94.0*math.sin(angle));
       }
     }
     return result;
@@ -145,6 +167,8 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
       visibleIds.contains(e.from) && visibleIds.contains(e.to) &&
       (selectedRelation == '全部' || e.relation == selectedRelation)).toList();
     final coords = positions(nodes);
+    final maxX = coords.values.fold<double>(980, (m,p) => math.max(m,p.dx+100));
+    final maxY = coords.values.fold<double>(800, (m,p) => math.max(m,p.dy+90));
     return PageFrame(title: '知识网络',
       subtitle: '真实来源与手动关联 · 全部在本机显示',
       children: [
@@ -180,16 +204,32 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
             '${edges.where((e)=>e.isSource).length} 条来源关系',
             style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: DropdownButtonFormField<String>(
+              key: ValueKey('node_focus_${topic}_${search.text}'),
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: '快速定位节点'),
+              items: nodes.map((n) => DropdownMenuItem(
+                value: n.id, child: Text(n.title, overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (id) {
+                if (id != null && coords.containsKey(id)) focusNode(id, coords[id]!);
+              })),
+            const SizedBox(width: 8),
+            IconButton(tooltip: '重置视图', onPressed: resetView,
+              icon: const Icon(Icons.center_focus_strong)),
+          ]),
+          const SizedBox(height: 8),
           SizedBox(height: 470, child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
             child: Container(
               color: const Color(0xFFF9F6FC),
               child: InteractiveViewer(
-                constrained: false, minScale: 0.35, maxScale: 2.5,
+                transformationController: graphController,
+                constrained: false, minScale: 0.25, maxScale: 2.5,
                 boundaryMargin: const EdgeInsets.all(260),
-                child: SizedBox(width: 980, height: 800, child: Stack(children: [
-                  CustomPaint(size: const Size(980,800),
-                    painter: _EdgePainter(coords,edges)),
+                child: SizedBox(width: maxX, height: maxY, child: Stack(children: [
+                  Positioned.fill(child: RepaintBoundary(
+                    child: CustomPaint(painter: _EdgePainter(coords,edges)))), 
                   ...nodes.map((node) {
                     final p = coords[node.id]!;
                     return Positioned(left: p.dx-55, top: p.dy-23,
@@ -202,7 +242,8 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
                           alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(horizontal: 7),
                           decoration: BoxDecoration(
-                            color: node.isSource ? const Color(0xFFEAF3FC) : Colors.white,
+                            color: focusedId == node.id ? const Color(0xFFFFE9B8) :
+                              node.isSource ? const Color(0xFFEAF3FC) : Colors.white,
                             border: Border.all(color: node.isSource
                               ? const Color(0xFF90B7DD) : grape),
                             borderRadius: BorderRadius.circular(13)),
@@ -258,8 +299,19 @@ class _EdgePainter extends CustomPainter {
     }
   }
   @override
-  bool shouldRepaint(covariant _EdgePainter old) =>
-    old.edges != edges || old.positions != positions;
+  bool shouldRepaint(covariant _EdgePainter old) {
+    if (old.edges.length != edges.length ||
+        old.positions.length != positions.length) return true;
+    for (var i = 0; i < edges.length; i++) {
+      final a = edges[i], b = old.edges[i];
+      if (a.from != b.from || a.to != b.to ||
+          a.relation != b.relation || a.isSource != b.isSource) return true;
+    }
+    for (final entry in positions.entries) {
+      if (old.positions[entry.key] != entry.value) return true;
+    }
+    return false;
+  }
 }
 
 class RelatedCardsEditor extends StatefulWidget {

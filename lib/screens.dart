@@ -1378,7 +1378,7 @@ class _JournalEditPageState extends State<JournalEditPage> {
         source = File(pickedPath);
       } else if (selected.bytes != null) {
         final dir = await getTemporaryDirectory();
-        temporary = File(path.join(dir.path, 'journal_import_${CompassStore.newId()}'));
+        temporary = File(path.join(dir.path, 'journal_import_${CompassStore.newId()}${isWord ? '.docx' : '.pdf'}'));
         await temporary.writeAsBytes(selected.bytes!, flush: true);
         source = temporary;
       } else {

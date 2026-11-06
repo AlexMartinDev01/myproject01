@@ -97,7 +97,13 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
     final options=eligible(diaries);
     final selectedCount=options.where((e)=>selectedIds.contains(e.id)).length;
     return PageFrame(title:'制作我的日记书',
-      subtitle:'离线整理 · 自动排版 · 私人 PDF',children:[
+      subtitle:'离线整理 · 自动排版 · 私人 PDF',
+      bottomBar:SafeArea(top:false,child:Padding(
+        padding:const EdgeInsets.fromLTRB(16,8,16,12),
+        child:FilledButton.icon(onPressed:busy?null:exportBook,
+          icon:const Icon(Icons.picture_as_pdf_outlined),
+          label:Text(busy?'正在生成…':'生成并保存 PDF 日记书')))),
+      children:[
         SoftCard(color:const Color(0xFFF1EAF8),child:Column(
           crossAxisAlignment:CrossAxisAlignment.start,children:[
             const Text('把日子装订成一本书',
@@ -163,10 +169,6 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         if(message.isNotEmpty)Text(message,
           style:const TextStyle(color:grape)),
         const SizedBox(height:8),
-        SizedBox(width:double.infinity,
-          child:FilledButton.icon(onPressed:busy?null:exportBook,
-            icon:const Icon(Icons.picture_as_pdf_outlined),
-            label:Text(busy?'正在生成…':'生成并保存 PDF 日记书'))),
       ]);
   }
 }

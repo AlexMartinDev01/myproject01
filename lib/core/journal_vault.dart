@@ -118,6 +118,28 @@ class JournalVault {
     }
   }
 
+  /// Re-encrypt imported bytes directly in the private vault without writing plaintext files.
+  Future<void> encryptAttachmentBytes(
+      String journalId, String assetId, Uint8List data) async {
+    final dir = journalDir(journalId);
+    final temp = Directory(p.join(dir.path, 'writing_asset_' + safe(assetId)));
+    final target = Directory(p.join(dir.path, 'asset_' + safe(assetId)));
+    await temp.create(recursive: true);
+    try {
+      var n = 0;
+      for (var i = 0; i < data.length; i += chunkSize) {
+        final encrypted = await encrypt(data.sublist(i, min(i + chunkSize,data.length)));
+        await File(p.join(temp.path, n.toString().padLeft(8,'0') + '.chunk'))
+          .writeAsBytes(encrypted,flush:true);
+        n++;
+      }
+      await temp.rename(target.path);
+    } catch (_) {
+      if (await temp.exists()) await temp.delete(recursive:true);
+      rethrow;
+    }
+  }
+
   Future<Uint8List> readAttachment(String journalId, String assetId) async =>
       Uint8List.fromList(await _readParts(Directory(p.join(
           journalDir(journalId).path, 'asset_' + safe(assetId)))));

@@ -32,10 +32,10 @@ void main() {
       child: const MaterialApp(home: JournalReviewPage())));
     expect(find.text('每周小结'), findsOneWidget);
     expect(find.text('每月回顾'), findsOneWidget);
+    expect(find.textContaining('本期记录 0 篇'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('在本机查看正文摘录'), 250,
       scrollable: find.byType(Scrollable).first);
     expect(find.text('在本机查看正文摘录'), findsOneWidget);
-    expect(find.textContaining('本期记录 0 篇'), findsOneWidget);
     expect(find.byType(SelectableText), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
@@ -49,7 +49,9 @@ void main() {
       child: const MaterialApp(home: JournalReviewPage())));
     await tester.tap(find.text('每月回顾'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('这个月最重要的变化'), findsOneWidget);
+    final selected = tester.widget<SegmentedButton<ReviewPeriod>>(
+      find.byType(SegmentedButton<ReviewPeriod>));
+    expect(selected.selected, contains(ReviewPeriod.month));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });

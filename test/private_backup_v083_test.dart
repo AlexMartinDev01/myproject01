@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 import 'package:path/path.dart';
 import 'package:zhixing_compass/core/store.dart';
+import 'package:zhixing_compass/core/private_backup.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +69,33 @@ void main() {
     expect((await restored.journalHistory(journal.id)).length,2);
     await restored.closeForTests();
     if(await src.exists())await src.delete();
+  });
+
+  test('malformed authenticated archive never creates a partial journal', () async {
+    final store=await CompassStore.open();
+    final existing=await store.add(kind:'journal',title:'原始',
+      body:'绝不能改动',status:'私密');
+    final invalid=await PrivateBackupCodec.seal({
+      'version':1,
+      'journals':[{
+        'entry':{
+          'id':'import_a','kind':'journal','title':'无效导入',
+          'body':'','status':'私密','origin':'',
+          'created_at':'2026-01-01T00:00:00.000',
+          'updated_at':'2026-01-01T00:00:00.000','meta':'{}'
+        },
+        'revisions':[{'saved_at':'2026-01-01T00:00:00.000','body':'正常正文'}],
+        'attachments':[{'filename':'invalid.pdf','mime':'application/pdf',
+          'saved_at':'2026-01-01T00:00:00.000',
+          'data':base64Encode(utf8.encode('not a real PDF'))}],
+      }],
+    },'safe-private-backup-password');
+    await expectLater(store.importPrivateBackup(invalid,
+      'safe-private-backup-password'),throwsFormatException);
+    expect(store.byId('import_a'),isNull);
+    expect(store.ofKind('journal').length,1);
+    expect(await store.privateJournalBody(existing.id),'绝不能改动');
+    await store.closeForTests();
   });
 
   test('wrong password and modified archive do not change existing journals', () async {

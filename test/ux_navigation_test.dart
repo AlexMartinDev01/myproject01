@@ -46,6 +46,17 @@ void main() {
     expect(find.text('历史对话'), findsOneWidget);
   });
 
+  testWidgets('journal list offers direct file import', (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async { store = await CompassStore.open(); });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: JournalPage())));
+    expect(find.text('写一篇日记'), findsOneWidget);
+    expect(find.text('导入 Word / PDF 到日记'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
   testWidgets('journal editor has clear import action and persistent save',
       (tester) async {
     late CompassStore store;
@@ -54,6 +65,7 @@ void main() {
       child: const MaterialApp(home: JournalEditPage())));
     expect(find.text('保存本次内容'), findsOneWidget);
     expect(find.text('导入 Word / PDF 日记'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2));
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(scaffold.bottomNavigationBar, isNotNull);
     await tester.pumpWidget(const SizedBox.shrink());

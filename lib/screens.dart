@@ -1916,7 +1916,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           style: TextStyle(height: 1.7)),
       ])),
       NavCard(icon: Icons.file_download_outlined, title: '保存普通数据备份文件',
-        subtitle: '选择保存位置并导出 JSON；不包含私密日记和二进制附件',
+        subtitle: '包含 SHA-256 完整性校验；不包含私密日记和二进制附件',
         onTap: () async {
           try {
             final json = await CompassScope.of(context).exportJson();
@@ -1952,9 +1952,15 @@ class _PrivacyPageState extends State<PrivacyPage> {
              } else {
                notice(context, '无法读取此文件，请先保存到手机本地后重试'); return;
              }
+             final details = CompassStore.inspectOrdinaryBackup(backupText);
              final approved = await showDialog<bool>(context: context,
                builder: (ctx) => AlertDialog(title: const Text('确认恢复备份？'),
-                 content: const Text('仅添加当前设备不存在的普通记录，重复 ID 跳过，不覆盖私密日记。'),
+                 content: Text('备份格式：${details['format']}\\n'
+                   '普通记录：${details['entries']} 条\\n'
+                   '持续笔记：${details['notes']} 条\\n'
+                   '完整性：${details['verified'] == true ? 'SHA-256 校验通过' : '旧版备份（无完整性校验）'}\\n\\n'
+                   '只添加当前设备不存在的普通记录，重复 ID 跳过，'
+                   '不包含或恢复私密日记、加密附件。'),
                  actions: [TextButton(onPressed: () => Navigator.pop(ctx, false),
                    child: const Text('取消')),
                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('开始恢复'))]));

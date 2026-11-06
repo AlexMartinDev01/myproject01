@@ -62,8 +62,6 @@ class TodayPage extends StatelessWidget {
     final decisions = store.ofKind('decision').length;
     final tasks = store.ofKind('task');
     return PageFrame(title: '知行罗盘', subtitle: '今天的收获，终会成为自己的判断力。',
-      actions: [IconButton(onPressed: () => openPage(context, const CapturePage()),
-        icon: const Icon(Icons.add_circle_outline))],
       children: [
         SoftCard(color: const Color(0xFFF4EAF6), child: Column(
           crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -125,6 +123,31 @@ class TodayPage extends StatelessWidget {
   }
 }
 
+/// Reusable, accessible empty state with one clear next action.
+class EmptyStateCard extends StatelessWidget {
+  const EmptyStateCard({super.key, required this.icon, required this.title,
+    required this.description, required this.actionLabel, required this.onAction});
+  final IconData icon;
+  final String title;
+  final String description;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) => SoftCard(child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, color: grape, size: 30),
+      const SizedBox(height: 12),
+      Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 7),
+      Text(description, style: const TextStyle(height: 1.5, color: Color(0xFF756A7B))),
+      const SizedBox(height: 12),
+      OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
+    ],
+  ));
+}
+
 class _Shortcut extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -132,14 +155,20 @@ class _Shortcut extends StatelessWidget {
   final VoidCallback onTap;
   const _Shortcut(this.icon, this.title, this.subtitle, this.onTap);
   @override
-  Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18),
-    child: Container(padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 5),
-      decoration: BoxDecoration(color: Colors.white,
-        borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFECE3F0))),
-      child: Column(children: [Icon(icon, size: 29, color: grape), const SizedBox(height: 8),
-        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-        Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey))])));
-}
+  Widget build(BuildContext context) => Semantics(button: true,
+    label: '$title：$subtitle',
+    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18),
+      child: Container(padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 8),
+        decoration: BoxDecoration(color: Colors.white,
+          borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFECE3F0))),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 29, color: grape), const SizedBox(height: 8),
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, color: Colors.grey))]))));}
 
 class _EntryTile extends StatelessWidget {
   final CompassEntry entry;
@@ -186,7 +215,16 @@ class _InboxPageState extends State<InboxPage> {
           Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
             label: Text(f), selected: filter == f, onSelected: (_) => setState(() => filter = f)))).toList())),
       const SizedBox(height: 15),
-      if (items.isEmpty) const SoftCard(child: Text('当前筛选下没有内容。可以先添加一条链接或笔记。')),
+      if (items.isEmpty) EmptyStateCard(
+        icon: filter == '全部' ? Icons.inbox_outlined : Icons.filter_alt_off_outlined,
+        title: filter == '全部' ? '收集箱还是空的' : '没有“$filter”的素材',
+        description: filter == '全部'
+          ? '将链接、文字或文档先存进来，再慢慢整理。'
+          : '尝试切换筛选条件，或查看全部素材。',
+        actionLabel: filter == '全部' ? '添加第一条素材' : '查看全部素材',
+        onAction: filter == '全部'
+          ? () => openPage(context, const CapturePage())
+          : () => setState(() => filter = '全部')),
       ...items.map((item) => Dismissible(
         key: ValueKey(item.id), direction: DismissDirection.endToStart,
         background: Container(color: const Color(0xFFE8A8B5), alignment: Alignment.centerRight,
@@ -752,8 +790,7 @@ class _KnowledgePageState extends State<KnowledgePage> {
       (theme == '全部' || e.meta['topic'] == theme) &&
       ('${e.title}${e.body}'.toLowerCase().contains(query.text.trim().toLowerCase()))).toList();
     return PageFrame(title: '知识库', subtitle: '我的知识体系 · 累积、联结、重新理解',
-      actions: [IconButton(onPressed: () => openPage(context, const CardEditPage()),
-        icon: const Icon(Icons.add))], children: [
+      children: [
         TextField(controller: query, onChanged: (_) => setState(() {}),
           decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
             hintText: '检索概念、观点、知识卡…')),
@@ -776,12 +813,18 @@ class _KnowledgePageState extends State<KnowledgePage> {
             .map((s) => ChoiceChip(label: Text(s), selected: theme == s,
               onSelected: (_) => setState(() => theme = s))).toList()),
         SectionHeading('我的知识卡 · ${cards.length}'),
-        if (cards.isEmpty) const SoftCard(child: Text('这里还没有符合条件的知识卡。整理一条材料并加入知识库吧。')),
+        if (cards.isEmpty) EmptyStateCard(
+          icon: Icons.menu_book_outlined,
+          title: store.ofKind('card').isEmpty ? '知识库还没有知识卡' : '没有找到匹配的知识卡',
+          description: store.ofKind('card').isEmpty
+            ? '把一条材料整理成自己的观点，从第一张知识卡开始。'
+            : '可以清空搜索或切换为“全部”专题。',
+          actionLabel: store.ofKind('card').isEmpty ? '创建知识卡' : '清空筛选',
+          onAction: store.ofKind('card').isEmpty
+            ? () => openPage(context, const CardEditPage())
+            : () => setState(() {query.clear(); theme = '全部';})),
         ...cards.map((item) => _EntryTile(entry: item,
           onTap: () => openPage(context, KnowledgeDetailPage(id: item.id)))),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(onPressed: () => openPage(context, const CardEditPage()),
-          icon: const Icon(Icons.add), label: const Text('新增知识卡')),
       ]);
   }
 }
@@ -1161,8 +1204,7 @@ class _JournalPageState extends State<JournalPage> {
       e.createdAt.year == month.year && e.createdAt.month == month.month &&
       e.title.toLowerCase().contains(search.text.toLowerCase())).toList();
     return PageFrame(title: '我的日记', subtitle: '写下来，留给未来的自己。内容仅保存在本机。',
-      actions: [IconButton(onPressed: () => openPage(context, const JournalEditPage()),
-        icon: const Icon(Icons.edit_note))], children: [
+      children: [
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: () => openPage(context, const JournalEditPage()),
           icon: const Icon(Icons.edit_outlined), label: const Text('写一篇日记'))),
@@ -1184,7 +1226,16 @@ class _JournalPageState extends State<JournalPage> {
             hintText: '按标题搜索当月日记（不检索私密正文）')),
         const SizedBox(height: 10),
         SectionHeading('日记记录 · ${entries.length} 篇'),
-        if (entries.isEmpty) const SoftCard(child: Text('本月暂无记录。你可以写一篇日记，或导入 Word / PDF。')),
+        if (entries.isEmpty) EmptyStateCard(
+          icon: Icons.edit_note_outlined,
+          title: search.text.trim().isNotEmpty ? '没有符合关键词的日记' : '这个月还没有日记',
+          description: search.text.trim().isNotEmpty
+            ? '这里只查找日记标题，不会检索私密正文。'
+            : '写下第一篇日记，或者导入已有的 Word / PDF。',
+          actionLabel: search.text.trim().isNotEmpty ? '清空搜索' : '写一篇日记',
+          onAction: search.text.trim().isNotEmpty
+            ? () => setState(() => search.clear())
+            : () => openPage(context, const JournalEditPage())),
         ...entries.map((e) => NavCard(icon: Icons.book_outlined,
           title: e.title,
           subtitle: '私密 · ${e.createdAt.year}-${e.createdAt.month}-${e.createdAt.day} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',

@@ -1232,10 +1232,10 @@ class _JournalPageState extends State<JournalPage> {
           description: search.text.trim().isNotEmpty
             ? '这里只查找日记标题，不会检索私密正文。'
             : '写下第一篇日记，或者导入已有的 Word / PDF。',
-          actionLabel: search.text.trim().isNotEmpty ? '清空搜索' : '写一篇日记',
+          actionLabel: search.text.trim().isNotEmpty ? '清空搜索' : '导入已有日记',
           onAction: search.text.trim().isNotEmpty
             ? () => setState(() => search.clear())
-            : () => openPage(context, const JournalEditPage())),
+            : () => openPage(context, const JournalEditPage(autoImport: true))),
         ...entries.map((e) => NavCard(icon: Icons.book_outlined,
           title: e.title,
           subtitle: '私密 · ${e.createdAt.year}-${e.createdAt.month}-${e.createdAt.day} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',

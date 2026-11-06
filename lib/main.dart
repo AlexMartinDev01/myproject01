@@ -31,7 +31,15 @@ class CompassApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: grape, brightness: Brightness.light,
           surface: const Color(0xFFFFFBFE)),
-        scaffoldBackgroundColor: const Color(0xFFF9F5FA),
+        scaffoldBackgroundColor: const Color(0xFFFBF9FC),
+        visualDensity: VisualDensity.standard,
+        navigationBarTheme: NavigationBarThemeData(
+          height: 72,
+          backgroundColor: Colors.white,
+          indicatorColor: const Color(0xFFEDE4F4),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+            fontSize: 11, fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700 : FontWeight.w500, color: ink))),
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFF9F5FA),
           foregroundColor: ink, centerTitle: false),
         filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(
@@ -39,6 +47,13 @@ class CompassApp extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14))),
         cardTheme: CardThemeData(color: Colors.white, elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+        outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(
+          foregroundColor: grape, minimumSize: const Size(48, 44),
+          side: const BorderSide(color: Color(0xFFDBCCEA)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         inputDecorationTheme: InputDecorationTheme(
           filled: true, fillColor: Colors.white,
           border: OutlineInputBorder(borderSide: const BorderSide(color: Color(0xFFEADDEE)),
@@ -125,8 +140,8 @@ class SoftCard extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 12),
     padding: padding,
     decoration: BoxDecoration(color: color ?? Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: const Color(0xFFECE3F0))),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFECE7F1))),
     child: Material(type: MaterialType.transparency, child: child),
   );
 }
@@ -165,11 +180,11 @@ class NavCard extends StatelessWidget {
   Widget build(BuildContext context) => SoftCard(
     padding: EdgeInsets.zero,
     child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(
         color: const Color(0xFFF2EBF8), borderRadius: BorderRadius.circular(12)),
         child: Icon(icon, color: grape)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-      trailing: const Icon(Icons.chevron_right, color: grape), onTap: onTap));
+      trailing: const Icon(Icons.chevron_right, color: Color(0xFFA296AC)), onTap: onTap));
 }

@@ -76,15 +76,18 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int selected = 0;
   static const screens = <Widget>[
-    TodayPage(), InboxPage(), KnowledgePage(), AiHubPage(), MinePage(),
+    TodayPage(), InboxPage(), KnowledgePage(), JournalPage(), WorkspacePage(),
   ];
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: selected, children: screens),
-    floatingActionButton: selected == 1 ? FloatingActionButton.extended(
-      onPressed: () => openPage(context, const CapturePage()),
+    floatingActionButton: selected == 1 || selected == 3 ? FloatingActionButton.extended(
+      tooltip: selected == 1 ? '新增收集' : '写一篇日记',
+      onPressed: () => openPage(context, selected == 1
+        ? const CapturePage() : const JournalEditPage()),
       backgroundColor: grape, foregroundColor: Colors.white,
-      icon: const Icon(Icons.add), label: const Text('收集内容')) : null,
+      icon: Icon(selected == 1 ? Icons.add : Icons.edit_note_outlined),
+      label: Text(selected == 1 ? '收集内容' : '写日记')) : null,
     bottomNavigationBar: NavigationBar(
       backgroundColor: Colors.white, indicatorColor: const Color(0xFFECE1F4),
       selectedIndex: selected,
@@ -93,8 +96,8 @@ class _HomeShellState extends State<HomeShell> {
         NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '今日'),
         NavigationDestination(icon: Icon(Icons.inbox_outlined), selectedIcon: Icon(Icons.inbox), label: '收集箱'),
         NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: '知识库'),
-        NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'AI 思考'),
-        NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '我的'),
+        NavigationDestination(icon: Icon(Icons.edit_note_outlined), selectedIcon: Icon(Icons.edit_note), label: '日记'),
+        NavigationDestination(icon: Icon(Icons.apps_outlined), selectedIcon: Icon(Icons.apps), label: '工作台'),
       ],
     ),
   );

@@ -63,6 +63,27 @@ void main() {
     await store.closeForTests();
   });
 
+  test('typed relations remain explicit and survive database reload', () async {
+    final store=await CompassStore.open();
+    final a=await store.add(kind:'card',title:'方法',body:'一种方法',
+      meta:{'topic':'科技'});
+    final b=await store.add(kind:'card',title:'反例',body:'明确的反例',
+      meta:{'topic':'科技'});
+    await store.update(a.copyWith(meta:{
+      ...a.meta,
+      'related_card_ids':[b.id],
+      'related_card_types':{b.id:'反例'},
+    }));
+    await store.reload();
+    final updated=store.byId(a.id)!;
+    expect(KnowledgeGraphSnapshot.relationType(updated,b.id),'反例');
+    final graph=KnowledgeGraphSnapshot.build(store.items);
+    expect(graph.edges.where((e)=>!e.isSource).single.relation,'反例');
+    expect(KnowledgeGraphSnapshot.relationType(updated,'not-a-card'),'相关');
+    expect(KnowledgeGraphSnapshot.relationTypes,containsAll(['相关','支持','反例','延伸','对比']));
+    await store.closeForTests();
+  });
+
   testWidgets('empty knowledge graph shows onboarding text without cloud dependency',
       (tester) async {
     late CompassStore store;

@@ -46,7 +46,8 @@ void main() {
     await tester.pumpAndSettle();
     final fields=find.byType(TextField);
     expect(fields,findsNWidgets(2));
-    expect(tester.widget<TextField>(fields.at(1)).controller!.text,isEmpty);
+    final appendController=tester.widget<TextField>(fields.at(1)).controller!;
+    expect(appendController.text,isEmpty);
     await tester.enterText(fields.at(1),'追加的新想法和今天的经历');
     await tester.pump();
     final save=find.text('保存本次内容 · 成功后清空输入框');
@@ -61,7 +62,9 @@ void main() {
       }
     });
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(fields.at(1)).controller!.text,isEmpty);
+    // The ListView may have scrolled the field offstage after tapping Save.
+    // Verify its stable controller instead of assuming a visible index.
+    expect(appendController.text,isEmpty);
     await tester.runAsync(() async {
       expect(await store.privateJournalBody(entry.id),
         '已经保存的第一段\n\n追加的新想法和今天的经历');

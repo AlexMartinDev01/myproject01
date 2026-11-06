@@ -17,6 +17,7 @@ import 'knowledge_review_v052.dart';
 import 'knowledge_graph_v07.dart';
 import 'journal_view_v053.dart';
 import 'journal_review_v06.dart';
+import 'diary_book_page_v085.dart';
 import 'core/local_document_parse.dart';
 
 class WelcomePage extends StatelessWidget {
@@ -1208,6 +1209,11 @@ class _JournalPageState extends State<JournalPage> {
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: () => openPage(context, const JournalEditPage()),
           icon: const Icon(Icons.edit_outlined), label: const Text('写一篇日记'))),
+        const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: () => openPage(context, const DiaryBookPage()),
+          icon: const Icon(Icons.auto_stories_outlined),
+          label: const Text('制作我的日记书'))),
         const SizedBox(height: 8),
         SizedBox(width: double.infinity, child: OutlinedButton.icon(
           onPressed: () => openPage(context, const JournalReviewPage()),

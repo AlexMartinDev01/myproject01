@@ -1,1 +1,16 @@
-{"name":"starweave-tarot-prototype","version":"0.1.0","private":true,"type":"module","description":"Local-first interactive Tarot UI demo"}
+{
+  "name": "starweave-tarot",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:3d": "esbuild renderer3d.js --bundle --minify --format=esm --target=es2020 --outfile=assets/renderer3d.bundle.js",
+    "test": "node tests/test_flow.mjs"
+  },
+  "dependencies": {
+    "three": "0.169.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}

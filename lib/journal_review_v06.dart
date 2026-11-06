@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'main.dart';
+import 'private_ai_review_v061.dart';
 
 /// V0.6 local-only review. No private journal plaintext is sent to an API.
 enum ReviewPeriod { week, month }
@@ -123,6 +124,17 @@ class _JournalReviewPageState extends State<JournalReviewPage> {
           subtitle: Text('${e.createdAt.month}月${e.createdAt.day}日'),
           onTap: () => openPage(context, JournalReadPageBridge(id: e.id)),
           trailing: const Icon(Icons.chevron_right))),
+        const SectionHeading('AI 智能回顾 · 可选'),
+        SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('由你挑选需要分析的日记，先检查发送文字，再决定是否授权云端 AI。'
+            '普通本地回顾仍可完全离线使用。'),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: entries.isEmpty ? null : () => openPage(context,
+              PrivateAiReviewPage(start: start, end: end, periodLabel: label)),
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('选择日记生成 AI 回顾'))),
+        ])),
         const SectionHeading('写下自己的回顾'),
         SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           TextField(controller: highlight, minLines: 1, maxLines: 4,

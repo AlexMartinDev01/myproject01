@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'private_backup.dart';
 import 'package:crypto/crypto.dart';
 import 'journal_vault.dart';
 import 'chat_store.dart';
@@ -631,6 +633,147 @@ class CompassStore extends ChangeNotifier {
       'verified': digest != null,
       'journal_excluded': decoded['private_journals_excluded'] == true,
     };
+  }
+
+  /// Exports journals, all historical revisions and encrypted attachments.
+  /// Plaintext is only in process memory, then wrapped in password-based AES-GCM.
+  Future<Uint8List> exportPrivateBackup(String passphrase) async {
+    if (passphrase.runes.length < 12) {
+      throw const FormatException('密码至少需要 12 个字符');
+    }
+    final archives = <Map<String, dynamic>>[];
+    for (final entry in ofKind('journal')) {
+      final history = await _db.query('journal_revisions',
+        where:'journal_id=?',whereArgs:[entry.id],orderBy:'saved_at ASC');
+      final assets = await journalAttachments(entry.id);
+      final versions = <Map<String,dynamic>>[];
+      for (final row in history) {
+        final content = await _vault.readText(entry.id,row['revision_id'] as String);
+        if (utf8.encode(content).length != row['byte_count']) {
+          throw StateError('日记历史版本不完整，已停止备份');
+        }
+        versions.add({'saved_at':row['saved_at'],'body':content});
+      }
+      final attachments = <Map<String,dynamic>>[];
+      for (final row in assets) {
+        final bytes = await readJournalAttachmentBytes(entry.id,row['id'] as String);
+        attachments.add({'filename':row['filename'],'mime':row['mime'],
+          'saved_at':row['saved_at'],'data':base64Encode(bytes)});
+      }
+      archives.add({'entry':entry.toDb(),'revisions':versions,'attachments':attachments});
+    }
+    return PrivateBackupCodec.seal({'version':1,'journals':archives},passphrase);
+  }
+
+  /// Password must be supplied explicitly each time; it is never persisted.
+  /// Validates the full archive before inserting anything into the DB.
+  Future<int> importPrivateBackup(Uint8List file,String passphrase) async {
+    final content = await PrivateBackupCodec.unseal(file,passphrase);
+    final journals = content['journals'] as List;
+    if (journals.length > 3000) throw const FormatException('日记数量超出限制');
+    final prepared = <Map<String,dynamic>>[];
+    final seen = <String>{};
+    for (final item in journals) {
+      if (item is! Map<String,dynamic> ||
+          item['entry'] is! Map<String,dynamic> ||
+          item['revisions'] is! List || item['attachments'] is! List) {
+        throw const FormatException('私密备份记录结构不完整');
+      }
+      final raw = item['entry'] as Map<String,dynamic>;
+      final id = raw['id'];
+      if (id is! String || id.isEmpty || !_vault.safe(id).contains(id) ||
+          raw['kind'] != 'journal' || raw['body'] != '' ||
+          !seen.add(id)) {
+        throw const FormatException('私密日记标识或记录类型无效');
+      }
+      final row = <String,Object?>{
+        for(final field in ['id','kind','title','body','status','origin',
+          'created_at','updated_at','meta']) field: raw[field],
+      };
+      if (row.values.any((v)=>v is! String)) {
+        throw const FormatException('私密日记元数据缺失');
+      }
+      final entry = CompassEntry.fromDb(row);
+      final versions = <Map<String,dynamic>>[];
+      for(final version in item['revisions'] as List) {
+        if (version is! Map<String,dynamic> ||
+            version['saved_at'] is! String || version['body'] is! String) {
+          throw const FormatException('私密历史记录无效');
+        }
+        DateTime.parse(version['saved_at'] as String);
+        versions.add(version);
+      }
+      if(versions.isEmpty || versions.length > 3000) {
+        throw const FormatException('日记必须包含有效历史正文');
+      }
+      final attachments = <Map<String,dynamic>>[];
+      for(final asset in item['attachments'] as List) {
+        if(asset is! Map<String,dynamic> ||
+           asset['filename'] is! String ||
+           asset['saved_at'] is! String ||
+           asset['mime'] is! String ||
+           asset['data'] is! String) {
+          throw const FormatException('私密附件记录无效');
+        }
+        DateTime.parse(asset['saved_at'] as String);
+        final filename=basename(asset['filename'] as String);
+        final mime=asset['mime'] as String;
+        if (filename != asset['filename'] ||
+            (mime != 'application/pdf' &&
+             mime != 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
+          throw const FormatException('私密附件名称或格式不安全');
+        }
+        final data = base64Decode(asset['data'] as String);
+        if(data.isEmpty || data.length > 40*1024*1024 ||
+           (mime=='application/pdf' &&
+             (data.length<5 || String.fromCharCodes(data.take(5))!='%PDF-')) ||
+           (mime!='application/pdf' &&
+             (data.length<2 || data[0]!=0x50 || data[1]!=0x4b))) {
+          throw const FormatException('私密附件大小或文件格式无效');
+        }
+        attachments.add({...asset,'bytes':Uint8List.fromList(data)});
+      }
+      prepared.add({'entry':entry,'revisions':versions,'attachments':attachments});
+    }
+
+    final staged = <String>[];
+    final sqlEntries = <Map<String,Object?>>[];
+    final sqlVersions = <Map<String,Object?>>[];
+    final sqlAssets = <Map<String,Object?>>[];
+    try {
+      for(final item in prepared) {
+        final entry = item['entry'] as CompassEntry;
+        // Existing IDs are never modified; repeated restoration is idempotent.
+        if(byId(entry.id)!=null) continue;
+        staged.add(entry.id);
+        sqlEntries.add(entry.toDb());
+        for(final version in item['revisions'] as List<Map<String,dynamic>>) {
+          final body=version['body'] as String;
+          final revisionId=await _vault.writeText(entry.id,body);
+          sqlVersions.add({'revision_id':revisionId,'journal_id':entry.id,
+            'byte_count':utf8.encode(body).length,'saved_at':version['saved_at']});
+        }
+        for(final asset in item['attachments'] as List<Map<String,dynamic>>) {
+          final assetId=newId();
+          final bytes=asset['bytes'] as Uint8List;
+          await _vault.encryptAttachmentBytes(entry.id,assetId,bytes);
+          sqlAssets.add({'id':assetId,'journal_id':entry.id,
+            'filename':asset['filename'],'mime':asset['mime'],
+            'byte_count':bytes.length,'saved_at':asset['saved_at']});
+        }
+      }
+      await _db.transaction((txn) async {
+        for(final row in sqlEntries) {await txn.insert('entries',row,
+          conflictAlgorithm:ConflictAlgorithm.abort);}
+        for(final row in sqlVersions) {await txn.insert('journal_revisions',row);}
+        for(final row in sqlAssets) {await txn.insert('journal_attachments',row);}
+      });
+    } catch (_) {
+      for(final id in staged) {await _vault.deleteJournal(id);}
+      rethrow;
+    }
+    await reload();
+    return staged.length;
   }
 
   Future<String> exportJson() async {

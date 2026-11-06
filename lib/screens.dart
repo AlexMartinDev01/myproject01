@@ -76,7 +76,19 @@ class TodayPage extends StatelessWidget {
               onPressed: () => openPage(context, const AiChatPage(mode: 'challenge')),
               child: const Text('展开思考 →'))),
           ])),
-        SectionHeading('快速开始'),
+        const SectionHeading('今天想做什么？'),
+        Row(children: [
+          Expanded(child: _Shortcut(Icons.edit_note_outlined, '随手记录', '想法与资料',
+            () => openPage(context, const CapturePage()))),
+          const SizedBox(width: 8),
+          Expanded(child: _Shortcut(Icons.auto_awesome_outlined, '问问 AI', '直接开始对话',
+            () => openPage(context, const AiChatPage(mode: 'ask')))),
+        ]),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: () => openPage(context, const JournalPage()),
+          icon: const Icon(Icons.menu_book_outlined), label: const Text('写日记 / 导入已有日记'))),
+        SectionHeading('继续上次的事'),
         Row(children: [
           Expanded(child: _Shortcut(Icons.inbox_outlined, '处理收集', '$inboxCount 条',
             () => openPage(context, const InboxPage()))),
@@ -740,7 +752,16 @@ class _KnowledgePageState extends State<KnowledgePage> {
         TextField(controller: query, onChanged: (_) => setState(() {}),
           decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
             hintText: '检索概念、观点、知识卡…')),
-        const SectionHeading('知识专题'),
+        Row(children: [
+          Expanded(child: OutlinedButton.icon(
+            onPressed: () => openPage(context, const CapturePage()),
+            icon: const Icon(Icons.add_link), label: const Text('收集资料'))),
+          const SizedBox(width: 8),
+          Expanded(child: OutlinedButton.icon(
+            onPressed: () => openPage(context, const CardEditPage()),
+            icon: const Icon(Icons.note_add_outlined), label: const Text('新建知识卡'))),
+        ]),
+        const SectionHeading('按主题筛选'),
         Wrap(spacing: 8, runSpacing: 8,
           children: ['全部', '心理学', '哲学', '历史', '社会学', '科技', '职业发展', '自我成长']
             .map((s) => ChoiceChip(label: Text(s), selected: theme == s,
@@ -907,11 +928,14 @@ class AiHubPage extends StatelessWidget {
         Text('基于你允许使用的知识材料回答，也会提出不同的观点。没有依据时会说明不知道。',
           style: TextStyle(height: 1.6)),
       ])),
+      SizedBox(width: double.infinity, child: FilledButton.icon(
+        onPressed: () => openPage(context, const AiChatPage(mode: 'ask')),
+        icon: const Icon(Icons.chat_bubble_outline), label: const Text('开始普通 AI 对话'))),
+      const SizedBox(height: 12),
+      const SectionHeading('其他思考方式'),
       NavCard(icon: Icons.history, title: '历史对话',
         subtitle: '本机加密保存 · 重命名、搜索和继续追问',
         onTap: () => openPage(context, const ChatHistoryPage())),
-      NavCard(icon: Icons.question_answer_outlined, title: '从知识库提问',
-        subtitle: '带来源的问答', onTap: () => openPage(context, const AiChatPage(mode: 'ask'))),
       NavCard(icon: Icons.school_outlined, title: '费曼学习教练',
         subtitle: '解释、复述、反例、主动回忆', onTap: () => openPage(context, const AiChatPage(mode: 'learn'))),
       NavCard(icon: Icons.forum_outlined, title: '反方思辨',
@@ -1123,13 +1147,13 @@ class _JournalPageState extends State<JournalPage> {
     final entries = CompassScope.of(context).ofKind('journal').where((e) =>
       e.createdAt.year == month.year && e.createdAt.month == month.month &&
       e.title.toLowerCase().contains(search.text.toLowerCase())).toList();
-    return PageFrame(title: '我的日记', subtitle: '生活档案 · 本机加密 · 每次 AI 读取单独授权',
+    return PageFrame(title: '我的日记', subtitle: '写下来，留给未来的自己。内容仅保存在本机。',
       actions: [IconButton(onPressed: () => openPage(context, const JournalEditPage()),
         icon: const Icon(Icons.edit_note))], children: [
-        const SoftCard(color: Color(0xFFF1EAF8), child: Row(children: [
-          Icon(Icons.lock_outline, color: grape), SizedBox(width: 10),
-          Expanded(child: Text('长篇正文与 Word/PDF 附件均加密保存。默认不会进入普通知识搜索。')),
-        ])),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: () => openPage(context, const JournalEditPage()),
+          icon: const Icon(Icons.edit_outlined), label: const Text('写一篇日记'))),
+        const SizedBox(height: 8),
         Row(children: [
           IconButton(onPressed: () => setState(() => month = DateTime(month.year, month.month - 1)),
             icon: const Icon(Icons.chevron_left)),
@@ -1149,9 +1173,10 @@ class _JournalPageState extends State<JournalPage> {
           subtitle: '私密 · ${e.createdAt.year}-${e.createdAt.month}-${e.createdAt.day} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',
           onTap: () => openPage(context, JournalReadPage(id: e.id)))),
         OutlinedButton.icon(onPressed: () => openPage(context, const JournalEditPage()),
-          icon: const Icon(Icons.add), label: const Text('新建或导入私密日记')),
-        const SoftCard(color: Color(0xFFF8ECF1),
-          child: Text('每周小结、每月深度回顾将在 V0.6 加入；届时每次回顾仍须由你确认访问范围。')),
+          icon: const Icon(Icons.upload_file_outlined), label: const Text('导入 Word / PDF 到日记')),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text(
+          '隐私说明：日记和附件在本机加密，默认不参与 AI 问答。普通数据备份不包含日记。',
+          style: TextStyle(fontSize: 12, color: Colors.grey))),
       ]);
   }
 }
@@ -1734,10 +1759,11 @@ class MinePage extends StatelessWidget {
             style: const TextStyle(color: Colors.grey, fontSize: 12)),
         ])),
       ])),
+      NavCard(icon: Icons.edit_note_outlined, title: '写日记 / 查看日记',
+        subtitle: '私密保存，支持导入 Word / PDF',
+        onTap: () => openPage(context, const JournalPage())),
       NavCard(icon: Icons.favorite_border, title: '成长与学习路径',
         onTap: () => openPage(context, const LearningPage())),
-      NavCard(icon: Icons.book_outlined, title: '私密日记',
-        subtitle: '独立本地存储 · 按次授权', onTap: () => openPage(context, const JournalPage())),
       NavCard(icon: Icons.balance, title: '我的决策与复盘',
         onTap: () => openPage(context, const DecisionPage())),
       NavCard(icon: Icons.devices_outlined, title: 'AI 节点与设备管理',

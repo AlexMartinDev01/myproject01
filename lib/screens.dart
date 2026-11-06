@@ -1389,6 +1389,9 @@ class _JournalEditPageState extends State<JournalEditPage> {
       if (length <= 0 || length > 40 * 1024 * 1024) {
         throw const FormatException('文件大小须在 1 字节至 40 MB 之间');
       }
+      if (_id == null && title.text.trim().isEmpty) {
+        title.text = path.basenameWithoutExtension(name);
+      }
       if (_id == null || dirty) {
         if (!await save()) return;
       }
@@ -1398,37 +1401,35 @@ class _JournalEditPageState extends State<JournalEditPage> {
       setState(() => refreshAssets++);
       notice(context, '附件已加密保存到本机');
 
-      if (isWord) {
-        String extracted;
-        try {
-          extracted = await extractDocxText(source);
-        } catch (_) {
-          if (mounted) notice(context,
-            'Word 附件已保存，但未能提取正文；可在附件列表中查看原文件');
-          return;
-        }
-        if (!mounted) return;
-        final append = await showDialog<bool>(context: context, builder: (ctx) =>
-          AlertDialog(title: const Text('把 Word 内容追加到日记？'),
-            content: Text('本机提取到 ${extracted.length} 个字符。附件已加密保存。'
-              '选择追加后不会覆盖已有内容。'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('仅保留附件')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('追加正文')),
-            ]));
-        if (append == true && mounted) {
-          body.text = body.text.isEmpty ? extracted : '${body.text}\n\n$extracted';
-          changed('');
-          if (!await save() && mounted) {
-            notice(context, '附件已保存；正文追加未成功，输入框内容仍保留');
-          }
-        }
-      } else {
+      // Attachment persistence and optional text extraction are separate:
+      // a non-text/scanned PDF must never turn a saved attachment into failure.
+      String extracted;
+      try {
+        extracted = (await LocalDocumentParser().parseFile(source)).text;
+      } catch (_) {
         if (mounted) notice(context,
-          'PDF 已加密保存；点击附件可离线查看（当前不自动追加 PDF 正文）');
+          '附件已安全保存，暂时无法提取正文；你仍可点击附件查看原文件');
+        return;
       }
+      if (!mounted) return;
+      final append = await showDialog<bool>(context: context, builder: (ctx) =>
+        AlertDialog(title: const Text('将文件内容添加到日记？'),
+          content: Text('已识别 ${extracted.length} 个字符。原文件已安全保存，'
+            '添加正文不会覆盖原日记。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('仅保存附件')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('添加到正文')),
+          ]));
+      if (append == true && mounted) {
+        body.text = body.text.isEmpty ? extracted : '${body.text}\\n\\n$extracted';
+        changed('');
+        if (!await save() && mounted) {
+          notice(context, '附件已保存；正文保存未完成，请保留输入框中的内容');
+        }
+      }
+
     } catch (e) {
       if (mounted) notice(context, '未能完成导入：$e。已有日记不会被删除');
     } finally {
@@ -1510,7 +1511,7 @@ class _JournalEditPageState extends State<JournalEditPage> {
               labelText: '本次追加内容 · 不覆盖已保存的旧正文（不限字数）')),
           const SizedBox(height: 10),
           OutlinedButton.icon(onPressed: busy || !loaded ? null : importDocument,
-            icon: const Icon(Icons.upload_file), label: const Text('导入 Word / PDF 附件')),
+            icon: const Icon(Icons.upload_file), label: const Text('导入 Word / PDF 日记')),
           // Cloud diary access is disabled until the consent UI is upgraded.
 
           if (id != null) ...[

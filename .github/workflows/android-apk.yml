@@ -73,9 +73,23 @@ jobs:
           APK=build/app/outputs/flutter-apk/app-release.apk
           test -s "$APK"
           SDK_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-          "$SDK_TOOLS/apksigner" verify --verbose --print-certs "$APK"
-          sha256sum "$APK"
-          echo "Note: preview signing is NOT yet a provisioned persistent production release key."
+          "$SDK_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature-report.txt
+          sha256sum "$APK" | tee apk-sha256.txt
+          "$SDK_TOOLS/aapt" dump badging "$APK" | grep '^package:' | tee apk-version-report.txt
+          grep -q "versionCode='23'" apk-version-report.txt
+          grep -q "versionName='0.8.4'" apk-version-report.txt
+          grep -q "com.zhixingcompass.zhixing_compass" apk-version-report.txt
+          echo "Preview signing only; DO NOT claim cross-version overwrite compatibility."
+      - name: Upload build provenance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: KnowledgeCompass-APK-Provenance
+          path: |
+            apk-signature-report.txt
+            apk-sha256.txt
+            apk-version-report.txt
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload downloadable release APK
         uses: actions/upload-artifact@v4
         with:

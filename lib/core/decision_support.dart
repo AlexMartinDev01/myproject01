@@ -148,7 +148,10 @@ Future<DecisionReviewRecord> saveDecisionReview(
 String decisionFollowUpPrompt(CompassEntry entry, DecisionReviewRecord? last) {
   final base = decisionPrompt(entry);
   final report = last?.answer ?? '';
-  final excerpt = report.length > 3400 ? report.substring(0, 3400) : report;
-  return '$base\n【之前的分析（供继续讨论）】\n$excerpt\n'
-      '请从上次分析继续，重点帮助我澄清尚未解决的假设。';
+  const prefix = '\n【之前的分析（供继续讨论）】\n';
+  const ending = '\n请从上次分析继续，重点帮助我澄清尚未解决的假设。';
+  final remaining = (7500 - base.length - prefix.length - ending.length)
+      .clamp(0, 3400).toInt();
+  final excerpt = report.length > remaining ? report.substring(0, remaining) : report;
+  return base + prefix + excerpt + ending;
 }

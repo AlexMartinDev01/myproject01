@@ -93,6 +93,20 @@ void main() {
     expect(record.offeredChunkIds, isEmpty);
   });
 
+  test('long decision context plus previous report stays under API request limit', () async {
+    final decision = await store.add(kind:'decision',title:'综合决策',
+      body: '背景情况' * 2000, meta: {
+        'goal': '职业发展' * 300, 'options': ['A' * 1500, 'B' * 1500],
+        'criteria': '权重条件' * 300,
+      });
+    final report = DecisionReviewRecord(id:'record',createdAt:DateTime.now(),
+      answer:'详细分析' * 3000, model:'mock',
+      offeredChunkIds:const [],citedChunkIds:const [],unknownChunkIds:const []);
+    final message = decisionFollowUpPrompt(decision, report);
+    expect(message.length, lessThanOrEqualTo(7500));
+    expect(message, contains('之前的分析'));
+  });
+
   test('history keeps up to 12 analysis revisions, not just last answer', () async {
     final decision = await store.add(kind:'decision',title:'生活计划');
     for (var n=0; n<13; n++) {

@@ -1423,7 +1423,7 @@ class _JournalEditPageState extends State<JournalEditPage> {
               child: const Text('添加到正文')),
           ]));
       if (append == true && mounted) {
-        body.text = body.text.isEmpty ? extracted : '${body.text}\\n\\n$extracted';
+        body.text = body.text.isEmpty ? extracted : '${body.text}\n\n$extracted';
         changed('');
         if (!await save() && mounted) {
           notice(context, '附件已保存；正文保存未完成，请保留输入框中的内容');

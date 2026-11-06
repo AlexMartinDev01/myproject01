@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'main.dart';
-import 'core/store.dart';
 
 /// V0.6 local-only review. No private journal plaintext is sent to an API.
 enum ReviewPeriod { week, month }
@@ -15,6 +14,49 @@ class _JournalReviewPageState extends State<JournalReviewPage> {
   ReviewPeriod period = ReviewPeriod.week;
   DateTime anchor = DateTime.now();
   bool includeExcerpts = false;
+  bool saving = false;
+  final highlight = TextEditingController();
+  final continueDoing = TextEditingController();
+  final nextStep = TextEditingController();
+
+  @override
+  void dispose() {
+    highlight.dispose();
+    continueDoing.dispose();
+    nextStep.dispose();
+    super.dispose();
+  }
+
+  void clearDraft() {
+    highlight.clear();
+    continueDoing.clear();
+    nextStep.clear();
+  }
+
+  Future<void> saveReflection(String periodLabel) async {
+    if (saving) return;
+    final answers = [highlight.text.trim(), continueDoing.text.trim(), nextStep.text.trim()];
+    if (answers.every((t) => t.isEmpty)) {
+      notice(context, '请至少填写一项回顾内容');
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      final title = '${period == ReviewPeriod.week ? '每周小结' : '每月回顾'} · $periodLabel';
+      final content = ['最重要的一件事：${answers[0]}',
+        '值得继续保持：${answers[1]}', '下一步想尝试：${answers[2]}'].join('\\n\\n');
+      await CompassScope.of(context).add(kind: 'journal', title: title,
+        body: content, status: '私密', meta: {'local_review': true});
+      if (!mounted) return;
+      clearDraft();
+      setState(() => includeExcerpts = false);
+      notice(context, '回顾已加密保存到本机日记');
+    } catch (e) {
+      if (mounted) notice(context, '回顾未保存，请重试：$e');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 
   DateTime get beginning {
     final d = DateTime(anchor.year, anchor.month, anchor.day);
@@ -31,6 +73,7 @@ class _JournalReviewPageState extends State<JournalReviewPage> {
           ? anchor.add(Duration(days: 7 * direction))
           : DateTime(anchor.year, anchor.month + direction, 15);
       includeExcerpts = false;
+      clearDraft();
     });
   }
 
@@ -53,7 +96,7 @@ class _JournalReviewPageState extends State<JournalReviewPage> {
             ButtonSegment(value: ReviewPeriod.month, label: Text('每月回顾')),
           ],
           selected: {period}, onSelectionChanged: (values) =>
-            setState(() {period = values.first; anchor = DateTime.now(); includeExcerpts = false;})),
+            setState(() {period = values.first; anchor = DateTime.now(); includeExcerpts = false; clearDraft();})),
         const SizedBox(height: 12),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           IconButton(tooltip: '上一期', onPressed: () => shift(-1),
@@ -80,17 +123,25 @@ class _JournalReviewPageState extends State<JournalReviewPage> {
           subtitle: Text('${e.createdAt.month}月${e.createdAt.day}日'),
           onTap: () => openPage(context, JournalReadPageBridge(id: e.id)),
           trailing: const Icon(Icons.chevron_right))),
-        const SectionHeading('留给自己的三个问题'),
+        const SectionHeading('写下自己的回顾'),
         SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(period == ReviewPeriod.week
-            ? '这周最想记住的一件事是什么？'
-            : '这个月最重要的变化是什么？'),
+          TextField(controller: highlight, minLines: 1, maxLines: 4,
+            decoration: InputDecoration(labelText: period == ReviewPeriod.week
+              ? '这周最想记住的一件事' : '这个月最重要的变化')),
           const SizedBox(height: 12),
-          const Text('有什么事情值得继续保持？'),
+          TextField(controller: continueDoing, minLines: 1, maxLines: 4,
+            decoration: const InputDecoration(labelText: '有什么值得继续保持？')),
           const SizedBox(height: 12),
-          const Text('下一期想尝试的一件小事是什么？'),
-          const SizedBox(height: 6),
-          const Text('这些问题仅供思考，不会自动记录或分析。',
+          TextField(controller: nextStep, minLines: 1, maxLines: 4,
+            decoration: const InputDecoration(labelText: '下一期想尝试的一件小事')),
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: FilledButton.icon(
+            onPressed: saving ? null : () => saveReflection(label),
+            icon: const Icon(Icons.lock_outline),
+            label: Text(saving ? '加密保存中…' : '加密保存本期回顾'))),
+          const SizedBox(height: 8),
+          const Text('手动填写的回顾将保存为一篇私密日记，可再次打开阅读。'
+            '不会上传到云端，也不会自动替你生成观点。',
             style: TextStyle(fontSize: 12, color: Colors.grey)),
         ])),
         SwitchListTile.adaptive(

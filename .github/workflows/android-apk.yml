@@ -41,6 +41,22 @@ jobs:
           text = text.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
             '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />')
           p.write_text(text)
+          # read_pdf_text brings pdfbox-android, whose optional JPX/JPEG2000
+          # decoder is not bundled. R8 must not treat that optional class
+          # as a required app dependency. JPX image decoding is not supported.
+          rules = Path('android/app/proguard-rules.pro')
+          rules.write_text('-dontwarn com.gemalto.jp2.JP2Decoder\n')
+          gradle = Path('android/app/build.gradle.kts')
+          gradle_text = gradle.read_text()
+          needle = 'buildTypes {\n        release {'
+          if needle not in gradle_text:
+              raise RuntimeError('Unexpected Flutter Android build.gradle.kts layout')
+          gradle_text = gradle_text.replace(
+              needle,
+              'buildTypes {\n        release {\n'
+              '            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")',
+              1)
+          gradle.write_text(gradle_text)
           PY
       - name: Resolve Flutter dependencies
         run: flutter pub get

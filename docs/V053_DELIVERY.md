@@ -25,3 +25,5 @@
 4. 导入文件不导致旧素材内容丢失；扫描 PDF 和格式错误能给出明确反馈。
 5. 日记追加加密保存后输入框清空、历史保留；Word/PDF 加密附件可读且验证字节完整性。
 6. Android Release APK 云端编译成功，直接发布 GitHub Release。
+
+- Android Release 构建将 R8 对可选 `com.gemalto.jp2.JP2Decoder` 类的缺失降为警告；包含 JPEG2000/JPX 图片的 PDF 不保证可提取该图像中的文字，扫描/图片 PDF 仍不支持 OCR。

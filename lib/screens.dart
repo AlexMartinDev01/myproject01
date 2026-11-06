@@ -14,6 +14,7 @@ import 'ai_chat_v051.dart';
 import 'decision_review_v055.dart';
 import 'core/knowledge_candidates.dart';
 import 'knowledge_review_v052.dart';
+import 'knowledge_graph_v07.dart';
 import 'journal_view_v053.dart';
 import 'journal_review_v06.dart';
 import 'core/local_document_parse.dart';
@@ -761,6 +762,10 @@ class _KnowledgePageState extends State<KnowledgePage> {
             onPressed: () => openPage(context, const CardEditPage()),
             icon: const Icon(Icons.note_add_outlined), label: const Text('新建知识卡'))),
         ]),
+        SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
+          onPressed: () => openPage(context, const KnowledgeGraphPage()),
+          icon: const Icon(Icons.hub_outlined),
+          label: const Text('查看知识网络图'))),
         const SectionHeading('按主题筛选'),
         Wrap(spacing: 8, runSpacing: 8,
           children: ['全部', '心理学', '哲学', '历史', '社会学', '科技', '职业发展', '自我成长']
@@ -893,6 +898,10 @@ class KnowledgeDetailPage extends StatelessWidget {
       const SectionHeading('应用到现实'),
       SoftCard(child: Text(entry.meta['application']?.toString().isNotEmpty == true ?
         entry.meta['application'].toString() : '还没有留下真实应用。')),
+      const SectionHeading('知识网络关联'),
+      NavCard(icon: Icons.hub_outlined, title: '管理关联的知识卡',
+        subtitle: '手动确认概念之间的关系',
+        onTap: () => openPage(context, RelatedCardsEditor(cardId: id))),
       if (entry.meta['source_id'] is String)
         NavCard(icon: Icons.source_outlined, title: '查看原始来源',
           onTap: () => openPage(context, SourceDetailPage(id: entry.meta['source_id'] as String))),

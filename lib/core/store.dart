@@ -698,7 +698,7 @@ class CompassStore extends ChangeNotifier {
       }
       final raw = item['entry'] as Map<String,dynamic>;
       final id = raw['id'];
-      if (id is! String || id.isEmpty || !_vault.safe(id) != id ||
+      if (id is! String || id.isEmpty || _vault.safe(id) != id ||
           raw['kind'] != 'journal' || raw['body'] != '' ||
           !seen.add(id)) {
         throw const FormatException('私密日记标识或记录类型无效');

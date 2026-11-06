@@ -1171,7 +1171,7 @@ class _JournalPageState extends State<JournalPage> {
           title: e.title,
           subtitle: '私密 · ${e.createdAt.year}-${e.createdAt.month}-${e.createdAt.day} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',
           onTap: () => openPage(context, JournalReadPage(id: e.id)))),
-        OutlinedButton.icon(onPressed: () => openPage(context, const JournalEditPage()),
+        OutlinedButton.icon(onPressed: () => openPage(context, const JournalEditPage(autoImport: true)),
           icon: const Icon(Icons.upload_file_outlined), label: const Text('导入 Word / PDF 到日记')),
         const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text(
           '隐私说明：日记和附件在本机加密，默认不参与 AI 问答。普通数据备份不包含日记。',
@@ -1256,7 +1256,8 @@ class JournalReadPage extends StatelessWidget {
 
 class JournalEditPage extends StatefulWidget {
   final String? id;
-  const JournalEditPage({super.key, this.id});
+  const JournalEditPage({super.key, this.id, this.autoImport = false});
+  final bool autoImport;
   @override
   State<JournalEditPage> createState() => _JournalEditPageState();
 }
@@ -1267,6 +1268,7 @@ class _JournalEditPageState extends State<JournalEditPage> {
   bool busy = false, loaded = false, allowPop = false;
   String lastTitle = '', lastBody = '';
   int refreshAssets = 0;
+  bool _importStarted = false;
   bool get dirty => title.text.trim() != lastTitle || body.text.trim().isNotEmpty;
   @override
   void initState() {
@@ -1295,6 +1297,10 @@ class _JournalEditPageState extends State<JournalEditPage> {
         // lastBody is the last durable encrypted journal text.
         allowPop = true;
       });
+      if (mounted && widget.autoImport && !_importStarted) {
+        _importStarted = true;
+        await importDocument();
+      }
     });
   }
   @override
@@ -1492,9 +1498,9 @@ class _JournalEditPageState extends State<JournalEditPage> {
               label: const Text('保存本次内容')),
           ]),
         )), children: [
-          const SoftCard(color: Color(0xFFF4EDF9), child: Text(
-            '先写本次内容，再点屏幕底部的「保存本次内容」。'
-            '保存成功后输入框自动清空；旧日记和历史版本始终保留。')),
+          const Padding(padding: EdgeInsets.only(bottom: 12), child: Text(
+            '写下今天的想法，保存后可随时回来继续写。',
+            style: TextStyle(color: Color(0xFF8C8090)))),
           TextField(controller: title, maxLength: 120, onChanged: changed,
             decoration: const InputDecoration(labelText: '日记标题')),
           if (id != null) NavCard(icon: Icons.menu_book_outlined,

@@ -110,6 +110,9 @@ void main() {
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: JournalPage())));
     expect(find.text('写一篇日记'), findsOneWidget);
+    expect(find.text('制作我的日记书'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('导入 Word / PDF 到日记'),
+      200,scrollable:find.byType(Scrollable).first);
     expect(find.text('导入 Word / PDF 到日记'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());

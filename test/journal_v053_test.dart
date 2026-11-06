@@ -80,7 +80,10 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds:50));
       }
     });
-    await tester.pumpAndSettle();
+    // The attachment list can show an indeterminate loading indicator
+    // while a real SQLite isolate completes. Do not wait for every animated
+    // frame to settle; one pump is sufficient to inspect the saved controller.
+    await tester.pump();
     final persisted=await tester.runAsync(() => store.privateJournalBody(entry.id));
     expect(persisted, '已经保存的第一段\n\n追加的新想法和今天的经历',
       reason:'Tapped Save must persist both existing and appended text');

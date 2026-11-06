@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 
 class PrivateBackupCodec {
@@ -15,7 +16,8 @@ class PrivateBackupCodec {
     if (passphrase.runes.length < 12) throw const FormatException('密码至少 12 字符');
     final data = utf8.encode(jsonEncode(payload));
     if (data.length > 50 * 1024 * 1024) throw const FormatException('备份超过 50 MB');
-    final salt = Cryptography.instance.newRandomBytes(16);
+    final secureRandom = Random.secure();
+    final salt = List<int>.generate(16, (_) => secureRandom.nextInt(256));
     final nonce = cipher.newNonce();
     final box = await cipher.encrypt(data, secretKey: await key(passphrase,salt), nonce: nonce);
     return Uint8List.fromList(utf8.encode(jsonEncode({

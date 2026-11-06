@@ -1331,7 +1331,7 @@ class _JournalEditPageState extends State<JournalEditPage> {
       final chosen = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['docx', 'pdf'],
-        withData: false,
+        withData: true,
       );
       if (chosen == null || chosen.files.isEmpty || !mounted) return;
       final selected = chosen.files.single;
@@ -1345,38 +1345,19 @@ class _JournalEditPageState extends State<JournalEditPage> {
         throw const FormatException('请选择 40 MB 以内的非空文件');
       }
 
-      // Some Android document providers return no usable filesystem path.
-      // Resolve the selected document into a temporary app-owned file before
-      // saving it to the encrypted journal vault.
+      // Android cloud/document providers can return bytes without a usable path.
+      // Use the selected file itself instead of requiring a second picker.
       File source;
       final pickedPath = selected.path;
       if (pickedPath != null && await File(pickedPath).exists()) {
         source = File(pickedPath);
+      } else if (selected.bytes != null) {
+        final dir = await getTemporaryDirectory();
+        temporary = File(path.join(dir.path, 'journal_import_${CompassStore.newId()}'));
+        await temporary.writeAsBytes(selected.bytes!, flush: true);
+        source = temporary;
       } else {
-        final fallback = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['docx', 'pdf'],
-          withData: true,
-        );
-        if (fallback == null || fallback.files.isEmpty || !mounted) return;
-        final retry = fallback.files.single;
-        if (retry.size <= 0 || retry.size > 40 * 1024 * 1024) {
-          throw const FormatException('请选择 40 MB 以内的非空文件');
-        }
-        if (retry.path != null && await File(retry.path!).exists()) {
-          source = File(retry.path!);
-        } else if (retry.bytes != null) {
-          final dir = await getTemporaryDirectory();
-          temporary = File(path.join(dir.path, 'journal_import_${CompassStore.newId()}'));
-          await temporary.writeAsBytes(retry.bytes!, flush: true);
-          source = temporary;
-        } else {
-          throw StateError('手机文件管理器未提供可读取的文件，请先下载到本机再导入');
-        }
-        // A retry can select another file. Use its actual name for format checks.
-        if (retry.name != name) {
-          throw StateError('请重新选择同一文件，避免导入错误的附件');
-        }
+        throw StateError('无法读取此文件，请下载到手机本地后再试');
       }
 
       final length = await source.length();
@@ -1413,7 +1394,7 @@ class _JournalEditPageState extends State<JournalEditPage> {
                 child: const Text('追加正文')),
             ]));
         if (append == true && mounted) {
-          body.text = body.text.isEmpty ? extracted : '${body.text}\\n\\n$extracted';
+          body.text = body.text.isEmpty ? extracted : '${body.text}\n\n$extracted';
           changed('');
           if (!await save() && mounted) {
             notice(context, '附件已保存；正文追加未成功，输入框内容仍保留');

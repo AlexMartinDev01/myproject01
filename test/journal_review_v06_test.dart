@@ -32,7 +32,8 @@ void main() {
       child: const MaterialApp(home: JournalReviewPage())));
     expect(find.text('每周小结'), findsOneWidget);
     expect(find.text('每月回顾'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('在本机查看正文摘录'), 250);
+    await tester.scrollUntilVisible(find.text('在本机查看正文摘录'), 250,
+      scrollable: find.byType(Scrollable).first);
     expect(find.text('在本机查看正文摘录'), findsOneWidget);
     expect(find.textContaining('本期记录 0 篇'), findsOneWidget);
     expect(find.byType(SelectableText), findsNothing);

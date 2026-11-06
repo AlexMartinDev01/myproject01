@@ -63,3 +63,10 @@
 .reading-surface .chat-bubble{background:#342847;color:#f5e7ef}.reading-surface .chat-bubble.user{background:#6a4b79;color:#fff}
 .reading-surface button.secondary{color:#f7e5cc}
 .result-motion{background:#120e23;border:1px solid #c59c7a48;border-radius:16px;overflow:hidden;margin-bottom:15px}
+
+/* Tap-to-reveal uses the generated motion footage, not CSS card-turn keyframes. */
+.reveal-area{position:relative}
+.interactive-flip-preview{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#120e23;border-radius:14px;overflow:hidden}
+.interactive-flip-preview[hidden]{display:none!important}
+.interactive-flip-preview video{width:100%;height:100%;object-fit:contain;mix-blend-mode:screen}
+.reveal-area .flip-inner{transition:none!important}

@@ -81,13 +81,6 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: selected, children: screens),
-    floatingActionButton: selected == 1 || selected == 3 ? FloatingActionButton.extended(
-      tooltip: selected == 1 ? '新增收集' : '写一篇日记',
-      onPressed: () => openPage(context, selected == 1
-        ? const CapturePage() : const JournalEditPage()),
-      backgroundColor: grape, foregroundColor: Colors.white,
-      icon: Icon(selected == 1 ? Icons.add : Icons.edit_note_outlined),
-      label: Text(selected == 1 ? '收集内容' : '写日记')) : null,
     bottomNavigationBar: NavigationBar(
       backgroundColor: Colors.white, indicatorColor: const Color(0xFFECE1F4),
       selectedIndex: selected,

@@ -1,0 +1,626 @@
+[
+  {
+    "id": "M00",
+    "name": "愚者",
+    "english": "The Fool",
+    "major": true,
+    "number": 0,
+    "suit": null
+  },
+  {
+    "id": "M01",
+    "name": "魔术师",
+    "english": "The Magician",
+    "major": true,
+    "number": 1,
+    "suit": null
+  },
+  {
+    "id": "M02",
+    "name": "女祭司",
+    "english": "The High Priestess",
+    "major": true,
+    "number": 2,
+    "suit": null
+  },
+  {
+    "id": "M03",
+    "name": "皇后",
+    "english": "The Empress",
+    "major": true,
+    "number": 3,
+    "suit": null
+  },
+  {
+    "id": "M04",
+    "name": "皇帝",
+    "english": "The Emperor",
+    "major": true,
+    "number": 4,
+    "suit": null
+  },
+  {
+    "id": "M05",
+    "name": "教皇",
+    "english": "The Hierophant",
+    "major": true,
+    "number": 5,
+    "suit": null
+  },
+  {
+    "id": "M06",
+    "name": "恋人",
+    "english": "The Lovers",
+    "major": true,
+    "number": 6,
+    "suit": null
+  },
+  {
+    "id": "M07",
+    "name": "战车",
+    "english": "The Chariot",
+    "major": true,
+    "number": 7,
+    "suit": null
+  },
+  {
+    "id": "M08",
+    "name": "力量",
+    "english": "Strength",
+    "major": true,
+    "number": 8,
+    "suit": null
+  },
+  {
+    "id": "M09",
+    "name": "隐者",
+    "english": "The Hermit",
+    "major": true,
+    "number": 9,
+    "suit": null
+  },
+  {
+    "id": "M10",
+    "name": "命运之轮",
+    "english": "Wheel of Fortune",
+    "major": true,
+    "number": 10,
+    "suit": null
+  },
+  {
+    "id": "M11",
+    "name": "正义",
+    "english": "Justice",
+    "major": true,
+    "number": 11,
+    "suit": null
+  },
+  {
+    "id": "M12",
+    "name": "倒吊人",
+    "english": "The Hanged Man",
+    "major": true,
+    "number": 12,
+    "suit": null
+  },
+  {
+    "id": "M13",
+    "name": "死神",
+    "english": "Death",
+    "major": true,
+    "number": 13,
+    "suit": null
+  },
+  {
+    "id": "M14",
+    "name": "节制",
+    "english": "Temperance",
+    "major": true,
+    "number": 14,
+    "suit": null
+  },
+  {
+    "id": "M15",
+    "name": "恶魔",
+    "english": "The Devil",
+    "major": true,
+    "number": 15,
+    "suit": null
+  },
+  {
+    "id": "M16",
+    "name": "高塔",
+    "english": "The Tower",
+    "major": true,
+    "number": 16,
+    "suit": null
+  },
+  {
+    "id": "M17",
+    "name": "星星",
+    "english": "The Star",
+    "major": true,
+    "number": 17,
+    "suit": null
+  },
+  {
+    "id": "M18",
+    "name": "月亮",
+    "english": "The Moon",
+    "major": true,
+    "number": 18,
+    "suit": null
+  },
+  {
+    "id": "M19",
+    "name": "太阳",
+    "english": "The Sun",
+    "major": true,
+    "number": 19,
+    "suit": null
+  },
+  {
+    "id": "M20",
+    "name": "审判",
+    "english": "Judgement",
+    "major": true,
+    "number": 20,
+    "suit": null
+  },
+  {
+    "id": "M21",
+    "name": "世界",
+    "english": "The World",
+    "major": true,
+    "number": 21,
+    "suit": null
+  },
+  {
+    "id": "W01",
+    "name": "权杖王牌",
+    "english": "Ace of Wands",
+    "major": false,
+    "number": 1,
+    "suit": "W"
+  },
+  {
+    "id": "W02",
+    "name": "权杖二",
+    "english": "Two of Wands",
+    "major": false,
+    "number": 2,
+    "suit": "W"
+  },
+  {
+    "id": "W03",
+    "name": "权杖三",
+    "english": "Three of Wands",
+    "major": false,
+    "number": 3,
+    "suit": "W"
+  },
+  {
+    "id": "W04",
+    "name": "权杖四",
+    "english": "Four of Wands",
+    "major": false,
+    "number": 4,
+    "suit": "W"
+  },
+  {
+    "id": "W05",
+    "name": "权杖五",
+    "english": "Five of Wands",
+    "major": false,
+    "number": 5,
+    "suit": "W"
+  },
+  {
+    "id": "W06",
+    "name": "权杖六",
+    "english": "Six of Wands",
+    "major": false,
+    "number": 6,
+    "suit": "W"
+  },
+  {
+    "id": "W07",
+    "name": "权杖七",
+    "english": "Seven of Wands",
+    "major": false,
+    "number": 7,
+    "suit": "W"
+  },
+  {
+    "id": "W08",
+    "name": "权杖八",
+    "english": "Eight of Wands",
+    "major": false,
+    "number": 8,
+    "suit": "W"
+  },
+  {
+    "id": "W09",
+    "name": "权杖九",
+    "english": "Nine of Wands",
+    "major": false,
+    "number": 9,
+    "suit": "W"
+  },
+  {
+    "id": "W10",
+    "name": "权杖十",
+    "english": "Ten of Wands",
+    "major": false,
+    "number": 10,
+    "suit": "W"
+  },
+  {
+    "id": "W11",
+    "name": "权杖侍从",
+    "english": "Page of Wands",
+    "major": false,
+    "number": 11,
+    "suit": "W"
+  },
+  {
+    "id": "W12",
+    "name": "权杖骑士",
+    "english": "Knight of Wands",
+    "major": false,
+    "number": 12,
+    "suit": "W"
+  },
+  {
+    "id": "W13",
+    "name": "权杖皇后",
+    "english": "Queen of Wands",
+    "major": false,
+    "number": 13,
+    "suit": "W"
+  },
+  {
+    "id": "W14",
+    "name": "权杖国王",
+    "english": "King of Wands",
+    "major": false,
+    "number": 14,
+    "suit": "W"
+  },
+  {
+    "id": "C01",
+    "name": "圣杯王牌",
+    "english": "Ace of Cups",
+    "major": false,
+    "number": 1,
+    "suit": "C"
+  },
+  {
+    "id": "C02",
+    "name": "圣杯二",
+    "english": "Two of Cups",
+    "major": false,
+    "number": 2,
+    "suit": "C"
+  },
+  {
+    "id": "C03",
+    "name": "圣杯三",
+    "english": "Three of Cups",
+    "major": false,
+    "number": 3,
+    "suit": "C"
+  },
+  {
+    "id": "C04",
+    "name": "圣杯四",
+    "english": "Four of Cups",
+    "major": false,
+    "number": 4,
+    "suit": "C"
+  },
+  {
+    "id": "C05",
+    "name": "圣杯五",
+    "english": "Five of Cups",
+    "major": false,
+    "number": 5,
+    "suit": "C"
+  },
+  {
+    "id": "C06",
+    "name": "圣杯六",
+    "english": "Six of Cups",
+    "major": false,
+    "number": 6,
+    "suit": "C"
+  },
+  {
+    "id": "C07",
+    "name": "圣杯七",
+    "english": "Seven of Cups",
+    "major": false,
+    "number": 7,
+    "suit": "C"
+  },
+  {
+    "id": "C08",
+    "name": "圣杯八",
+    "english": "Eight of Cups",
+    "major": false,
+    "number": 8,
+    "suit": "C"
+  },
+  {
+    "id": "C09",
+    "name": "圣杯九",
+    "english": "Nine of Cups",
+    "major": false,
+    "number": 9,
+    "suit": "C"
+  },
+  {
+    "id": "C10",
+    "name": "圣杯十",
+    "english": "Ten of Cups",
+    "major": false,
+    "number": 10,
+    "suit": "C"
+  },
+  {
+    "id": "C11",
+    "name": "圣杯侍从",
+    "english": "Page of Cups",
+    "major": false,
+    "number": 11,
+    "suit": "C"
+  },
+  {
+    "id": "C12",
+    "name": "圣杯骑士",
+    "english": "Knight of Cups",
+    "major": false,
+    "number": 12,
+    "suit": "C"
+  },
+  {
+    "id": "C13",
+    "name": "圣杯皇后",
+    "english": "Queen of Cups",
+    "major": false,
+    "number": 13,
+    "suit": "C"
+  },
+  {
+    "id": "C14",
+    "name": "圣杯国王",
+    "english": "King of Cups",
+    "major": false,
+    "number": 14,
+    "suit": "C"
+  },
+  {
+    "id": "S01",
+    "name": "宝剑王牌",
+    "english": "Ace of Swords",
+    "major": false,
+    "number": 1,
+    "suit": "S"
+  },
+  {
+    "id": "S02",
+    "name": "宝剑二",
+    "english": "Two of Swords",
+    "major": false,
+    "number": 2,
+    "suit": "S"
+  },
+  {
+    "id": "S03",
+    "name": "宝剑三",
+    "english": "Three of Swords",
+    "major": false,
+    "number": 3,
+    "suit": "S"
+  },
+  {
+    "id": "S04",
+    "name": "宝剑四",
+    "english": "Four of Swords",
+    "major": false,
+    "number": 4,
+    "suit": "S"
+  },
+  {
+    "id": "S05",
+    "name": "宝剑五",
+    "english": "Five of Swords",
+    "major": false,
+    "number": 5,
+    "suit": "S"
+  },
+  {
+    "id": "S06",
+    "name": "宝剑六",
+    "english": "Six of Swords",
+    "major": false,
+    "number": 6,
+    "suit": "S"
+  },
+  {
+    "id": "S07",
+    "name": "宝剑七",
+    "english": "Seven of Swords",
+    "major": false,
+    "number": 7,
+    "suit": "S"
+  },
+  {
+    "id": "S08",
+    "name": "宝剑八",
+    "english": "Eight of Swords",
+    "major": false,
+    "number": 8,
+    "suit": "S"
+  },
+  {
+    "id": "S09",
+    "name": "宝剑九",
+    "english": "Nine of Swords",
+    "major": false,
+    "number": 9,
+    "suit": "S"
+  },
+  {
+    "id": "S10",
+    "name": "宝剑十",
+    "english": "Ten of Swords",
+    "major": false,
+    "number": 10,
+    "suit": "S"
+  },
+  {
+    "id": "S11",
+    "name": "宝剑侍从",
+    "english": "Page of Swords",
+    "major": false,
+    "number": 11,
+    "suit": "S"
+  },
+  {
+    "id": "S12",
+    "name": "宝剑骑士",
+    "english": "Knight of Swords",
+    "major": false,
+    "number": 12,
+    "suit": "S"
+  },
+  {
+    "id": "S13",
+    "name": "宝剑皇后",
+    "english": "Queen of Swords",
+    "major": false,
+    "number": 13,
+    "suit": "S"
+  },
+  {
+    "id": "S14",
+    "name": "宝剑国王",
+    "english": "King of Swords",
+    "major": false,
+    "number": 14,
+    "suit": "S"
+  },
+  {
+    "id": "P01",
+    "name": "星币王牌",
+    "english": "Ace of Pentacles",
+    "major": false,
+    "number": 1,
+    "suit": "P"
+  },
+  {
+    "id": "P02",
+    "name": "星币二",
+    "english": "Two of Pentacles",
+    "major": false,
+    "number": 2,
+    "suit": "P"
+  },
+  {
+    "id": "P03",
+    "name": "星币三",
+    "english": "Three of Pentacles",
+    "major": false,
+    "number": 3,
+    "suit": "P"
+  },
+  {
+    "id": "P04",
+    "name": "星币四",
+    "english": "Four of Pentacles",
+    "major": false,
+    "number": 4,
+    "suit": "P"
+  },
+  {
+    "id": "P05",
+    "name": "星币五",
+    "english": "Five of Pentacles",
+    "major": false,
+    "number": 5,
+    "suit": "P"
+  },
+  {
+    "id": "P06",
+    "name": "星币六",
+    "english": "Six of Pentacles",
+    "major": false,
+    "number": 6,
+    "suit": "P"
+  },
+  {
+    "id": "P07",
+    "name": "星币七",
+    "english": "Seven of Pentacles",
+    "major": false,
+    "number": 7,
+    "suit": "P"
+  },
+  {
+    "id": "P08",
+    "name": "星币八",
+    "english": "Eight of Pentacles",
+    "major": false,
+    "number": 8,
+    "suit": "P"
+  },
+  {
+    "id": "P09",
+    "name": "星币九",
+    "english": "Nine of Pentacles",
+    "major": false,
+    "number": 9,
+    "suit": "P"
+  },
+  {
+    "id": "P10",
+    "name": "星币十",
+    "english": "Ten of Pentacles",
+    "major": false,
+    "number": 10,
+    "suit": "P"
+  },
+  {
+    "id": "P11",
+    "name": "星币侍从",
+    "english": "Page of Pentacles",
+    "major": false,
+    "number": 11,
+    "suit": "P"
+  },
+  {
+    "id": "P12",
+    "name": "星币骑士",
+    "english": "Knight of Pentacles",
+    "major": false,
+    "number": 12,
+    "suit": "P"
+  },
+  {
+    "id": "P13",
+    "name": "星币皇后",
+    "english": "Queen of Pentacles",
+    "major": false,
+    "number": 13,
+    "suit": "P"
+  },
+  {
+    "id": "P14",
+    "name": "星币国王",
+    "english": "King of Pentacles",
+    "major": false,
+    "number": 14,
+    "suit": "P"
+  }
+]

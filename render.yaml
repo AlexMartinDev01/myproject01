@@ -1,0 +1,14 @@
+# Render Blueprint: one service serves the PWA and FastAPI API.
+# Do not place API keys here. Add a NEW DeepSeek key via Render's secrets settings.
+# IMPORTANT: Do not enable paid AI access on a public deployment before adding
+# user authentication and durable per-user quotas.
+services:
+  - type: web
+    name: starweave-ai-tarot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEEPSEEK_MODEL
+        value: deepseek-flash

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 600" width="360" height="600"><defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#24204b"/><stop offset=".52" stop-color="#0d102b"/><stop offset="1" stop-color="#37315e"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbe3a3"/><stop offset=".45" stop-color="#b8874b"/><stop offset=".77" stop-color="#f2dba1"/><stop offset="1" stop-color="#9c6b4e"/></linearGradient>
+<radialGradient id="glow"><stop stop-color="#706097" stop-opacity=".55"/><stop offset="1" stop-color="#33204f" stop-opacity="0"/></radialGradient>
+<filter id="shine"><feGaussianBlur stdDeviation="2"/></filter></defs>
+<rect width="360" height="600" rx="19" fill="url(#bg)"/><rect width="354" height="594" x="3" y="3" rx="18" fill="none" stroke="url(#gold)" stroke-width="5"/>
+<rect x="18" y="18" width="324" height="564" rx="11" fill="none" stroke="#cba86b" stroke-width="1.5"/>
+<rect x="29" y="29" width="302" height="542" rx="7" fill="none" stroke="#957558" stroke-width=".7"/>
+<ellipse cx="180" cy="300" rx="170" ry="240" fill="url(#glow)"/>
+<g stroke="url(#gold)" fill="none" stroke-width="1.5" opacity=".75"><circle cx="180" cy="300" r="100"/><circle cx="180" cy="300" r="119" stroke-dasharray="2 7"/><circle cx="180" cy="300" r="73"/><path d="M180 118V482M0 300H360M51 171L309 429M309 171L51 429" opacity=".3"/></g>
+<g fill="url(#gold)"><path d="M180 173L190 270L241 300L190 330L180 427L170 330L119 300L170 270Z" opacity=".75"/><path d="M180 224L192 285L252 300L192 315L180 376L168 315L108 300L168 285Z"/><circle cx="180" cy="300" r="30" fill="#171632" stroke="#e4c488" stroke-width="4"/><circle cx="180" cy="300" r="19" fill="#a88d74"/><circle cx="188" cy="295" r="16" fill="#171632"/><circle cx="180" cy="107" r="5"/><circle cx="180" cy="493" r="5"/></g>
+<g stroke="#f2d59b" stroke-width="1.5" opacity=".88"><path d="M52 60l0 26 M39 73h26 M308 514v26 M295 527h26"/><path d="M308 60v26M295 73h26M52 514v26M39 527h26"/></g>
+<g fill="#d8b87b"><circle cx="91" cy="180" r="2"/><circle cx="272" cy="192" r="2.5"/><circle cx="95" cy="422" r="2"/><circle cx="271" cy="432" r="2"/><circle cx="180" cy="65" r="2"/><circle cx="180" cy="536" r="2"/></g></svg>

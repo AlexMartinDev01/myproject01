@@ -1,0 +1,25 @@
+{
+  "name": "星语 · AI 塔罗",
+  "short_name": "星语 Tarot",
+  "description": "沉浸式塔罗自我探索",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d0e1f",
+  "theme_color": "#0d0e1f",
+  "lang": "zh-CN",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "assets/icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

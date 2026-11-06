@@ -1902,6 +1902,109 @@ class PrivacyPage extends StatefulWidget {
 }
 class _PrivacyPageState extends State<PrivacyPage> {
   String result = '';
+  bool privateBusy = false;
+
+  Future<String?> askBackupPassword({bool confirm = false}) async {
+    final first=TextEditingController();
+    final again=TextEditingController();
+    try {
+      final result=await showDialog<String>(context:context,
+        builder:(ctx)=>AlertDialog(
+          title:Text(confirm?'设置私密备份密码':'输入私密备份密码'),
+          content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,
+            children:[
+              const Text('密码只用于本次操作，不会保存在 App 或上传云端。'
+                '请妥善保管，丢失后无法解密备份。'),
+              const SizedBox(height:12),
+              TextField(controller:first,obscureText:true,autofocus:true,
+                decoration:const InputDecoration(labelText:'备份密码（至少 12 字符）')),
+              if(confirm)...[
+                const SizedBox(height:10),
+                TextField(controller:again,obscureText:true,
+                  decoration:const InputDecoration(labelText:'再次输入密码')),
+              ],
+            ])),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('取消')),
+            FilledButton(onPressed:()=>Navigator.pop(ctx,first.text),
+              child:Text(confirm?'开始加密':'解密预览')),
+          ],
+        ));
+      if(result==null)return null;
+      if(result.runes.length<12 || result.runes.length>256) {
+        throw const FormatException('密码长度须为 12–256 字符');
+      }
+      if(confirm && result!=again.text) {
+        throw const FormatException('两次输入的密码不一致');
+      }
+      return result;
+    }finally{first.dispose();again.dispose();}
+  }
+
+  Future<void> exportPrivate() async {
+    if(privateBusy)return;
+    try{
+      final password=await askBackupPassword(confirm:true);
+      if(password==null || !mounted)return;
+      setState(()=>privateBusy=true);
+      final bytes=await CompassScope.of(context).exportPrivateBackup(password);
+      if(!mounted)return;
+      final name='zhixing-private-${DateTime.now().toIso8601String().substring(0,10)}.zxp';
+      final saved=await FilePicker.platform.saveFile(
+        dialogTitle:'保存私密加密备份',fileName:name,
+        type:FileType.custom,allowedExtensions:['zxp'],bytes:bytes);
+      if(mounted)setState(()=>result=saved==null
+        ? '已取消备份保存': '已向系统请求保存私密加密备份：$saved');
+    }catch(e){
+      if(mounted)setState(()=>result='私密备份失败：$e');
+    }finally{if(mounted)setState(()=>privateBusy=false);}
+  }
+
+  Future<void> restorePrivate() async {
+    if(privateBusy)return;
+    try{
+      final selected=await FilePicker.platform.pickFiles(type:FileType.custom,
+        allowedExtensions:['zxp'],withData:true);
+      if(selected==null || selected.files.isEmpty || !mounted)return;
+      final file=selected.files.single;
+      if(file.size<=0 || file.size>72*1024*1024) {
+        throw const FormatException('请选择不超过 72 MB 的私密加密备份');
+      }
+      final Uint8List bytes;
+      if(file.bytes!=null){bytes=file.bytes!;}
+      else if(file.path!=null){bytes=await File(file.path!).readAsBytes();}
+      else{throw StateError('无法读取私密备份文件');}
+      if(!mounted)return;
+      final password=await askBackupPassword();
+      if(password==null || !mounted)return;
+      setState(()=>privateBusy=true);
+      final store=CompassScope.of(context);
+      final info=await store.inspectPrivateBackup(bytes,password);
+      if(!mounted)return;
+      final approve=await showDialog<bool>(context:context,
+        builder:(ctx)=>AlertDialog(
+          title:const Text('确认恢复私密日记？'),
+          content:Text('密码验证成功。备份包含：'
+            '\\n日记 ${info['journals']} 篇'
+            '\\n历史版本 ${info['revisions']} 个'
+            '\\n附件 ${info['attachments']} 个'
+            '\\n\\n仅导入本机不存在的日记 ID；'
+            '已存在的日记不会覆盖。请保留原备份文件直到核验完成。'),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(ctx,false),
+              child:const Text('取消')),
+            FilledButton(onPressed:()=>Navigator.pop(ctx,true),
+              child:const Text('确认恢复')),
+          ]));
+      if(approve!=true || !mounted)return;
+      final count=await store.importPrivateBackup(bytes,password);
+      if(mounted)setState(()=>result='成功恢复 $count 篇新日记；已存在日记未修改。'
+        '建议打开日记抽查历史版本及附件。');
+    }catch(e){
+      if(mounted)setState(()=>result='私密备份恢复失败：$e');
+    }finally{if(mounted)setState(()=>privateBusy=false);}
+  }
+
   @override
   Widget build(BuildContext context) => PageFrame(title: '账户与隐私',
     subtitle: '你的资料应当可查看、可导出、可删除。', children: [
@@ -1971,12 +2074,26 @@ class _PrivacyPageState extends State<PrivacyPage> {
              if (context.mounted) setState(() => result = '恢复失败，原有记录未修改：$e');
            }
          }),
+      const SectionHeading('私密日记独立加密备份'),
+      const SoftCard(color: Color(0xFFF7EEF9), child: Text(
+        '私密备份与普通 JSON 备份完全分开。采用密码加密，包含日记正文、'
+        '全部历史版本和加密附件；密码遗失将无法恢复，备份不经过云端。')),
+      NavCard(icon: Icons.lock_outlined, title: '导出私密加密备份',
+        subtitle: '保存 .zxp 文件；需要设置并记住至少 12 字符的密码',
+        onTap: privateBusy ? () {} : exportPrivate),
+      NavCard(icon: Icons.restore_page_outlined, title: '恢复私密加密备份',
+        subtitle: '先验证密码和内容，再确认恢复；不覆盖已有日记',
+        onTap: privateBusy ? () {} : restorePrivate),
+      if(privateBusy) const Padding(
+        padding:EdgeInsets.symmetric(vertical:8),
+        child:LinearProgressIndicator()),
        NavCard(icon: Icons.lock_outline, title: '查看私密日记',
         subtitle: '仅本机加密保存，当前不接入 AI',
         onTap: () => openPage(context, const JournalPage())),
       NavCard(icon: Icons.manage_accounts_outlined, title: '设备连接令牌',
         onTap: () => openPage(context, const DeviceSettingsPage())),
       if (result.isNotEmpty) SoftCard(child: Text(result)),
-      const SoftCard(color: Color(0xFFFFF1E8), child: Text('目前是个人测试版，尚未实现账号注册、完整加密备份和公开发行数据合规流程。请勿以正式公开服务部署。')),
+      const SoftCard(color: Color(0xFFFFF1E8), child: Text('当前私密迁移功能仍是开发预览版，未经真机跨设备验收。'
+  '请不要卸载含有重要日记的旧版；未完成正式签名、公开发行合规及恢复验收。')),
     ]);
 }

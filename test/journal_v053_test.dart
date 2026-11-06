@@ -40,10 +40,24 @@ void main() {
       child:MaterialApp(home:JournalEditPage(id:entry.id))));
     // Allow the background SQLite/secure-storage isolate to complete the
     // initial async journal decrypt before FakeAsync settles the widget.
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds:350));
-    });
-    await tester.pumpAndSettle();
+    // Loading an encrypted journal may use the OS secure storage and SQLite
+    // isolate. Do not click the disabled save button before loading finishes.
+    for(var i=0;i<20;i++) {
+      await tester.runAsync(() => Future<void>.delayed(
+        const Duration(milliseconds:150)));
+      await tester.pumpAndSettle();
+      final save=find.text('保存本次内容 · 成功后清空输入框');
+      if(save.evaluate().isNotEmpty) {
+        final button=tester.widget<FilledButton>(find.ancestor(
+          of:save,matching:find.byType(FilledButton)));
+        if(button.onPressed!=null) break;
+      }
+    }
+    final readyButton=tester.widget<FilledButton>(find.ancestor(
+      of:find.text('保存本次内容 · 成功后清空输入框'),
+      matching:find.byType(FilledButton)));
+    expect(readyButton.onPressed,isNotNull,
+      reason:'Private journal must finish decrypting before append is enabled');
     final fields=find.byType(TextField);
     expect(fields,findsNWidgets(2));
     final appendController=tester.widget<TextField>(fields.at(1)).controller!;
@@ -62,12 +76,13 @@ void main() {
       }
     });
     await tester.pumpAndSettle();
+    final persisted=await tester.runAsync(() => store.privateJournalBody(entry.id));
+    expect(persisted, '已经保存的第一段\n\n追加的新想法和今天的经历',
+      reason:'Tapped Save must persist both existing and appended text');
     // The ListView may have scrolled the field offstage after tapping Save.
-    // Verify its stable controller instead of assuming a visible index.
-    expect(appendController.text,isEmpty);
+    expect(appendController.text,isEmpty,
+      reason:'Append draft clears only after encrypted persistence');
     await tester.runAsync(() async {
-      expect(await store.privateJournalBody(entry.id),
-        '已经保存的第一段\n\n追加的新想法和今天的经历');
       expect((await store.journalHistory(entry.id)).length,2);
     });
     await tester.pumpWidget(const SizedBox.shrink());

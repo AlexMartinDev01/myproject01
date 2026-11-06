@@ -84,6 +84,38 @@ void main() {
     await store.closeForTests();
   });
 
+  test('large knowledge network enforces the visible-node cap and keeps links local', () async {
+    final store=await CompassStore.open();
+    for(var i=0;i<83;i++) {
+      await store.add(kind:'card',title:'知识条目_${i.toString().padLeft(3,'0')}',
+        body:'本机知识内容',meta:{'topic':'科技'});
+    }
+    final graph=KnowledgeGraphSnapshot.build(store.items);
+    expect(graph.nodes.where((n)=>!n.isSource).length,64);
+    expect(graph.hiddenCards,19);
+    expect(graph.edges,isEmpty);
+    final narrowed=KnowledgeGraphSnapshot.build(store.items,query:'知识条目_042');
+    expect(narrowed.nodes.length,1);
+    expect(narrowed.hiddenCards,0);
+    await store.closeForTests();
+  });
+
+  testWidgets('graph offers quick node focus and reset controls', (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async {
+      store=await CompassStore.open();
+      await store.add(kind:'card',title:'测试定位',body:'本地正文',
+        meta:{'topic':'科技'});
+    });
+    await tester.pumpWidget(CompassScope(store:store,
+      child:const MaterialApp(home:KnowledgeGraphPage())));
+    await tester.ensureVisible(find.byTooltip('重置视图'));
+    expect(find.byTooltip('重置视图'),findsOneWidget);
+    expect(find.byType(InteractiveViewer),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
   testWidgets('empty knowledge graph shows onboarding text without cloud dependency',
       (tester) async {
     late CompassStore store;

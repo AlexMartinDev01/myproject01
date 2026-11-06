@@ -74,7 +74,11 @@ jobs:
           assert hashlib.sha256(font).hexdigest()==expected, 'Unexpected Chinese font checksum'
           assert len(font)<22000000, 'Font unexpectedly large'
           Path('assets/fonts/NotoSansSC.ttf').write_bytes(font)
-          print(f'Bundled {len(font)} bytes of licensed Chinese font')
+          license_url='https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/OFL.txt'
+          license_text=urllib.request.urlopen(license_url,timeout=30).read()
+          assert b'SIL OPEN FONT LICENSE' in license_text
+          Path('assets/fonts/OFL.txt').write_bytes(license_text)
+          print(f'Bundled {len(font)} bytes of licensed Chinese font with OFL notice')
           PY
       - name: Resolve Flutter dependencies
         run: flutter pub get

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,7 +83,7 @@ void main() {
     await expectLater(
       store.importPrivateBackup(
         // Modified JSON may be malformed, which must also be rejected.
-        Uri.dataFromBytes(tampered).contentAsBytes() as dynamic,
+        Uint8List.fromList(tampered),
         'test-passphrase-123'),throwsA(anything));
     expect(store.ofKind('journal').length,1);
     expect(await store.privateJournalBody(entry.id),'不能覆盖原文');

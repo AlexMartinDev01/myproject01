@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'journal_vault.dart';
 import 'chat_store.dart';
 import 'knowledge_candidates.dart';

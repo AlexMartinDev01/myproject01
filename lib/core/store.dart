@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'journal_vault.dart';
 import 'chat_store.dart';
 import 'knowledge_candidates.dart';
+import 'knowledge_index.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart';
@@ -74,6 +76,9 @@ class CompassStore extends ChangeNotifier {
   final FlutterSecureStorage _secure;
   final JournalVault _vault;
   late final ChatStore chats = ChatStore(_db, _vault);
+  late final KnowledgeIndex knowledge = KnowledgeIndex(_db);
+  Future<List<KnowledgeHit>> findKnowledge(String query,{int limit=9}) =>
+      knowledge.search(query,limit:limit);
   List<CompassEntry> items = [];
   List<SourceNote> notes = [];
   List<SourceNote> notesForSource(String sourceId) =>
@@ -194,6 +199,19 @@ class CompassStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Decrypt only an existing attachment owned by this journal.
+  /// This API returns bytes in memory; it never creates a plaintext copy on disk.
+  Future<Uint8List> readJournalAttachmentBytes(String journalId, String assetId) async {
+    final rows = await _db.query('journal_attachments',
+      where: 'id=? AND journal_id=?', whereArgs: [assetId, journalId], limit: 1);
+    if (rows.isEmpty) throw StateError('私密附件不存在');
+    final bytes = await _vault.readAttachment(journalId, assetId);
+    if (bytes.length != rows.first['byte_count']) {
+      throw StateError('附件内容不完整，已停止预览');
+    }
+    return bytes;
+  }
+
   Future<void> removeJournalAttachment(String journalId, String id) async {
     final count = await _db.delete('journal_attachments',
         where: 'id=? AND journal_id=?', whereArgs: [id, journalId]);
@@ -204,7 +222,7 @@ class CompassStore extends ChangeNotifier {
 
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 5, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+      version: 6, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onUpgrade: (Database db, int oldV, int newV) async {
         if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         if (oldV < 3) {
@@ -216,6 +234,7 @@ class CompassStore extends ChangeNotifier {
         }
         if (oldV < 4) await createJournalSchema(db);
         if (oldV < 5) await ChatStore.createSchema(db);
+        if (oldV < 6) await KnowledgeIndex.createSchema(db);
       }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
@@ -228,6 +247,7 @@ class CompassStore extends ChangeNotifier {
         await createNotesSchema(database);
         await createJournalSchema(database);
         await ChatStore.createSchema(database);
+        await KnowledgeIndex.createSchema(database);
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();
@@ -259,6 +279,7 @@ class CompassStore extends ChangeNotifier {
     final noteRows = await _db.query('source_notes', where: 'deleted_at IS NULL',
       orderBy: 'updated_at DESC');
     notes = noteRows.map(SourceNote.fromDb).toList();
+    await knowledge.sync(items,notes);
     notifyListeners();
   }
 

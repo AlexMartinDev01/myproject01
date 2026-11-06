@@ -10,6 +10,8 @@ import 'core/ai.dart';
 import 'core/chat_store.dart';
 import 'core/knowledge_candidates.dart';
 import 'knowledge_review_v052.dart';
+import 'knowledge_ref_v053.dart';
+import 'core/knowledge_index.dart';
 import 'core/store.dart';
 
 const _modes = <String, String>{
@@ -28,7 +30,8 @@ class MessageMarkdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final base = MarkdownStyleSheet.fromTheme(Theme.of(context));
     return MarkdownBody(
-      data: data,
+      data: data.replaceAllMapped(RegExp(r'\[(k_[0-9a-f]{16}_[0-9]+)\]'),
+        (m) => '[' + m.group(1)! + '](zhixing://ref/' + m.group(1)! + ')'),
       selectable: true,
       styleSheet: base.copyWith(
         p: const TextStyle(fontSize: 15, height: 1.6, color: ink),
@@ -40,7 +43,14 @@ class MessageMarkdown extends StatelessWidget {
       ),
       onTapLink: (text, href, title) async {
         final uri = href == null ? null : Uri.tryParse(href);
-        if (uri != null && uri.scheme == 'https') await launchUrl(uri);
+        if (uri == null) return;
+        if (uri.scheme == 'https') {
+          await launchUrl(uri);
+        } else if (uri.scheme == 'zhixing' && uri.host == 'ref' &&
+            uri.pathSegments.length == 1) {
+          await openPage(context, KnowledgeReferencePage(
+            chunkId: uri.pathSegments.single));
+        }
       },
     );
   }
@@ -135,10 +145,10 @@ class _AiChatPageState extends State<AiChatPage> {
     setState(() {sending = true; error = null;});
     final store = CompassScope.of(context);
     try {
-      final evidence = widget.selectedEvidence.isNotEmpty ? widget.selectedEvidence :
-        store.items.where((e) =>
-          (e.kind == 'source' || e.kind == 'card') && e.body.trim().isNotEmpty)
-          .take(8).toList();
+      final hits = await store.findKnowledge(prompt, limit: 9);
+      final evidence = widget.selectedEvidence.isNotEmpty
+        ? widget.selectedEvidence
+        : hits.map((hit) => hit.toEvidence()).toList();
       final response = await AiClient(store).ask(prompt,
         mode: mode, evidence: evidence, history: conversationContext());
       var id = threadId;
@@ -218,6 +228,25 @@ class _AiChatPageState extends State<AiChatPage> {
                 onPressed: () => openPage(context, e.kind == 'card' ?
                   KnowledgeDetailPage(id: e.id) : SourceDetailPage(id: e.id)))).toList()),
           ],
+          if (!user && line.sourceIds.any((id) => id.startsWith('k_')))
+            FutureBuilder<List<KnowledgeHit?>>(future: Future.wait(
+              line.sourceIds.where((id) => id.startsWith('k_'))
+                .map((id) => store.knowledge.lookup(id))),
+              builder: (ctx, snap) {
+                if (!snap.hasData) return const SizedBox.shrink();
+                final refs = snap.data!.whereType<KnowledgeHit>().toList();
+                if (refs.isEmpty) return const SizedBox.shrink();
+                return Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('检索提供的原文片段 · 点击查看具体段落',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Wrap(spacing: 6, runSpacing: 4, children: refs.map((hit) =>
+                      ActionChip(label: Text(hit.title.length > 20
+                        ? hit.title.substring(0, 20) + '…' : hit.title),
+                        onPressed: () => openPage(context,
+                          KnowledgeReferencePage(chunkId: hit.chunkId)))).toList()),
+                  ]);
+              }),
           Wrap(spacing: 4, children: [
             IconButton(tooltip: '复制这条消息', icon: const Icon(Icons.copy, size: 18),
               onPressed: () async {

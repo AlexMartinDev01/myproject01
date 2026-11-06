@@ -14,6 +14,9 @@ import 'core/ai.dart';
 import 'ai_chat_v051.dart';
 import 'core/knowledge_candidates.dart';
 import 'knowledge_review_v052.dart';
+import 'journal_view_v053.dart';
+import 'core/local_document_parse.dart';
+import 'knowledge_ref_v053.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -193,6 +196,10 @@ class _CapturePageState extends State<CapturePage> {
   final url = TextEditingController();
   String type = '网页/视频链接';
   bool saving = false;
+  bool parsing = false;
+  String? parseNotice;
+  int? parsedPages;
+  String? parsedLevel;
   @override
   void dispose() { title.dispose(); body.dispose(); url.dispose(); super.dispose(); }
 
@@ -210,8 +217,26 @@ class _CapturePageState extends State<CapturePage> {
     final dest = File(path.join(dir.path, '${CompassStore.newId()}_${name.replaceAll(RegExp(r'[^a-zA-Z0-9._\-\u4e00-\u9fa5]'), '_')}'));
     await File(file.path!).copy(dest.path);
     if (!mounted) return;
-    setState(() {type = '书籍/PDF'; title.text = name; url.text = dest.path;});
-    notice(context, '文件已复制到本机应用目录；全文解析需连接 AI 工作站');
+    setState(() {type = '书籍/PDF'; title.text = name;
+      url.text = dest.path; parsing = true; parseNotice = '正在手机本机解析文件…';});
+    try {
+      final extracted = await LocalDocumentParser().parseFile(dest);
+      if (!mounted) return;
+      setState(() {
+        parsedPages = extracted.pageCount;
+        parsedLevel = 'locally_extracted';
+        parseNotice = extracted.partial ? extracted.warning : '正文已在本机提取并准备保存';
+        body.text = body.text.trim().isEmpty
+          ? extracted.text : body.text + '\n\n' + extracted.text;
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        parsedLevel = 'metadata_only';
+        parseNotice = '正文提取未完成：$e。文件仍已复制保存，可稍后补录或重试。';
+      });
+    } finally {
+      if (mounted) setState(() => parsing = false);
+    }
   }
 
   Future<void> save() async {
@@ -241,7 +266,11 @@ class _CapturePageState extends State<CapturePage> {
           (raw.isEmpty ? body.text.trim().split('\n').first : raw) : title.text.trim(),
         body: body.text.trim(), origin: raw,
         status: body.text.trim().isEmpty ? '需补内容' : '待处理',
-        meta: {'source_type': type, 'content_level': body.text.trim().isEmpty ? 'metadata_only' : 'user_supplied'});
+        meta: {'source_type': type,
+          'content_level': parsedLevel ??
+            (body.text.trim().isEmpty ? 'metadata_only' : 'user_supplied'),
+          if (parsedPages != null) 'page_count': parsedPages,
+          if (parseNotice != null) 'parse_message': parseNotice});
       if (mounted) { notice(context, '已保存到收集箱'); Navigator.pop(context); }
     } catch (e) {
       if (mounted) notice(context, '保存失败：$e');
@@ -266,11 +295,12 @@ class _CapturePageState extends State<CapturePage> {
         decoration: const InputDecoration(labelText: '原文、书摘、字幕或自己的笔记',
           hintText: '仅有链接时先保存，后续可补录真实正文。')),
       const SizedBox(height: 15),
-      OutlinedButton.icon(onPressed: attachFile, icon: const Icon(Icons.upload_file),
+      OutlinedButton.icon(onPressed: saving || parsing ? null : attachFile, icon: const Icon(Icons.upload_file),
         label: const Text('选择 PDF / 文本 / EPUB 文件')),
+      if (parseNotice != null) Text(parseNotice!, style: const TextStyle(color: grape)),
       const SizedBox(height: 12),
       SizedBox(width: double.infinity, child: FilledButton(
-        onPressed: saving ? null : save,
+        onPressed: saving || parsing ? null : save,
         child: Text(saving ? '正在保存…' : '保存到收集箱'))),
     ])),
     const SoftCard(color: Color(0xFFF8ECF1), child: Text('权限提示：平台链接通常只能保存元信息；要分析完整视频，请补充有权使用的字幕或文字。')),
@@ -385,22 +415,22 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
       SectionHeading('原文 / 用户提供的材料'),
       SoftCard(child: SelectableText(full ? source.body : '当前仅保存了链接或书目信息，尚无可分析的完整正文。',
         style: const TextStyle(height: 1.65))),
-      if (source.origin.toLowerCase().endsWith('.pdf') && !full)
-        NavCard(icon: Icons.picture_as_pdf_outlined, title: '从本地 PDF 提取文字',
-          subtitle: '使用已配对的 云端 AI 网关，不会绕过加密',
+      if (LocalDocumentParser.extension(source.origin).isNotEmpty && !full)
+        NavCard(icon: Icons.text_snippet_outlined, title: '在手机本机重新解析文件',
+          subtitle: 'PDF / DOCX / TXT / MD / EPUB · 不会上传私人文件',
           onTap: () async {
             try {
-              final extracted = await AiClient(store).extractPdf(source.origin);
-              final parsedText = extracted['text']?.toString() ?? '';
-              if (parsedText.trim().isEmpty) {
-                if (context.mounted) notice(context, '此文件可能是扫描 PDF，需要 OCR；未生成虚假正文');
-                return;
-              }
-              await store.update(source.copyWith(body: parsedText, status: '待处理',
-                meta: {...source.meta, 'content_level': 'extracted_pdf',
-                  'page_count': extracted['page_count']}));
-              if (context.mounted) notice(context, 'PDF 文字已按页提取');
-            } catch (e) {if (context.mounted) notice(context, 'PDF 解析失败：$e');}
+              final extracted = await LocalDocumentParser().parseFile(File(source.origin));
+              await store.update(source.copyWith(body: extracted.text,
+                status: '待处理',
+                meta: {...source.meta, 'content_level': 'locally_extracted',
+                  'page_count': extracted.pageCount,
+                  'partial': extracted.partial}));
+              if (context.mounted) notice(context,
+                extracted.partial ? extracted.warning : '文件正文已提取并建立本地检索索引');
+            } catch (e) {
+              if (context.mounted) notice(context, '本机解析失败：$e');
+            }
           }),
       if (!full) NavCard(icon: Icons.edit_note, title: '补录字幕或原文',
         subtitle: '补全材料后才可做基于正文的 AI 摘要',
@@ -1042,19 +1072,21 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
       FilledButton.icon(onPressed: busy ? null : () async {
         setState(() => busy = true);
         try {
+          final hits = await store.findKnowledge(
+            entry.title + ' ' + (entry.meta['goal']?.toString() ?? '') +
+            ' ' + options.join(' ') + ' ' + entry.body, limit: 9);
           final answer = await AiClient(store).ask(
             '请按照决策室结构分析以下问题，先证据后判断，列反方和一个两周小实验。\n'
             '问题：${entry.title}\n目标：${entry.meta['goal']}\n选项：${options.join('、')}\n'
             '约束：${entry.body}\n权重：${entry.meta['criteria']}',
-            mode: 'decision', evidence: store.items.where((e) =>
-              (e.kind == 'source' || e.kind == 'card') && e.body.isNotEmpty).take(8).toList());
+            mode: 'decision', evidence: hits.map((h) => h.toEvidence()).toList());
           if (mounted) setState(() => analysis = answer.answer);
         } catch (e) {if (mounted) notice(context, '决策分析失败：$e');}
         finally {if (mounted) setState(() => busy = false);}
       }, icon: const Icon(Icons.auto_awesome),
         label: Text(busy ? '正在审议…' : '使用 AI 对方案做反方审查')),
       if (analysis != null) SoftCard(color: const Color(0xFFF3EDF8),
-        child: SelectableText(analysis!, style: const TextStyle(height: 1.7))),
+        child: MessageMarkdown(data: analysis!)),
       const SectionHeading('预测与行动'),
       TextField(controller: forecast, minLines: 3, maxLines: 6,
         decoration: const InputDecoration(labelText: '我的预测 / 当时选择 / 成功指标')),
@@ -1223,10 +1255,9 @@ class _JournalEditPageState extends State<JournalEditPage> {
   final title = TextEditingController(), body = TextEditingController();
   String? _id;
   bool busy = false, loaded = false, allowPop = false;
-  Timer? debounce;
   String lastTitle = '', lastBody = '';
   int refreshAssets = 0;
-  bool get dirty => title.text != lastTitle || body.text != lastBody;
+  bool get dirty => title.text.trim() != lastTitle || body.text.trim().isNotEmpty;
   @override
   void initState() {
     super.initState();
@@ -1241,7 +1272,8 @@ class _JournalEditPageState extends State<JournalEditPage> {
           if (!mounted) return;
           if (entry != null) {
             title.text = entry.title;
-            body.text = text;
+            lastBody = text;
+            body.clear();
           }
         } catch (e) {
           if (mounted) notice(context, '日记解密失败：$e；原文件未被更改');
@@ -1250,30 +1282,30 @@ class _JournalEditPageState extends State<JournalEditPage> {
       if (mounted) setState(() {
         loaded = true;
         lastTitle = title.text;
-        lastBody = body.text;
+        // lastBody is the last durable encrypted journal text.
         allowPop = true;
       });
     });
   }
   @override
   void dispose() {
-    debounce?.cancel(); title.dispose(); body.dispose(); super.dispose();
+    title.dispose(); body.dispose(); super.dispose();
   }
   void changed(String _) {
     if (!loaded) return;
-    debounce?.cancel();
+    // Draft is saved only when explicitly requested. Clearing after a
+    // three-second debounce would interrupt long journal writing.
     setState(() => allowPop = false);
-    debounce = Timer(const Duration(seconds: 3), () {
-      if (mounted && dirty) save(silent: true);
-    });
   }
 
   Future<bool> save({bool silent = false}) async {
     if (busy) return false;
     final t = title.text.trim().isEmpty ?
       '日记 · ${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}' : title.text.trim();
-    final text = body.text;
-    if (_id != null && t == lastTitle && text == lastBody) {
+    final newPart = body.text.trim();
+    final text = lastBody.isEmpty ? newPart :
+      newPart.isEmpty ? lastBody : '$lastBody\n\n$newPart';
+    if (_id != null && t == lastTitle && newPart.isEmpty) {
       if (mounted) setState(() => allowPop = true);
       return true;
     }
@@ -1292,10 +1324,11 @@ class _JournalEditPageState extends State<JournalEditPage> {
       if (!mounted) return true;
       lastTitle = t;
       lastBody = text;
+      // Clear the append input ONLY AFTER durable encrypted storage succeeds.
+      body.clear();
       if (title.text.trim().isEmpty) title.text = t;
       setState(() { allowPop = !dirty; refreshAssets++; });
       if (!silent) notice(context, '日记已加密保存并保留历史版本');
-      if (dirty) changed('');
       return true;
     } catch (e) {
       if (mounted) notice(context, '保存失败：$e。请不要退出当前页面');
@@ -1345,31 +1378,9 @@ class _JournalEditPageState extends State<JournalEditPage> {
           await save();
         }
       } else {
-        final approved = await showDialog<bool>(context: context, builder: (ctx) =>
-          AlertDialog(title: const Text('是否提取 PDF 文字？'),
-            content: const Text('PDF 已加密保存在手机。本次提取会将原文件临时发送到你配对的 Windows 节点；'
-              '仅用于文字提取，不会自动发送给 DeepSeek。你也可以以后再处理。'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('仅保留附件')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('允许本次解析')),
-            ]));
-        if (approved == true && mounted) {
-          final parsed = await AiClient(store).extractPdf(source.path);
-          final extracted = parsed['text']?.toString() ?? '';
-          if (!mounted) return;
-          if (extracted.isEmpty) {
-            notice(context, 'PDF 没有可提取文字，扫描文件需要 OCR；附件已保存');
-          } else {
-            if (parsed['extraction_state'] == 'partial') {
-              notice(context, 'PDF 文本只提取了部分内容，附件保留完整原文件');
-            }
-            body.text = body.text.isEmpty ? extracted : body.text + '\n\n' + extracted;
-            changed('');
-            await save();
-          }
-        }
+        // Private PDF stays encrypted. Render never receives this file.
+        if (mounted) notice(context,
+          'PDF 已加密保存；点击附件即可离线查看。云端私密 PDF 解析暂未开放。');
       }
     } catch (e) {
       if (mounted) notice(context, '导入失败：$e。已保存的附件不会自动删除');
@@ -1377,54 +1388,12 @@ class _JournalEditPageState extends State<JournalEditPage> {
   }
 
   Future<void> analyze() async {
-    if (body.text.trim().isEmpty) {notice(context, '请先填写或导入日记正文'); return;}
-    String scope = body.text;
-    if (scope.length > 20000) {
-      final selected = body.selection;
-      if (selected.isValid && !selected.isCollapsed &&
-          selected.end <= scope.length && selected.start >= 0 &&
-          selected.end - selected.start <= 20000) {
-        scope = scope.substring(selected.start, selected.end);
-      } else {
-        final agreed = await showDialog<bool>(context: context, builder: (ctx) =>
-          AlertDialog(title: const Text('这是一篇长日记'),
-            content: const Text('当前单次 AI 调用只支持较短文本。你可以先在编辑器选中不超过 20,000 字符的片段，'
-              '或者明确同意仅分析开头 16,000 字符。完整长篇回顾将在 V0.6 采用分批处理。'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('返回选取片段')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('分析前 16,000 字符')),
-            ]));
-        if (agreed != true || !mounted) return;
-        scope = scope.substring(0, 16000);
-      }
-    }
-    final approved = await showDialog<bool>(context: context,
-      barrierDismissible: false, builder: (ctx) => AlertDialog(
-      title: const Text('仅本次允许 AI 阅读？'),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('所选日记正文会发送到你的 Windows 节点，并可能转发给 DeepSeek 云端。'
-          '本次授权仅用于当前问题，用完即失效；不会自动进入普通知识库。'),
-        const SizedBox(height: 12),
-        Text('本次范围：${scope.length} 字符'),
-        const SizedBox(height: 8),
-        Text(scope.length > 250 ? scope.substring(0, 250) + '…' : scope),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('拒绝')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('仅本次允许')),
-      ]));
-    if (approved == true && mounted) {
-      await openPage(context, AiChatPage(mode: 'challenge', approvedPrivateText: scope));
-    }
+    // Do not misrepresent a Render deployment as a private Windows processor.
+    notice(context, '私密日记 AI 云端授权尚未上线；日记不会在本版本上传。');
   }
 
   Future<void> onBack(bool didPop, Object? result) async {
     if (didPop || !mounted) return;
-    debounce?.cancel();
     if (!dirty && !busy) {
       setState(() => allowPop = true);
       Navigator.of(context).pop();
@@ -1441,12 +1410,376 @@ class _JournalEditPageState extends State<JournalEditPage> {
     final id = _id;
     return PopScope(canPop: allowPop && !busy, onPopInvokedWithResult: onBack,
       child: PageFrame(title: id == null ? '写日记' : '编辑日记',
-        subtitle: '长篇无限续写 · 自动保存 · 附件加密 · 逐次授权', children: [
+        subtitle: '历史正文保留 · 追加保存后清空输入 · 附件可离线查看', children: [
           const SoftCard(color: Color(0xFFF4EDF9), child: Text(
-            '正文按块加密到手机本地，编辑后 3 秒自动保存；'
-            'Word 可离线提取，PDF 需在你批准后使用 Windows 提取。')),
+            '已保存的正文和附件都在本机加密；本次追加内容必须点保存。'
+            '保存成功才会清空输入框，旧内容与历史版本会保留。')),
           TextField(controller: title, maxLength: 120, onChanged: changed,
             decoration: const InputDecoration(labelText: '日记标题')),
+          if (id != null) NavCard(icon: Icons.menu_book_outlined,
+            title: '查看已保存的日记正文',
+            subtitle: '已保存 '+lastBody.length.toString()+' 字 · 点击阅读，不影响追加输入',
+            onTap: () => openPage(context, JournalBodyViewer(journalId: id))),
+          const SizedBox(height: 10),
+          Text(busy ? '加密保存中…' : dirty ? '本次内容待保存' : '已保存',
+            style: const TextStyle(color: grape)),
+          SizedBox(width: double.infinity, child: FilledButton.icon(
+            onPressed: busy || !loaded ? null : () => save(),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('保存本次内容 · 成功后清空输入框'))),
+          const SizedBox(height: 12),
+          TextField(controller: body, minLines: 5, maxLines: 9,
+            onChanged: changed, decoration: const InputDecoration(
+              labelText: '本次追加内容 · 不覆盖已保存的旧正文（不限字数）')),
+          const SizedBox(height: 10),
+          Text(busy ? '保存中…' : dirty ? '有尚未保存的修改' : '内容已保存',
+            style: const TextStyle(color: grape)),
+          FilledButton.icon(onPressed: busy || !loaded ? null : () => save(),
+            icon: const Icon(Icons.save_outlined), label: const Text('立即加密保存')),
+          OutlinedButton.icon(onPressed: busy || !loaded ? null : importDocument,
+            icon: const Icon(Icons.upload_file), label: const Text('导入 Word / PDF 附件')),
+          // Cloud diary access is disabled until the consent UI is upgraded.
+
+          if (id != null) ...[
+            const SectionHeading('私密附件 · 点击文件查看'),
+            FutureBuilder<List<Map<String, Object?>>>(
+              key: ValueKey('${id}_${refreshAssets}'),
+              future: CompassScope.of(context).journalAttachments(id),
+              builder: (ctx, snap) {
+                if (snap.hasError) return Text('附件读取失败：${snap.error}');
+                if (!snap.hasData) return const CircularProgressIndicator();
+                if (snap.data!.isEmpty) return const SoftCard(child: Text('还没有附件'));
+                return Column(children: snap.data!.map((a) => ListTile(
+                  leading: Icon(a['mime'] == 'application/pdf' ?
+                    Icons.picture_as_pdf_outlined : Icons.description_outlined,
+                    color: grape),
+                  title: Text(a['filename']?.toString() ?? '私密附件'),
+                  subtitle: Text('加密附件 · ${a['byte_count']} 字节 · 点击查看'),
+                  onTap: () => openPage(context, JournalAttachmentViewer(
+                    journalId: id,
+                    assetId: a['id'] as String,
+                    filename: a['filename'] as String)),
+                  trailing: IconButton(
+                    tooltip: '删除附件',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () async {
+                      final yes = await showDialog<bool>(context: context,
+                        builder: (ctx) => AlertDialog(title: const Text('删除附件？'),
+                          content: Text('将永久删除 ${a['filename']} 的加密文件。'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('取消')),
+                            FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('删除')),
+                          ]));
+                      if (yes == true && mounted) {
+                        await CompassScope.of(context).removeJournalAttachment(
+                          id, a['id'] as String);
+                        if (mounted) setState(() => refreshAssets++);
+                      }
+                    }),
+                )).toList());
+              }),
+            NavCard(icon: Icons.history, title: '日记历史版本',
+              subtitle: '浏览和恢复以前保存的正文，不覆盖旧版本',
+              onTap: () async {
+                await openPage(context, JournalHistoryPage(id: id));
+                if (!mounted) return;
+                final text = await CompassScope.of(context).privateJournalBody(id);
+                if (mounted) setState(() {
+                  lastBody = text; body.clear();
+                  allowPop = !dirty;
+                });
+              }),
+            TextButton(onPressed: () async {
+              final store = CompassScope.of(context);
+              final entry = store.byId(id);
+              if (entry == null) return;
+              final approved = await showDialog<bool>(context: context,
+                builder: (ctx) => AlertDialog(title: const Text('永久删除私密日记？'),
+                  content: const Text('日记正文、历史版本和所有加密附件将被删除。'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('取消')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('永久删除')),
+                  ]));
+              if (approved == true && mounted) {
+                await store.remove(entry);
+                if (mounted) {setState(() => allowPop = true); Navigator.pop(context);}
+              }
+            }, child: const Text('删除这篇日记', style: TextStyle(color: Colors.red))),
+          ],
+        ]));
+  }
+}
+
+class JournalHistoryPage extends StatelessWidget {
+  final String id;
+  const JournalHistoryPage({super.key, required this.id});
+  @override
+  Widget build(BuildContext context) {
+    final store = CompassScope.of(context);
+    return PageFrame(title: '私密日记历史', subtitle: '恢复会创建一个新版本，原来的版本仍保留',
+      children: [
+        FutureBuilder<List<Map<String, Object?>>>(
+          future: store.journalHistory(id),
+          builder: (ctx, snap) {
+            if (snap.hasError) return Text('读取失败：${snap.error}');
+            if (!snap.hasData) return const CircularProgressIndicator();
+            return Column(children: snap.data!.map((v) => NavCard(
+              icon: Icons.history,
+              title: '保存于 ${v['saved_at']}',
+              subtitle: '正文长度 ${v['byte_count']} 字节 · 点击查看和恢复',
+              onTap: () async {
+                final revision = v['revision_id'] as String;
+                try {
+                  final text = await store.privateJournalBody(id);
+                  // The actual historical revision is only decrypted on demand.
+                  final answer = await showDialog<bool>(context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('恢复历史版本？'),
+                      content: Text('将所选历史版本恢复为最新版，当前正文会作为历史保留。'
+                        '当前内容约 ${text.length} 字符。'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('取消')),
+                        FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('恢复')),
+                      ]));
+                  if (answer == true) {
+                    await store.restoreJournalRevision(id, revision);
+                    if (context.mounted) {
+                      notice(context, '已恢复为新版本');
+                      Navigator.pop(context);
+                    }
+                  }
+                } catch (e) {
+                  if (context.mounted) notice(context, '恢复失败：$e');
+                }
+              })).toList());
+          }),
+      ]);
+  }
+}
+
+class DeviceSettingsPage extends StatefulWidget {
+  const DeviceSettingsPage({super.key});
+  @override
+  State<DeviceSettingsPage> createState() => _DeviceSettingsPageState();
+}
+class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
+  final server = TextEditingController();
+  final token = TextEditingController();
+  String status = '尚未测试连接';
+  bool testing = false;
+  bool liveTesting = false;
+  @override
+  void initState() {
+    super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final store = CompassScope.of(context);
+      server.text = store.serverUrl; token.text = store.deviceToken;
+    });
+  }
+  @override
+  void dispose() {server.dispose(); token.dispose(); super.dispose();}
+  Future<void> save() async {
+    try {
+      await CompassScope.of(context).setConnection(server.text, token.text);
+      if (mounted) notice(context, 'AI 工作站设置已保存');
+    } catch (e) {if (mounted) notice(context, '配置无效：$e');}
+  }
+  Future<void> test() async {
+    setState(() {testing = true; status = '正在连接…';});
+    try {
+      await CompassScope.of(context).setConnection(server.text, token.text);
+      final health = await AiClient(CompassScope.of(context)).health();
+      if (mounted) setState(() => status = health.providerConfigured ?
+        '节点在线 · 模型 ${health.model} · 已配置密钥（尚未执行实际问答）' :
+        '节点在线 · 模型 ${health.model} · 未配置 DeepSeek 密钥');
+    } catch (e) {if (mounted) setState(() => status = '无法连接：$e');}
+    finally {if (mounted) setState(() => testing = false);}
+  }
+  Future<void> testRealAi() async {
+    if (liveTesting) return;
+    setState(() {liveTesting = true; status = '正在调用 DeepSeek 进行真实问答…';});
+    try {
+      await CompassScope.of(context).setConnection(server.text, token.text);
+      final result = await AiClient(CompassScope.of(context))
+          .ask('请用简短的一句话确认 AI 服务已连接。', mode: 'ask');
+      if (mounted) setState(() => status = '真实 AI 调用成功 · ${result.model} · ${result.answer}');
+    } catch (e) {
+      if (mounted) setState(() => status = '真实 AI 调用失败：$e');
+    } finally {
+      if (mounted) setState(() => liveTesting = false);
+    }
+  }
+  @override
+  Widget build(BuildContext context) => PageFrame(title: '设备与 AI 设置',
+    subtitle: '你的 DeepSeek Key 只应该保存在服务端环境变量里，不能写入 APK。', children: [
+      const SoftCard(color: Color(0xFFF4EDF9), child: Column(children: [
+        Icon(Icons.computer_outlined, color: grape, size: 33),
+        SizedBox(height: 8),
+        Text('云端 AI 网关', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        SizedBox(height: 8),
+        Text('电脑离线不影响手机记笔记；在线且正确配置服务端密钥后可使用 AI。',
+          textAlign: TextAlign.center),
+      ])),
+      TextField(controller: server, keyboardType: TextInputType.url,
+        decoration: const InputDecoration(labelText: 'AI 服务地址',
+          hintText: '例如 https://你的安全私有域名')),
+      const SizedBox(height: 12),
+      TextField(controller: token, obscureText: true, enableSuggestions: false,
+        autocorrect: false,
+        decoration: const InputDecoration(labelText: '设备配对令牌', hintText: '与服务端 APP_DEVICE_TOKEN 一致')),
+      const SizedBox(height: 14),
+      FilledButton.icon(onPressed: save, icon: const Icon(Icons.save),
+        label: const Text('保存连接设置')),
+      const SizedBox(height: 10),
+      OutlinedButton.icon(onPressed: testing ? null : test, icon: const Icon(Icons.wifi_tethering),
+        label: Text(testing ? '正在测试…' : '测试节点连接')),
+      const SizedBox(height: 10),
+      FilledButton.icon(onPressed: liveTesting ? null : testRealAi,
+        icon: const Icon(Icons.verified_outlined),
+        label: Text(liveTesting ? 'DeepSeek 请求中…' : '真实 AI 问答测试（需要流量和额度）')),
+      const SizedBox(height: 12),
+      SoftCard(child: Text(status)),
+      NavCard(icon: Icons.wifi_off, title: '离线状态说明',
+        onTap: () => openPage(context, const OfflineStatusPage())),
+      const SoftCard(color: Color(0xFFFFF1E8), child: Text('安全提示：通过外网访问必须使用 HTTPS 和设备令牌。'
+        '请勿直接将没有认证的本地服务暴露到公网。')),
+    ]);
+}
+
+class OfflineStatusPage extends StatelessWidget {
+  const OfflineStatusPage({super.key});
+  @override
+  Widget build(BuildContext context) => PageFrame(title: '离线工作模式',
+    subtitle: 'AI 工作站未连接时仍可继续学习。', children: [
+      const SoftCard(color: Color(0xFFF1EAF7), child: Column(children: [
+        Icon(Icons.cloud_off_outlined, size: 40, color: grape),
+        SizedBox(height: 12),
+        Text('离线并不意味着停止成长', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        Text('可继续保存来源链接、写知识卡、做任务、记录决策和私密日记。'),
+      ])),
+      NavCard(icon: Icons.note_add_outlined, title: '离线收集', onTap: () => openPage(context, const CapturePage())),
+      NavCard(icon: Icons.book_outlined, title: '离线阅读知识卡', onTap: () => openPage(context, const KnowledgePage())),
+      NavCard(icon: Icons.settings, title: '设置 AI 连接', onTap: () => openPage(context, const DeviceSettingsPage())),
+    ]);
+}
+
+class MinePage extends StatelessWidget {
+  const MinePage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final store = CompassScope.of(context);
+    return PageFrame(title: '我的', subtitle: '让改变变得有迹可循。', children: [
+      SoftCard(color: const Color(0xFFF3E9F7), child: Row(children: [
+        const CircleAvatar(radius: 28, backgroundColor: Color(0xFFE4D4ED),
+          child: Icon(Icons.person_outline, color: grape, size: 30)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('知行者', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+          Text('${store.ofKind('card').length} 张知识卡 · ${store.ofKind('decision').length} 条决策记录',
+            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ])),
+      ])),
+      NavCard(icon: Icons.favorite_border, title: '成长与学习路径',
+        onTap: () => openPage(context, const LearningPage())),
+      NavCard(icon: Icons.book_outlined, title: '私密日记',
+        subtitle: '独立本地存储 · 按次授权', onTap: () => openPage(context, const JournalPage())),
+      NavCard(icon: Icons.balance, title: '我的决策与复盘',
+        onTap: () => openPage(context, const DecisionPage())),
+      NavCard(icon: Icons.devices_outlined, title: 'AI 节点与设备管理',
+        onTap: () => openPage(context, const DeviceSettingsPage())),
+      NavCard(icon: Icons.privacy_tip_outlined, title: '账户与隐私',
+        onTap: () => openPage(context, const PrivacyPage())),
+    ]);
+  }
+}
+
+class PrivacyPage extends StatefulWidget {
+  const PrivacyPage({super.key});
+  @override
+  State<PrivacyPage> createState() => _PrivacyPageState();
+}
+class _PrivacyPageState extends State<PrivacyPage> {
+  String result = '';
+  @override
+  Widget build(BuildContext context) => PageFrame(title: '账户与隐私',
+    subtitle: '你的资料应当可查看、可导出、可删除。', children: [
+      const SoftCard(color: Color(0xFFF1ECF7), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('隐私边界', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        Text('• 私密日记正文单独保存在系统安全存储。\n'
+          '• 默认不进入普通知识搜索和 AI 自动资料。\n'
+          '• 每次发送给 DeepSeek 前都会提示并要求确认。\n'
+          '• 公开版多用户账号与云同步尚未启用。',
+          style: TextStyle(height: 1.7)),
+      ])),
+      NavCard(icon: Icons.file_download_outlined, title: '保存普通数据备份文件',
+        subtitle: '选择保存位置并导出 JSON；不包含私密日记和二进制附件',
+        onTap: () async {
+          try {
+            final json = await CompassScope.of(context).exportJson();
+            final today = DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', '');
+            final saved = await FilePicker.platform.saveFile(
+              dialogTitle: '保存知行罗盘普通数据备份',
+              fileName: 'zhixing-backup-$today.json',
+              type: FileType.custom, allowedExtensions: ['json'],
+              bytes: Uint8List.fromList(utf8.encode(json)));
+            if (context.mounted && saved != null) {
+              setState(() => result = '已请求系统保存普通数据备份到所选位置：$saved');
+            }
+          } catch (e) {
+            if (context.mounted) setState(() => result = '文件备份失败：$e');
+          }
+        }),
+      NavCard(icon: Icons.restore, title: '恢复普通数据备份',
+         subtitle: '选择此前导出的 JSON；只导入新记录，不覆盖旧记录',
+         onTap: () async {
+           try {
+             final selection = await FilePicker.platform.pickFiles(
+               type: FileType.custom, allowedExtensions: ['json']);
+             if (selection == null || selection.files.isEmpty || !context.mounted) return;
+             final item = selection.files.single;
+             if (item.path == null || item.size > 15 * 1024 * 1024) {
+               notice(context, '无法读取或备份大于 15 MB'); return;
+             }
+             final approved = await showDialog<bool>(context: context,
+               builder: (ctx) => AlertDialog(title: const Text('确认恢复备份？'),
+                 content: const Text('仅添加当前设备不存在的普通记录，重复 ID 跳过，不覆盖私密日记。'),
+                 actions: [TextButton(onPressed: () => Navigator.pop(ctx, false),
+                   child: const Text('取消')),
+                   FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('开始恢复'))]));
+             if (approved != true || !context.mounted) return;
+             final count = await CompassScope.of(context).importJson(await File(item.path!).readAsString());
+             if (context.mounted) setState(() => result = '成功恢复 $count 条新记录；已有记录未覆盖');
+           } catch (e) {
+             if (context.mounted) setState(() => result = '恢复失败，原有记录未修改：$e');
+           }
+         }),
+       NavCard(icon: Icons.lock_outline, title: '查看私密日记',
+        subtitle: '单次授权不会长期保存',
+        onTap: () => openPage(context, const JournalPage())),
+      NavCard(icon: Icons.manage_accounts_outlined, title: '设备连接令牌',
+        onTap: () => openPage(context, const DeviceSettingsPage())),
+      if (result.isNotEmpty) SoftCard(child: Text(result)),
+      const SoftCard(color: Color(0xFFFFF1E8), child: Text('目前是个人测试版，尚未实现账号注册、完整加密备份和公开发行数据合规流程。请勿以正式公开服务部署。')),
+    ]);
+}+'{lastBody.length} 字 · 点击阅读，不影响追加输入',
+            onTap: () => openPage(context, JournalBodyViewer(journalId: id))),
+          const SizedBox(height: 10),
+          Text(busy ? '正在加密保存…' : dirty ? '本次内容尚未保存' : '已保存',
+            style: const TextStyle(color: grape)),
+          const SizedBox(height: 7),
+          SizedBox(width: double.infinity, child: FilledButton.icon(
+            onPressed: busy || !loaded ? null : () => save(),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('保存本次内容 · 成功后清空输入框'))),
           const SizedBox(height: 12),
           TextField(controller: body, minLines: 12, maxLines: 22,
             onChanged: changed, decoration: const InputDecoration(

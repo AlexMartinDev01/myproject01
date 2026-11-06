@@ -1796,7 +1796,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
         SizedBox(height: 8),
         Text('• 私密日记正文单独保存在系统安全存储。\n'
           '• 默认不进入普通知识搜索和 AI 自动资料。\n'
-          '• 每次发送给 DeepSeek 前都会提示并要求确认。\n'
+          '• 当前版本不向 AI 上传日记，相关授权功能尚未开放。\n'
           '• 公开版多用户账号与云同步尚未启用。',
           style: TextStyle(height: 1.7)),
       ])),
@@ -1823,11 +1823,19 @@ class _PrivacyPageState extends State<PrivacyPage> {
          onTap: () async {
            try {
              final selection = await FilePicker.platform.pickFiles(
-               type: FileType.custom, allowedExtensions: ['json']);
+               type: FileType.custom, allowedExtensions: ['json'], withData: true);
              if (selection == null || selection.files.isEmpty || !context.mounted) return;
              final item = selection.files.single;
-             if (item.path == null || item.size > 15 * 1024 * 1024) {
-               notice(context, '无法读取或备份大于 15 MB'); return;
+             if (item.size <= 0 || item.size > 15 * 1024 * 1024) {
+               notice(context, '请选择 15 MB 以内的有效备份文件'); return;
+             }
+             final String backupText;
+             if (item.path != null && await File(item.path!).exists()) {
+               backupText = await File(item.path!).readAsString();
+             } else if (item.bytes != null) {
+               backupText = utf8.decode(item.bytes!);
+             } else {
+               notice(context, '无法读取此文件，请先保存到手机本地后重试'); return;
              }
              final approved = await showDialog<bool>(context: context,
                builder: (ctx) => AlertDialog(title: const Text('确认恢复备份？'),
@@ -1836,14 +1844,14 @@ class _PrivacyPageState extends State<PrivacyPage> {
                    child: const Text('取消')),
                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('开始恢复'))]));
              if (approved != true || !context.mounted) return;
-             final count = await CompassScope.of(context).importJson(await File(item.path!).readAsString());
+             final count = await CompassScope.of(context).importJson(backupText);
              if (context.mounted) setState(() => result = '成功恢复 $count 条新记录；已有记录未覆盖');
            } catch (e) {
              if (context.mounted) setState(() => result = '恢复失败，原有记录未修改：$e');
            }
          }),
        NavCard(icon: Icons.lock_outline, title: '查看私密日记',
-        subtitle: '单次授权不会长期保存',
+        subtitle: '仅本机加密保存，当前不接入 AI',
         onTap: () => openPage(context, const JournalPage())),
       NavCard(icon: Icons.manage_accounts_outlined, title: '设备连接令牌',
         onTap: () => openPage(context, const DeviceSettingsPage())),

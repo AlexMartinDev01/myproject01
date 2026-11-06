@@ -44,7 +44,7 @@ class _JournalReviewPageState extends State<JournalReviewPage> {
     try {
       final title = '${period == ReviewPeriod.week ? '每周小结' : '每月回顾'} · $periodLabel';
       final content = ['最重要的一件事：${answers[0]}',
-        '值得继续保持：${answers[1]}', '下一步想尝试：${answers[2]}'].join('\\n\\n');
+        '值得继续保持：${answers[1]}', '下一步想尝试：${answers[2]}'].join('\n\n');
       await CompassScope.of(context).add(kind: 'journal', title: title,
         body: content, status: '私密', meta: {'local_review': true});
       if (!mounted) return;

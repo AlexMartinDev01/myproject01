@@ -665,6 +665,23 @@ class CompassStore extends ChangeNotifier {
     return PrivateBackupCodec.seal({'version':1,'journals':archives},passphrase);
   }
 
+  Future<Map<String,int>> inspectPrivateBackup(
+      Uint8List file, String passphrase) async {
+    final data = await PrivateBackupCodec.unseal(file,passphrase);
+    final journals=data['journals'] as List;
+    var revisions=0, attachments=0;
+    for(final item in journals) {
+      if(item is! Map<String,dynamic> ||
+          item['revisions'] is! List || item['attachments'] is! List) {
+        throw const FormatException('私密备份内容不完整');
+      }
+      revisions+=(item['revisions'] as List).length;
+      attachments+=(item['attachments'] as List).length;
+    }
+    return {'journals':journals.length,'revisions':revisions,
+      'attachments':attachments};
+  }
+
   /// Password must be supplied explicitly each time; it is never persisted.
   /// Validates the full archive before inserting anything into the DB.
   Future<int> importPrivateBackup(Uint8List file,String passphrase) async {
@@ -681,7 +698,7 @@ class CompassStore extends ChangeNotifier {
       }
       final raw = item['entry'] as Map<String,dynamic>;
       final id = raw['id'];
-      if (id is! String || id.isEmpty || !_vault.safe(id).contains(id) ||
+      if (id is! String || id.isEmpty || !_vault.safe(id) != id ||
           raw['kind'] != 'journal' || raw['body'] != '' ||
           !seen.add(id)) {
         throw const FormatException('私密日记标识或记录类型无效');

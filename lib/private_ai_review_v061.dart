@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'main.dart';
-import 'core/store.dart';
 import 'core/ai.dart';
 
 /// Opt-in cloud analysis of explicitly selected, previewed excerpts.

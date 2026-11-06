@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'private_backup.dart';
 import 'package:crypto/crypto.dart';
 import 'journal_vault.dart';

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'core/docx_extract.dart';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';

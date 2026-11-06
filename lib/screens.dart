@@ -12,6 +12,7 @@ import 'main.dart';
 import 'core/store.dart';
 import 'core/ai.dart';
 import 'ai_chat_v051.dart';
+import 'decision_review_v055.dart';
 import 'core/knowledge_candidates.dart';
 import 'knowledge_review_v052.dart';
 import 'journal_view_v053.dart';
@@ -1023,94 +1024,6 @@ class _WeightSlider extends StatelessWidget {
     Row(children: [Expanded(child: Text(label)), Text('${value.toInt()}%')]),
     Slider(value: value, min: 0, max: 100, divisions: 20, onChanged: onChanged),
   ]));
-}
-
-class DecisionReviewPage extends StatefulWidget {
-  final String id;
-  const DecisionReviewPage({super.key, required this.id});
-  @override
-  State<DecisionReviewPage> createState() => _DecisionReviewPageState();
-}
-class _DecisionReviewPageState extends State<DecisionReviewPage> {
-  late final TextEditingController forecast;
-  late final TextEditingController reality;
-  late final TextEditingController next;
-  String? analysis;
-  bool busy = false;
-  @override
-  void initState() {
-    super.initState(); forecast = TextEditingController();
-    reality = TextEditingController(); next = TextEditingController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final e = CompassScope.of(context).byId(widget.id);
-      if (e != null) {forecast.text = e.meta['prediction']?.toString() ?? '';
-        reality.text = e.meta['observed']?.toString() ?? '';
-        next.text = e.meta['next_action']?.toString() ?? '';}
-    });
-  }
-  @override
-  void dispose() {forecast.dispose(); reality.dispose(); next.dispose(); super.dispose();}
-  @override
-  Widget build(BuildContext context) {
-    final store = CompassScope.of(context); final entry = store.byId(widget.id);
-    if (entry == null) return const PageFrame(title: '决策不存在', children: [Text('此记录可能已删除。')]);
-    final options = (entry.meta['options'] as List? ?? []).map((e) => e.toString()).toList();
-    return PageFrame(title: '决策分析与复盘', subtitle: entry.title, children: [
-      SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('目标：${entry.meta['goal'] ?? '-'}', style: const TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        Text('选项：${options.join(' / ')}'),
-        const SizedBox(height: 10),
-        Text('约束：${entry.body.isEmpty ? '尚未记录' : entry.body}'),
-        const SizedBox(height: 10),
-        Text('评分权重：${entry.meta['criteria'] ?? {}}'),
-        const SizedBox(height: 10),
-        SmallChip(entry.status),
-      ])),
-      FilledButton.icon(onPressed: busy ? null : () async {
-        setState(() => busy = true);
-        try {
-          final hits = await store.findKnowledge(
-            entry.title + ' ' + (entry.meta['goal']?.toString() ?? '') +
-            ' ' + options.join(' ') + ' ' + entry.body, limit: 9);
-          final answer = await AiClient(store).ask(
-            '请按照决策室结构分析以下问题，先证据后判断，列反方和一个两周小实验。\n'
-            '问题：${entry.title}\n目标：${entry.meta['goal']}\n选项：${options.join('、')}\n'
-            '约束：${entry.body}\n权重：${entry.meta['criteria']}',
-            mode: 'decision', evidence: hits.map((h) => h.toEvidence()).toList());
-          if (mounted) setState(() => analysis = answer.answer);
-        } catch (e) {if (mounted) notice(context, '决策分析失败：$e');}
-        finally {if (mounted) setState(() => busy = false);}
-      }, icon: const Icon(Icons.auto_awesome),
-        label: Text(busy ? '正在审议…' : '使用 AI 对方案做反方审查')),
-      if (analysis != null) SoftCard(color: const Color(0xFFF3EDF8),
-        child: MessageMarkdown(data: analysis!)),
-      const SectionHeading('预测与行动'),
-      TextField(controller: forecast, minLines: 3, maxLines: 6,
-        decoration: const InputDecoration(labelText: '我的预测 / 当时选择 / 成功指标')),
-      const SizedBox(height: 10),
-      TextField(controller: next, minLines: 2, maxLines: 5,
-        decoration: const InputDecoration(labelText: '下一步最小实验')),
-      const SizedBox(height: 10),
-      TextField(controller: reality, minLines: 2, maxLines: 8,
-        decoration: const InputDecoration(labelText: '事后观察的实际结果')),
-      const SizedBox(height: 14),
-      FilledButton(onPressed: () async {
-        await store.update(entry.copyWith(status: reality.text.trim().isEmpty ? '执行中' : '已复盘',
-          meta: {...entry.meta, 'prediction': forecast.text.trim(),
-            'next_action': next.text.trim(), 'observed': reality.text.trim()}));
-        if (context.mounted) notice(context, '决策记录已保存');
-      }, child: const Text('保存预测与复盘')),
-      TextButton(onPressed: () async {
-        final ok = await showDialog<bool>(context: context,
-          builder: (c) => AlertDialog(title: const Text('删除决策？'), actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('取消')),
-            TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('删除'))]));
-        if (ok == true) {await store.remove(entry); if (context.mounted) Navigator.pop(context);}
-      }, child: const Text('删除这条决策', style: TextStyle(color: Colors.red))),
-    ]);
-  }
 }
 
 class LearningPage extends StatefulWidget {

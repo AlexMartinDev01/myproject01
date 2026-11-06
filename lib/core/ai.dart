@@ -18,7 +18,16 @@ class AiHealth {
 
 class AiClient {
   final CompassStore store;
-  AiClient(this.store);
+  final http.Client? transport;
+  AiClient(this.store, {this.transport});
+
+  Future<http.Response> _get(Uri uri, {required Map<String, String> headers}) =>
+      transport == null ? http.get(uri, headers: headers)
+          : transport!.get(uri, headers: headers);
+  Future<http.Response> _post(Uri uri, {required Map<String, String> headers,
+      required String body}) => transport == null
+          ? http.post(uri, headers: headers, body: body)
+          : transport!.post(uri, headers: headers, body: body);
 
   Uri endpoint(String path) {
     if (store.serverUrl.isEmpty || store.deviceToken.isEmpty) {
@@ -32,7 +41,7 @@ class AiClient {
   };
 
   Future<AiHealth> health() async {
-    final response = await http.get(endpoint('/health'), headers: headers)
+    final response = await _get(endpoint('/health'), headers: headers)
         .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) throw Exception('节点不可用（HTTP ${response.statusCode}）');
     final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -49,7 +58,7 @@ class AiClient {
     final requestId = 'req_${CompassStore.newId()}';
     String? consentToken;
     if (privateText != null && privateText.isNotEmpty) {
-      final response = await http.post(endpoint('/v1/consent'), headers: headers,
+      final response = await _post(endpoint('/v1/consent'), headers: headers,
         body: jsonEncode({'private_text': privateText, 'request_id': requestId, 'question': question, 'mode': mode}))
         .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200) throw Exception('日记本次授权失败（${response.statusCode}）');
@@ -66,7 +75,7 @@ class AiClient {
         'private_text': privateText, 'request_id': requestId, 'question': question, 'mode': mode, 'consent_token': consentToken,
       }
     };
-    final response = await http.post(endpoint('/v1/chat'), headers: headers,
+    final response = await _post(endpoint('/v1/chat'), headers: headers,
       body: jsonEncode(payload)).timeout(const Duration(seconds: 85));
     final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     if (response.statusCode != 200) {

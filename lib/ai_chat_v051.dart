@@ -61,8 +61,11 @@ class AiChatPage extends StatefulWidget {
   final String? conversationId;
   final List<CompassEntry> selectedEvidence;
   final String? approvedPrivateText;
+  final String? initialPrompt;
+  final bool restrictEvidenceToSelection;
   const AiChatPage({super.key, this.mode = 'ask', this.conversationId,
-    this.selectedEvidence = const [], this.approvedPrivateText});
+    this.selectedEvidence = const [], this.approvedPrivateText,
+    this.initialPrompt, this.restrictEvidenceToSelection = false});
 
   @override
   State<AiChatPage> createState() => _AiChatPageState();
@@ -81,6 +84,7 @@ class _AiChatPageState extends State<AiChatPage> {
     super.initState();
     threadId = widget.conversationId;
     mode = widget.mode;
+    input.text = widget.initialPrompt ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) => loadConversation());
   }
 
@@ -146,9 +150,11 @@ class _AiChatPageState extends State<AiChatPage> {
     final store = CompassScope.of(context);
     try {
       final hits = await store.findKnowledge(prompt, limit: 9);
-      final evidence = widget.selectedEvidence.isNotEmpty
+      final evidence = widget.restrictEvidenceToSelection
         ? widget.selectedEvidence
-        : hits.map((hit) => hit.toEvidence()).toList();
+        : (widget.selectedEvidence.isNotEmpty
+            ? widget.selectedEvidence
+            : hits.map((hit) => hit.toEvidence()).toList());
       final response = await AiClient(store).ask(prompt,
         mode: mode, evidence: evidence, history: conversationContext());
       var id = threadId;

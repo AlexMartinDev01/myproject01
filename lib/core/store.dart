@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'journal_vault.dart';
 import 'chat_store.dart';
 import 'knowledge_candidates.dart';
@@ -598,24 +599,63 @@ class CompassStore extends ChangeNotifier {
     return ids;
   }
 
+  /// Checksum protects ordinary-backup integrity; it is not encryption or a MAC.
+  /// Older v1/v2 backups without a checksum are still accepted for compatibility.
+  static String backupChecksum(Map<String, dynamic> data) {
+    final payload = Map<String, dynamic>.from(data)..remove('backup_sha256');
+    return sha256.convert(utf8.encode(jsonEncode(payload))).toString();
+  }
+
+  static Map<String, dynamic> inspectOrdinaryBackup(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic> ||
+        !['zhixing-compass-v1', 'zhixing-compass-v2'].contains(decoded['format']) ||
+        decoded['entries'] is! List) {
+      throw const FormatException('不是受支持的知行罗盘普通备份');
+    }
+    final digest = decoded['backup_sha256'];
+    if (digest != null) {
+      if (digest is! String || digest.length != 64 ||
+          digest != backupChecksum(decoded)) {
+        throw const FormatException('备份完整性校验失败：文件可能不完整或已被修改');
+      }
+    }
+    if ((decoded['entries'] as List).length > 100000) {
+      throw const FormatException('备份记录数超出限制');
+    }
+    return {
+      'format': decoded['format'],
+      'entries': (decoded['entries'] as List).length,
+      'notes': decoded['source_notes'] is List
+          ? (decoded['source_notes'] as List).length : 0,
+      'verified': digest != null,
+      'journal_excluded': decoded['private_journals_excluded'] == true,
+    };
+  }
+
   Future<String> exportJson() async {
     final exportable = items.where((e) => e.kind != 'journal').map((e) => e.toDb()).toList();
-    // Private journal export intentionally requires separate future user-encrypted export flow.
+    // Private journal export intentionally requires separate user-encrypted export.
     final noteRows = await _db.query('source_notes');
     final noteRevisionRows = await _db.query('note_revisions');
     final sourceVersionRows = await _db.query('source_versions');
-    return const JsonEncoder.withIndent('  ').convert({
+    final payload = <String, dynamic>{
       'format': 'zhixing-compass-v2', 'exported_at': DateTime.now().toIso8601String(),
       'entries': exportable, 'source_notes': noteRows,
       'note_revisions': noteRevisionRows, 'source_versions': sourceVersionRows,
       'private_journals_excluded': true,
       'binary_attachments_excluded': true,
+    };
+    return const JsonEncoder.withIndent('  ').convert({
+      ...payload, 'backup_sha256': backupChecksum(payload),
     });
   }
 
   /// Atomic import of ordinary data and note history. Never replaces existing IDs.
   /// V1 backups are still supported; private diary and binary files remain excluded.
   Future<int> importJson(String raw) async {
+    // Reject corrupted checksummed backups BEFORE any database write.
+    inspectOrdinaryBackup(raw);
     final parsed = jsonDecode(raw);
     if (parsed is! Map<String, dynamic> ||
         !['zhixing-compass-v1', 'zhixing-compass-v2'].contains(parsed['format']) ||

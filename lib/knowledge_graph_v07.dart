@@ -18,7 +18,9 @@ class GraphEdge {
   final String from;
   final String to;
   final bool isSource;
-  const GraphEdge(this.from, this.to, {this.isSource = false});
+  final String relation;
+  const GraphEdge(this.from, this.to, {this.isSource = false,
+    this.relation = '相关'});
 }
 
 class KnowledgeGraphSnapshot {
@@ -26,6 +28,17 @@ class KnowledgeGraphSnapshot {
   final List<GraphEdge> edges;
   final int hiddenCards;
   const KnowledgeGraphSnapshot(this.nodes, this.edges, this.hiddenCards);
+
+  static const relationTypes = ['相关', '支持', '反例', '延伸', '对比'];
+
+  static String relationType(CompassEntry card, String targetId) {
+    final raw = card.meta['related_card_types'];
+    if (raw is Map && raw[targetId] is String &&
+        relationTypes.contains(raw[targetId])) {
+      return raw[targetId] as String;
+    }
+    return '相关';
+  }
 
   static List<String> relations(CompassEntry card) {
     final raw = card.meta['related_card_ids'];
@@ -52,7 +65,8 @@ class KnowledgeGraphSnapshot {
         if (!selectedIds.contains(id)) continue;
         final sorted = [card.id,id]..sort();
         final key = sorted.join('|');
-        if (dedup.add(key)) edges.add(GraphEdge(sorted.first,sorted.last));
+        if (dedup.add(key)) edges.add(GraphEdge(sorted.first,sorted.last,
+          relation: relationType(card,id)));
       }
     }
     final sources = {for (final e in all.where((e) => e.kind == 'source')) e.id: e};
@@ -63,7 +77,8 @@ class KnowledgeGraphSnapshot {
         final source = sources[sourceId]!;
         nodes.add(GraphNode(source.id, source.title, '原始来源', isSource: true));
       }
-      edges.add(GraphEdge(card.id, sourceId, isSource: true));
+      edges.add(GraphEdge(card.id, sourceId, isSource: true,
+        relation: '来源'));
     }
     return KnowledgeGraphSnapshot(nodes, edges,
       cards.where((e) => (topic == '全部' || e.meta['topic'] == topic) &&
@@ -81,6 +96,7 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
   final search = TextEditingController();
   String topic = '全部';
   bool showSources = true;
+  String selectedRelation = '全部';
   @override
   void dispose() { search.dispose(); super.dispose(); }
 
@@ -96,11 +112,20 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
       final mainAngle = 2 * math.pi * t / math.max(1,topics.length)-math.pi/2;
       final center = Offset(490+290*math.cos(mainAngle),
         400+250*math.sin(mainAngle));
+      // Stable concentric hexagonal rows with increasing capacity.
+      // Ring r has 6*r slots; spacing remains proportional as nodes grow.
       for (var i=0;i<cluster.length;i++) {
-        final angle = 2*math.pi*i / math.max(1,cluster.length);
-        final ring = 52.0+50.0*(i~/9);
-        result[cluster[i].id] = cluster.length == 1 ? center :
-          center + Offset(ring*math.cos(angle),ring*math.sin(angle));
+        if (i==0) {result[cluster[i].id]=center;continue;}
+        var ring=1;
+        var completed=1;
+        while (completed+6*ring <= i) {
+          completed+=6*ring;
+          ring++;
+        }
+        final slot=i-completed;
+        final angle=2*math.pi*slot/(6*ring)-math.pi/2;
+        result[cluster[i].id] = center+Offset(
+          ring*118.0*math.cos(angle),ring*86.0*math.sin(angle));
       }
     }
     return result;
@@ -117,7 +142,8 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
     final nodes = snapshot.nodes.where((n) => showSources || !n.isSource).toList();
     final visibleIds = nodes.map((n) => n.id).toSet();
     final edges = snapshot.edges.where((e) =>
-      visibleIds.contains(e.from) && visibleIds.contains(e.to)).toList();
+      visibleIds.contains(e.from) && visibleIds.contains(e.to) &&
+      (selectedRelation == '全部' || e.relation == selectedRelation)).toList();
     final coords = positions(nodes);
     return PageFrame(title: '知识网络',
       subtitle: '真实来源与手动关联 · 全部在本机显示',
@@ -132,10 +158,15 @@ class _KnowledgeGraphPageState extends State<KnowledgeGraphPage> {
           items: ['全部', ...topics].map((v) =>
             DropdownMenuItem(value: v, child: Text(v))).toList(),
           onChanged: (v) => setState(() => topic = v ?? '全部')),
+        Wrap(spacing: 7, runSpacing: 6, children: [
+          '全部', ...KnowledgeGraphSnapshot.relationTypes, '来源'
+        ].map((v) => ChoiceChip(label: Text(v),
+          selected: selectedRelation == v,
+          onSelected: (_) => setState(() => selectedRelation=v))).toList()),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('显示素材来源'),
-          subtitle: const Text('实线表示手动关联，虚线表示已有的来源关系'),
+          subtitle: const Text('手动关系可分类筛选；来源关系以虚线显示'),
           value: showSources,
           onChanged: (v) => setState(() => showSources = v)),
         if (snapshot.hiddenCards>0)
@@ -216,6 +247,13 @@ class _EdgePainter extends CustomPainter {
         }
       } else {
         canvas.drawLine(a,b,paint);
+        final labelAt=Offset((a.dx+b.dx)/2,(a.dy+b.dy)/2);
+        final painter=TextPainter(
+          text: TextSpan(text:edge.relation,style: const TextStyle(
+            color: Color(0xFF76548E),fontSize:10,
+            backgroundColor: Color(0xFFF9F6FC))),
+          textDirection: TextDirection.ltr)..layout(maxWidth:80);
+        painter.paint(canvas,labelAt-Offset(painter.width/2,0));
       }
     }
   }
@@ -232,6 +270,7 @@ class RelatedCardsEditor extends StatefulWidget {
 }
 class _RelatedCardsEditorState extends State<RelatedCardsEditor> {
   final links=<String>{};
+  final types=<String,String>{};
   bool initialized=false;
   bool saving=false;
   @override
@@ -243,6 +282,9 @@ class _RelatedCardsEditorState extends State<RelatedCardsEditor> {
     }
     if (!initialized) {
       links.addAll(KnowledgeGraphSnapshot.relations(card));
+      for (final id in links) {
+        types[id]=KnowledgeGraphSnapshot.relationType(card,id);
+      }
       initialized=true;
     }
     final candidates=store.ofKind('card').where((e)=>e.id!=card.id).toList()
@@ -253,13 +295,25 @@ class _RelatedCardsEditorState extends State<RelatedCardsEditor> {
         SoftCard(child:Text('当前知识卡：${card.title}')),
         if(candidates.isEmpty)
           const SoftCard(child:Text('还没有其他知识卡可以关联。')),
-        ...candidates.map((e)=>CheckboxListTile(
-          value:links.contains(e.id),
-          title:Text(e.title),
-          subtitle:Text(e.meta['topic']?.toString()??'未分类'),
-          onChanged:saving?null:(value)=>setState((){
-            if(value==true){links.add(e.id);}else{links.remove(e.id);}
-          }))),
+        ...candidates.map((e)=>Column(children:[
+          CheckboxListTile(
+            value:links.contains(e.id),
+            title:Text(e.title),
+            subtitle:Text(e.meta['topic']?.toString()??'未分类'),
+            onChanged:saving?null:(value)=>setState((){
+              if(value==true){links.add(e.id);types[e.id]??='相关';}
+              else{links.remove(e.id);types.remove(e.id);}
+            })),
+          if(links.contains(e.id)) Padding(
+            padding:const EdgeInsets.fromLTRB(24,0,12,12),
+            child:DropdownButtonFormField<String>(
+              key:ValueKey('relation_'+e.id),
+              initialValue:types[e.id]??'相关',
+              decoration:const InputDecoration(labelText:'关联类型'),
+              items:KnowledgeGraphSnapshot.relationTypes.map((v)=>
+                DropdownMenuItem(value:v,child:Text(v))).toList(),
+              onChanged:saving?null:(v)=>setState(()=>types[e.id]=v??'相关'))),
+        ])), 
         const SizedBox(height:12),
         FilledButton.icon(
           onPressed:saving?null:() async {
@@ -267,6 +321,9 @@ class _RelatedCardsEditorState extends State<RelatedCardsEditor> {
             try {
               await store.update(card.copyWith(meta:{
                 ...card.meta,'related_card_ids':(links.toList()..sort()),
+                'related_card_types':{
+                  for(final id in links) id:types[id]??'相关',
+                },
               }));
               if(!context.mounted)return;
               notice(context,'知识关联已保存');

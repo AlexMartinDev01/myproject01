@@ -1234,11 +1234,85 @@ class _JournalPageState extends State<JournalPage> {
         ...entries.map((e) => NavCard(icon: Icons.book_outlined,
           title: e.title,
           subtitle: '私密 · ${e.createdAt.year}-${e.createdAt.month}-${e.createdAt.day} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',
-          onTap: () => openPage(context, JournalEditPage(id: e.id)))),
+          onTap: () => openPage(context, JournalReadPage(id: e.id)))),
         OutlinedButton.icon(onPressed: () => openPage(context, const JournalEditPage()),
           icon: const Icon(Icons.add), label: const Text('新建或导入私密日记')),
         const SoftCard(color: Color(0xFFF8ECF1),
           child: Text('每周小结、每月深度回顾将在 V0.6 加入；届时每次回顾仍须由你确认访问范围。')),
+      ]);
+  }
+}
+
+
+/// Read-first private journal page. Tapping a saved diary does not enter
+/// append mode, and decrypted content is kept in memory only for the viewer.
+class JournalReadPage extends StatelessWidget {
+  final String id;
+  const JournalReadPage({super.key, required this.id});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = CompassScope.of(context);
+    final entry = store.byId(id);
+    if (entry == null || entry.kind != 'journal') {
+      return const PageFrame(title: '日记不存在',
+        children: [Text('这篇日记可能已被删除。')]);
+    }
+    return PageFrame(title: '阅读私密日记',
+      subtitle: entry.title,
+      actions: [IconButton(
+        tooltip: '继续写这篇日记',
+        icon: const Icon(Icons.edit_note_outlined),
+        onPressed: () => openPage(context, JournalEditPage(id: id)))],
+      bottomBar: SafeArea(top: false, child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 9, 16, 12),
+        child: FilledButton.icon(
+          onPressed: () => openPage(context, JournalEditPage(id: id)),
+          icon: const Icon(Icons.edit_note_outlined),
+          label: const Text('继续写 · 追加到这篇日记')),
+      )),
+      children: [
+        const SoftCard(color: Color(0xFFF4EDF9), child: Text(
+          '正文和附件仅在本机解密阅读，不会自动上传云端。')),
+        const SectionHeading('已保存的正文'),
+        FutureBuilder<String>(
+          future: store.privateJournalBody(id),
+          builder: (ctx, snapshot) {
+            if (snapshot.hasError) {
+              return SoftCard(child: Text('日记解密失败：${snapshot.error}'));
+            }
+            if (!snapshot.hasData) return const Center(
+              child: CircularProgressIndicator());
+            return SoftCard(child: SelectableText(
+              snapshot.data!.isEmpty ? '这篇日记暂时只有附件，还没有正文。' :
+                snapshot.data!,
+              style: const TextStyle(fontSize: 15, height: 1.8)));
+          },
+        ),
+        const SectionHeading('已保存的私密附件'),
+        FutureBuilder<List<Map<String, Object?>>>(
+          future: store.journalAttachments(id),
+          builder: (ctx, snapshot) {
+            if (snapshot.hasError) {
+              return Text('附件读取失败：${snapshot.error}');
+            }
+            if (!snapshot.hasData) return const Center(
+              child: CircularProgressIndicator());
+            if (snapshot.data!.isEmpty) {
+              return const SoftCard(child: Text('暂无附件'));
+            }
+            return Column(children: snapshot.data!.map((asset) => NavCard(
+              icon: asset['mime'] == 'application/pdf' ?
+                Icons.picture_as_pdf_outlined : Icons.description_outlined,
+              title: asset['filename']?.toString() ?? '私密附件',
+              subtitle: '点击查看 · 仅本机解密',
+              onTap: () => openPage(context, JournalAttachmentViewer(
+                journalId: id,
+                assetId: asset['id'] as String,
+                filename: asset['filename'] as String)),
+            )).toList());
+          },
+        ),
       ]);
   }
 }
@@ -1392,49 +1466,71 @@ class _JournalEditPageState extends State<JournalEditPage> {
   }
 
   Future<void> onBack(bool didPop, Object? result) async {
-    if (didPop || !mounted) return;
-    if (!dirty && !busy) {
+    if (didPop || !mounted || busy) return;
+    if (!dirty) {
       setState(() => allowPop = true);
       Navigator.of(context).pop();
       return;
     }
-    if (await save() && mounted) {
-      setState(() => allowPop = true);
-      Navigator.of(context).pop();
-    }
+    final choice = await showDialog<String>(context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('本次追加还没有保存'),
+        content: const Text('可以先加密保存再离开，或明确放弃本次未保存的输入。'
+          '已保存的日记和附件不会被删除。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('继续写')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'discard'),
+            child: const Text('放弃本次输入')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'save'),
+            child: const Text('保存并离开')),
+        ],
+      ));
+    if (!mounted || choice == null || choice == 'cancel') return;
+    if (choice == 'save' && !await save()) return;
+    if (!mounted) return;
+    setState(() => allowPop = true);
+    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final id = _id;
     return PopScope(canPop: allowPop && !busy, onPopInvokedWithResult: onBack,
-      child: PageFrame(title: id == null ? '写日记' : '编辑日记',
-        subtitle: '历史正文保留 · 追加保存后清空输入 · 附件可离线查看', children: [
+      child: PageFrame(title: id == null ? '写日记' : '追加日记',
+        subtitle: '旧正文不覆盖 · 保存后清空本次输入 · 附件可离线查看',
+        bottomBar: SafeArea(top: false, child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 9, 16, 12),
+          decoration: const BoxDecoration(color: Color(0xFFF9F5FA),
+            border: Border(top: BorderSide(color: Color(0xFFECE3F0)))),
+          child: Row(children: [
+            Expanded(child: Text(
+              busy ? '正在加密…' : dirty ? '有未保存内容' : '已保存',
+              style: const TextStyle(color: grape,
+                fontWeight: FontWeight.w600))),
+            FilledButton.icon(
+              onPressed: busy || !loaded ? null : () => save(),
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('保存本次内容')),
+          ]),
+        )), children: [
           const SoftCard(color: Color(0xFFF4EDF9), child: Text(
-            '已保存的正文和附件都在本机加密；本次追加内容必须点保存。'
-            '保存成功才会清空输入框，旧内容与历史版本会保留。')),
+            '先写本次内容，再点屏幕底部的「保存本次内容」。'
+            '保存成功后输入框自动清空；旧日记和历史版本始终保留。')),
           TextField(controller: title, maxLength: 120, onChanged: changed,
             decoration: const InputDecoration(labelText: '日记标题')),
           if (id != null) NavCard(icon: Icons.menu_book_outlined,
-            title: '查看已保存的日记正文',
-            subtitle: '已保存 '+lastBody.length.toString()+' 字 · 点击阅读，不影响追加输入',
-            onTap: () => openPage(context, JournalBodyViewer(journalId: id))),
+            title: '点击阅读已保存的日记',
+            subtitle: '已保存 '+lastBody.length.toString()+' 字 · 本次追加输入不会改变旧正文',
+            onTap: () => openPage(context, JournalReadPage(id: id))),
           const SizedBox(height: 10),
-          Text(busy ? '加密保存中…' : dirty ? '本次内容待保存' : '已保存',
+          Text(busy ? '加密保存中…' : dirty ? '本次内容尚未保存' : '全部内容已保存',
             style: const TextStyle(color: grape)),
-          SizedBox(width: double.infinity, child: FilledButton.icon(
-            onPressed: busy || !loaded ? null : () => save(),
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('保存本次内容 · 成功后清空输入框'))),
           const SizedBox(height: 12),
-          TextField(controller: body, minLines: 5, maxLines: 9,
+          TextField(controller: body, minLines: 5, maxLines: 12,
             onChanged: changed, decoration: const InputDecoration(
               labelText: '本次追加内容 · 不覆盖已保存的旧正文（不限字数）')),
           const SizedBox(height: 10),
-          Text(busy ? '保存中…' : dirty ? '有尚未保存的修改' : '内容已保存',
-            style: const TextStyle(color: grape)),
-          FilledButton.icon(onPressed: busy || !loaded ? null : () => save(),
-            icon: const Icon(Icons.save_outlined), label: const Text('立即加密保存')),
           OutlinedButton.icon(onPressed: busy || !loaded ? null : importDocument,
             icon: const Icon(Icons.upload_file), label: const Text('导入 Word / PDF 附件')),
           // Cloud diary access is disabled until the consent UI is upgraded.

@@ -97,12 +97,14 @@ class PageFrame extends StatelessWidget {
   final String subtitle;
   final List<Widget> children;
   final List<Widget> actions;
+  final Widget? bottomBar;
   const PageFrame({super.key, required this.title, this.subtitle = '',
-    required this.children, this.actions = const []});
+    required this.children, this.actions = const [], this.bottomBar});
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
       actions: actions),
+    bottomNavigationBar: bottomBar,
     body: SafeArea(child: ListView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
       children: [if (subtitle.isNotEmpty) Padding(

@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s release-assets/app-release.apk
-          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.5.3-preview.apk
+          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.5.4-preview.apk
           TAG=knowledge-compass-v0.5.3-preview
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/KnowledgeCompass-v0.5.3-preview.apk --clobber

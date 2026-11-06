@@ -46,7 +46,7 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(
         const Duration(milliseconds:150)));
       await tester.pumpAndSettle();
-      final save=find.text('保存本次内容 · 成功后清空输入框');
+      final save=find.text('保存本次内容');
       if(save.evaluate().isNotEmpty) {
         final button=tester.widget<FilledButton>(find.ancestor(
           of:save,matching:find.byType(FilledButton)));
@@ -54,7 +54,7 @@ void main() {
       }
     }
     final readyButton=tester.widget<FilledButton>(find.ancestor(
-      of:find.text('保存本次内容 · 成功后清空输入框'),
+      of:find.text('保存本次内容'),
       matching:find.byType(FilledButton)));
     expect(readyButton.onPressed,isNotNull,
       reason:'Private journal must finish decrypting before append is enabled');
@@ -64,7 +64,7 @@ void main() {
     expect(appendController.text,isEmpty);
     await tester.enterText(fields.at(1),'追加的新想法和今天的经历');
     await tester.pump();
-    final save=find.text('保存本次内容 · 成功后清空输入框');
+    final save=find.text('保存本次内容');
     await tester.ensureVisible(save);
     final button=tester.widget<FilledButton>(find.ancestor(
       of:save,matching:find.byType(FilledButton)));
@@ -113,4 +113,49 @@ void main() {
     await file.delete();
     await store.closeForTests();
   });
+  testWidgets('saved journal opens read-first page with persistent append action',
+      (tester) async {
+    late CompassStore store;
+    late CompassEntry entry;
+    await tester.runAsync(() async {
+      store = await CompassStore.open();
+      entry = await store.add(kind: 'journal', title: '十一月读书日记',
+        body: '这是此前加密保存的内容。', status: '私密');
+    });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: MaterialApp(home: JournalReadPage(id: entry.id))));
+    expect(find.text('阅读私密日记'), findsOneWidget);
+    expect(find.text('继续写 · 追加到这篇日记'), findsOneWidget);
+    for (var i = 0; i < 15; i++) {
+      await tester.runAsync(() => Future<void>.delayed(
+        const Duration(milliseconds: 100)));
+      await tester.pump();
+      if (find.text('这是此前加密保存的内容。').evaluate().isNotEmpty) break;
+    }
+    expect(find.text('这是此前加密保存的内容。'), findsOneWidget);
+    expect(find.text('保存本次内容'), findsNothing,
+      reason: 'Reading a saved diary must not open the editor by default');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
+  testWidgets('save action is in fixed bottom bar before long input scroll',
+      (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async { store = await CompassStore.open(); });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: JournalEditPage())));
+    await tester.pump();
+    final save = find.text('保存本次内容');
+    expect(save, findsOneWidget);
+    expect(find.ancestor(of: save, matching: find.byType(FilledButton)),
+      findsOneWidget);
+    expect(find.textContaining('本次追加内容'), findsWidgets);
+    // PageFrame's scrollable body and fixed save bar are siblings in Scaffold.
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(scaffold.bottomNavigationBar, isNotNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
 }

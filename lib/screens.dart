@@ -15,6 +15,7 @@ import 'decision_review_v055.dart';
 import 'core/knowledge_candidates.dart';
 import 'knowledge_review_v052.dart';
 import 'journal_view_v053.dart';
+import 'journal_review_v06.dart';
 import 'core/local_document_parse.dart';
 
 class WelcomePage extends StatelessWidget {
@@ -1153,6 +1154,10 @@ class _JournalPageState extends State<JournalPage> {
           onPressed: () => openPage(context, const JournalEditPage()),
           icon: const Icon(Icons.edit_outlined), label: const Text('写一篇日记'))),
         const SizedBox(height: 8),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: () => openPage(context, const JournalReviewPage()),
+          icon: const Icon(Icons.auto_stories_outlined),
+          label: const Text('查看每周 / 每月回顾'))),
         Row(children: [
           IconButton(onPressed: () => setState(() => month = DateTime(month.year, month.month - 1)),
             icon: const Icon(Icons.chevron_left)),

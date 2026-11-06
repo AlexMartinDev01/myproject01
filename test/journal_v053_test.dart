@@ -66,10 +66,15 @@ void main() {
     await tester.pump();
     final save=find.text('保存本次内容 · 成功后清空输入框');
     await tester.ensureVisible(save);
-    await tester.tap(save);
-    // SQLite FFI is serviced by a real isolate and requires runAsync.
+    final button=tester.widget<FilledButton>(find.ancestor(
+      of:save,matching:find.byType(FilledButton)));
+    expect(button.onPressed,isNotNull);
+    // Call the *actual button callback* in a real async zone. Unlike Android,
+    // WidgetTester.tap operates in FakeAsync and freezes some cryptography
+    // continuations awaiting the SQLite worker isolate.
     await tester.runAsync(() async {
-      for(var i=0;i<80;i++) {
+      button.onPressed!();
+      for(var i=0;i<100;i++) {
         final saved=await store.privateJournalBody(entry.id);
         if(saved.contains('追加的新想法')) break;
         await Future<void>.delayed(const Duration(milliseconds:50));

@@ -3,10 +3,13 @@ on:
   push:
     branches:
       - feature/starweave-ai-tarot-v0.1
+      - feature/starweave-v0.3-gpu
     paths:
       - "android/**"
       - ".github/workflows/android-apk.yml"
       - "index.html"
+      - "renderer3d.js"
+      - "package.json"
       - "app.js"
       - "rules.js"
       - "style.css"
@@ -35,6 +38,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bundle real-time Three.js renderer
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:3d
+          test -s assets/renderer3d.bundle.js
+          node tests/test_flow.mjs
       - name: Assemble bundled offline PWA assets
         shell: bash
         run: |
@@ -47,6 +59,9 @@ jobs:
           fi
           test -f android/app/src/main/assets/assets/tarot_back.svg
           test -f android/app/src/main/assets/app.js
+      - name: Reject old generated videos and raster frames
+        run: |
+          if find assets -type f \( -name '*.gif' -o -name '*.mp4' -o -name '*.webp' \) | grep .; then exit 1; fi
       - name: Compile installable debug APK
         run: gradle -p android --no-daemon --stacktrace assembleDebug
       - name: Verify APK and checksum
@@ -56,7 +71,7 @@ jobs:
           unzip -t android/app/build/outputs/apk/debug/app-debug.apk | tail -1
       - uses: actions/upload-artifact@v4
         with:
-          name: Starweave-Tarot-V0.1-Android-APK
+          name: Starweave-Tarot-V0.3-GPU-APK
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/debug/SHA256SUMS.txt

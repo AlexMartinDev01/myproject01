@@ -723,7 +723,11 @@ class CompassStore extends ChangeNotifier {
         throw const FormatException('日记必须包含有效历史正文');
       }
       final attachments = <Map<String,dynamic>>[];
-      for(final asset in item['attachments'] as List) {
+      final incomingAssets = item['attachments'] as List;
+      if (incomingAssets.length > 500) {
+        throw const FormatException('单篇日记附件数量超出限制');
+      }
+      for(final asset in incomingAssets) {
         if(asset is! Map<String,dynamic> ||
            asset['filename'] is! String ||
            asset['saved_at'] is! String ||
@@ -766,6 +770,9 @@ class CompassStore extends ChangeNotifier {
         for(final version in item['revisions'] as List<Map<String,dynamic>>) {
           final body=version['body'] as String;
           final revisionId=await _vault.writeText(entry.id,body);
+          if(await _vault.readText(entry.id,revisionId) != body) {
+            throw StateError('日记恢复写入后验证失败');
+          }
           sqlVersions.add({'revision_id':revisionId,'journal_id':entry.id,
             'byte_count':utf8.encode(body).length,'saved_at':version['saved_at']});
         }
@@ -773,6 +780,11 @@ class CompassStore extends ChangeNotifier {
           final assetId=newId();
           final bytes=asset['bytes'] as Uint8List;
           await _vault.encryptAttachmentBytes(entry.id,assetId,bytes);
+          final verified=await _vault.readAttachment(entry.id,assetId);
+          if(verified.length!=bytes.length ||
+              base64Encode(verified)!=base64Encode(bytes)) {
+            throw StateError('私密附件恢复写入后验证失败');
+          }
           sqlAssets.add({'id':assetId,'journal_id':entry.id,
             'filename':asset['filename'],'mime':asset['mime'],
             'byte_count':bytes.length,'saved_at':asset['saved_at']});

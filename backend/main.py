@@ -57,6 +57,104 @@ class PendingConsent:
 pending: dict[str, PendingConsent] = {}
 lock = Lock()
 
+# Explicitly gated cloud-only diary review; never relax legacy private routes.
+review_pending: dict[str, PendingConsent] = {}
+REVIEW_MAX_LENGTH = 18000
+
+
+def cloud_review_enabled() -> bool:
+    return os.getenv("CLOUD_PRIVATE_REVIEW_ENABLED", "0").lower() in ("1", "true", "yes")
+
+
+class ReviewConsentRequest(BaseModel):
+    digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: str = Field(min_length=8, max_length=100)
+    question: str = Field(min_length=1, max_length=8000)
+
+
+class PrivateReviewRequest(BaseModel):
+    private_text: str = Field(min_length=1, max_length=REVIEW_MAX_LENGTH)
+    request_id: str = Field(min_length=8, max_length=100)
+    question: str = Field(min_length=1, max_length=8000)
+    consent_token: str = Field(min_length=20, max_length=200)
+
+
+def require_private_review_enabled() -> None:
+    if not cloud_review_enabled():
+        raise HTTPException(status_code=403, detail="云端私密回顾尚未启用，请在服务端授权配置后使用")
+
+
+@app.post("/v1/review/consent", response_model=ConsentResult,
+          dependencies=[Depends(require_device)])
+def private_review_consent(req: ReviewConsentRequest) -> ConsentResult:
+    """Approve a specific digest and question, without sending plaintext in this step."""
+    require_private_review_enabled()
+    token = secrets.token_urlsafe(32)
+    with lock:
+        now = time.monotonic()
+        for key, value in list(review_pending.items()):
+            if value.expires_at < now:
+                review_pending.pop(key, None)
+        review_pending[token] = PendingConsent(
+            req.digest, req.request_id, hashlib.sha256(req.question.strip().encode()).hexdigest(),
+            "review", now + 90)
+    return ConsentResult(token=token)
+
+
+@app.post("/v1/review", response_model=ChatResponse,
+          dependencies=[Depends(require_device)])
+async def private_review(req: PrivateReviewRequest) -> ChatResponse:
+    require_private_review_enabled()
+    with lock:
+        approval = review_pending.pop(req.consent_token, None)
+    valid = approval is not None and (
+        approval.expires_at >= time.monotonic()
+        and hmac.compare_digest(approval.digest, hashlib.sha256(req.private_text.encode()).hexdigest())
+        and hmac.compare_digest(approval.request_id, req.request_id)
+        and hmac.compare_digest(approval.question_digest,
+                                hashlib.sha256(req.question.strip().encode()).hexdigest())
+        and approval.mode == "review"
+    )
+    if not valid:
+        raise HTTPException(status_code=403, detail="本次回顾授权无效或已过期")
+    api_key = configured_api_key()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="DeepSeek 服务端密钥未配置")
+    if DEEPSEEK_MODEL in {"deepseek-chat", "deepseek-reasoner"}:
+        raise HTTPException(status_code=503, detail="模型配置已过期")
+    url = DEEPSEEK_ENDPOINT + "/chat/completions"
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise HTTPException(status_code=503, detail="AI 提供商地址必须使用 HTTPS")
+    system = (
+        SYSTEM + "\n仅总结用户本次主动选择的日记内容。区分日记中明确记录的事实和推测，"
+        "不要诊断心理疾病，不要推断未提供的经历。输出本期主要事件、值得保留的进步、"
+        "待解决的问题、下期行动建议；语言温和具体，不引用未提供的资料。"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+            response = await client.post(
+                url,
+                headers={"Authorization": "Bearer " + api_key,
+                         "Content-Type": "application/json"},
+                json={"model": DEEPSEEK_MODEL,
+                      "messages": [{"role": "system", "content": system},
+                                   {"role": "user", "content":
+                                    "任务：" + req.question + "\n\n【本次明确授权的日记】\n"
+                                    + req.private_text}],
+                      "temperature": 0.3, "stream": False})
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"].strip()
+        if not content:
+            raise ValueError("empty review")
+        return ChatResponse(answer=content, source_ids=[], model=DEEPSEEK_MODEL)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="AI 回顾超时，可重新授权再试") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="AI 回顾服务暂不可用") from exc
+    except (KeyError, IndexError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="AI 回顾结果无效") from exc
+
 
 def configured_api_key() -> str:
     """Use a local Windows credential vault when available; never expose this value."""
@@ -96,7 +194,8 @@ def livez() -> dict:
 def health() -> dict:
     # Health reports configuration only; it must not pretend a successful provider call.
     return {"ok": True, "provider_configured": bool(configured_api_key()), "model": DEEPSEEK_MODEL,
-            "provider_tested": False, "service_version": "0.3.2"}
+            "provider_tested": False, "service_version": "0.3.2",
+            "private_review_enabled": cloud_review_enabled()}
 
 
 @app.post("/v1/consent", response_model=ConsentResult, dependencies=[Depends(require_device)])

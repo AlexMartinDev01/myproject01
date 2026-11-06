@@ -39,7 +39,7 @@ class WelcomePage extends StatelessWidget {
             SizedBox(height: 8),
             Text('手机离线保存内容；可选连接自己的 云端 AI 网关。'),
             SizedBox(height: 10),
-            Text('私密日记只有每次明确授权，才会发送给 AI 分析。'),
+            Text('私密日记默认本机加密。云端分析需另行授权并由服务端启用。'),
           ])),
         const Spacer(),
         SizedBox(width: double.infinity, child: FilledButton(
@@ -77,7 +77,7 @@ class TodayPage extends StatelessWidget {
               onPressed: () => openPage(context, const AiChatPage(mode: 'challenge')),
               child: const Text('展开思考 →'))),
           ])),
-        const SectionHeading('今天想做什么？'),
+        const SectionHeading('四个常用入口'),
         Row(children: [
           Expanded(child: _Shortcut(Icons.edit_note_outlined, '随手记录', '想法与资料',
             () => openPage(context, const CapturePage()))),
@@ -86,9 +86,13 @@ class TodayPage extends StatelessWidget {
             () => openPage(context, const AiChatPage(mode: 'ask')))),
         ]),
         const SizedBox(height: 10),
-        SizedBox(width: double.infinity, child: OutlinedButton.icon(
-          onPressed: () => openPage(context, const JournalPage()),
-          icon: const Icon(Icons.menu_book_outlined), label: const Text('写日记 / 导入已有日记'))),
+        Row(children: [
+          Expanded(child: _Shortcut(Icons.edit_note_outlined, '我的日记', '记录与回顾',
+            () => openPage(context, const JournalPage()))),
+          const SizedBox(width: 8),
+          Expanded(child: _Shortcut(Icons.hub_outlined, '知识网络', '浏览关联知识',
+            () => openPage(context, const KnowledgeGraphPage()))),
+        ]),
         SectionHeading('继续上次的事'),
         Row(children: [
           Expanded(child: _Shortcut(Icons.inbox_outlined, '处理收集', '$inboxCount 条',
@@ -1761,6 +1765,52 @@ class OfflineStatusPage extends StatelessWidget {
       NavCard(icon: Icons.book_outlined, title: '离线阅读知识卡', onTap: () => openPage(context, const KnowledgePage())),
       NavCard(icon: Icons.settings, title: '设置 AI 连接', onTap: () => openPage(context, const DeviceSettingsPage())),
     ]);
+}
+
+/// V0.8 unified workspace for decisions, optional AI and account settings.
+class WorkspacePage extends StatelessWidget {
+  const WorkspacePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = CompassScope.of(context);
+    return PageFrame(title: '我的工作台',
+      subtitle: '决策、学习、AI 与设置集中管理 · 无需连接云端',
+      children: [
+        SoftCard(color: const Color(0xFFF3E9F7),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('让知识真正用起来',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: ink)),
+            const SizedBox(height: 10),
+            Text('${store.ofKind('card').length} 张知识卡  ·  '
+              '${store.ofKind('decision').length} 条决策  ·  '
+              '${store.ofKind('journal').length} 篇日记',
+              style: const TextStyle(color: Color(0xFF6B5A72))),
+          ])),
+        const SectionHeading('行动与复盘'),
+        NavCard(icon: Icons.balance_outlined, title: '决策实验室',
+          subtitle: '比较方案、记录选择、继续复盘',
+          onTap: () => openPage(context, const DecisionPage())),
+        NavCard(icon: Icons.school_outlined, title: '成长与学习',
+          subtitle: '学习专题、任务进度和完成记录',
+          onTap: () => openPage(context, const LearningPage())),
+        const SectionHeading('可选 AI 工具'),
+        NavCard(icon: Icons.auto_awesome_outlined, title: 'AI 思考',
+          subtitle: '对话、证据分析和反方思辨 · 需配置服务',
+          onTap: () => openPage(context, const AiHubPage())),
+        NavCard(icon: Icons.history_outlined, title: '历史对话',
+          subtitle: '返回之前保存的多轮讨论',
+          onTap: () => openPage(context, const ChatHistoryPage())),
+        const SectionHeading('管理与隐私'),
+        NavCard(icon: Icons.person_outline, title: '我的资料与设置',
+          subtitle: '设备、普通备份、隐私说明',
+          onTap: () => openPage(context, const MinePage())),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text(
+          '所有基础记录与知识网络均可离线使用。AI 服务沿用现有配置，'
+          '本版本不要求更新 Render。',
+          style: TextStyle(fontSize: 12, color: Colors.grey))),
+      ]);
+  }
 }
 
 class MinePage extends StatelessWidget {

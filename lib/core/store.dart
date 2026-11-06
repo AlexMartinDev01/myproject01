@@ -781,9 +781,13 @@ class CompassStore extends ChangeNotifier {
           final bytes=asset['bytes'] as Uint8List;
           await _vault.encryptAttachmentBytes(entry.id,assetId,bytes);
           final verified=await _vault.readAttachment(entry.id,assetId);
-          if(verified.length!=bytes.length ||
-              base64Encode(verified)!=base64Encode(bytes)) {
-            throw StateError('私密附件恢复写入后验证失败');
+          if (verified.length != bytes.length) {
+            throw StateError('私密附件恢复大小不一致');
+          }
+          for (var i = 0; i < bytes.length; i++) {
+            if (verified[i] != bytes[i]) {
+              throw StateError('私密附件恢复内容不一致');
+            }
           }
           sqlAssets.add({'id':assetId,'journal_id':entry.id,
             'filename':asset['filename'],'mime':asset['mime'],

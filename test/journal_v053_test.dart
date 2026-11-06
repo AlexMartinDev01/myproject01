@@ -29,12 +29,21 @@ void main() {
   });
 
   testWidgets('save appends without overwriting, then clears only the new input', (tester) async {
-    final store=await CompassStore.open();
-    final entry=await store.add(kind:'journal',title:'我的日记',
-      body:'已经保存的第一段',status:'私密');
+    late CompassStore store;
+    late CompassEntry entry;
+    await tester.runAsync(() async {
+      store=await CompassStore.open();
+      entry=await store.add(kind:'journal',title:'我的日记',
+        body:'已经保存的第一段',status:'私密');
+    });
     await tester.pumpWidget(CompassScope(store:store,
       child:MaterialApp(home:JournalEditPage(id:entry.id))));
-    await tester.pumpAndSettle(const Duration(milliseconds:100));
+    // Allow the background SQLite/secure-storage isolate to complete the
+    // initial async journal decrypt before FakeAsync settles the widget.
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds:350));
+    });
+    await tester.pumpAndSettle();
     final fields=find.byType(TextField);
     expect(fields,findsNWidgets(2));
     expect(tester.widget<TextField>(fields.at(1)).controller!.text,isEmpty);
@@ -43,13 +52,23 @@ void main() {
     final save=find.text('保存本次内容 · 成功后清空输入框');
     await tester.ensureVisible(save);
     await tester.tap(save);
-    await tester.pumpAndSettle(const Duration(milliseconds:100));
+    // SQLite FFI is serviced by a real isolate and requires runAsync.
+    await tester.runAsync(() async {
+      for(var i=0;i<80;i++) {
+        final saved=await store.privateJournalBody(entry.id);
+        if(saved.contains('追加的新想法')) break;
+        await Future<void>.delayed(const Duration(milliseconds:50));
+      }
+    });
+    await tester.pumpAndSettle();
     expect(tester.widget<TextField>(fields.at(1)).controller!.text,isEmpty);
-    expect(await store.privateJournalBody(entry.id),
-      '已经保存的第一段\n\n追加的新想法和今天的经历');
-    expect((await store.journalHistory(entry.id)).length,2);
+    await tester.runAsync(() async {
+      expect(await store.privateJournalBody(entry.id),
+        '已经保存的第一段\n\n追加的新想法和今天的经历');
+      expect((await store.journalHistory(entry.id)).length,2);
+    });
     await tester.pumpWidget(const SizedBox.shrink());
-    await store.closeForTests();
+    await tester.runAsync(() => store.closeForTests());
   });
 
   test('encrypted PDF attachment can be reopened with exact bytes', () async {

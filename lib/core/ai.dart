@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'store.dart';
 
@@ -52,6 +53,50 @@ class AiClient {
   }
 
   Future<bool> check() async => (await health()).providerConfigured;
+
+  Future<bool> privateReviewEnabled() async {
+    final res = await _get(endpoint('/health'), headers: headers)
+        .timeout(const Duration(seconds: 70));
+    if (res.statusCode != 200) {
+      throw StateError('AI 服务状态检查失败（HTTP ${res.statusCode}）');
+    }
+    final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    return data['private_review_enabled'] == true && data['provider_configured'] == true;
+  }
+
+  /// Explicit user confirmation must happen in the UI BEFORE this method is called.
+  /// First POST sends only a SHA-256 digest; second POST sends exactly the previewed text.
+  Future<AiResult> reviewPrivate(String text, String question) async {
+    final uri = endpoint('/v1/review');
+    if (uri.scheme != 'https') {
+      throw StateError('私密回顾只能通过 HTTPS 发送，当前 AI 地址不安全');
+    }
+    if (text.trim().isEmpty || text.length > 18000) {
+      throw const FormatException('请选择 18000 字以内的非空日记摘录');
+    }
+    final requestId = 'req_${CompassStore.newId()}';
+    final digest = sha256.convert(utf8.encode(text)).toString();
+    final permission = await _post(endpoint('/v1/review/consent'),
+      headers: headers,
+      body: jsonEncode({'digest': digest, 'request_id': requestId,
+        'question': question})).timeout(const Duration(seconds: 20));
+    final permissionData = jsonDecode(utf8.decode(permission.bodyBytes)) as Map<String, dynamic>;
+    if (permission.statusCode != 200) {
+      throw StateError(permissionData['detail']?.toString() ?? '私密回顾授权失败');
+    }
+    final token = permissionData['token']?.toString() ?? '';
+    if (token.isEmpty) throw StateError('服务端未返回本次授权凭证');
+    final response = await _post(uri, headers: headers,
+      body: jsonEncode({'private_text': text, 'request_id': requestId,
+        'question': question, 'consent_token': token}))
+        .timeout(const Duration(seconds: 95));
+    final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      throw StateError(data['detail']?.toString() ?? '私密回顾生成失败');
+    }
+    return AiResult(data['answer']?.toString() ?? '',
+      data['model']?.toString() ?? 'unknown', const []);
+  }
 
   Future<AiResult> ask(String question, {String mode = 'ask',
     List<CompassEntry> evidence = const [], String? privateText,

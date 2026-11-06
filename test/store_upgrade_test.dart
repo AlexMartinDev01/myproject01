@@ -76,6 +76,40 @@ void main() {
     await store.closeForTests();
   });
 
+  test('ordinary backup integrity check prevents corrupted restore', () async {
+    final store = await CompassStore.open();
+    await store.add(kind: 'source', title: '原始资料', body: '普通笔记');
+    await store.add(kind: 'journal', title: '私密日记',
+      body: '绝不包含在普通备份中', status: '私密');
+    final backup = await store.exportJson();
+    final summary = CompassStore.inspectOrdinaryBackup(backup);
+    expect(summary['verified'], true);
+    expect(summary['entries'], 1);
+    expect(summary['journal_excluded'], true);
+    expect(backup, isNot(contains('绝不包含在普通备份中')));
+    final bad = jsonDecode(backup) as Map<String, dynamic>;
+    (bad['entries'] as List).first['title'] = '恶意修改';
+    final modified = jsonEncode(bad);
+    expect(() => CompassStore.inspectOrdinaryBackup(modified),
+      throwsFormatException);
+    await expectLater(store.importJson(modified), throwsFormatException);
+    expect(store.ofKind('source').length, 1);
+    await store.closeForTests();
+  });
+
+  test('old unchecksummed V2 ordinary backup remains importable', () async {
+    final store = await CompassStore.open();
+    final entry = await store.add(kind:'source',title:'旧备份测试',body:'原文');
+    final backup = jsonDecode(await store.exportJson()) as Map<String, dynamic>;
+    backup.remove('backup_sha256');
+    final old = jsonEncode(backup);
+    final summary = CompassStore.inspectOrdinaryBackup(old);
+    expect(summary['verified'], false);
+    expect(await store.importJson(old), 0);
+    expect(store.byId(entry.id)?.body, '原文');
+    await store.closeForTests();
+  });
+
   test('V2 backup imports note history atomically and rejects private journals', () async {
     final store = await CompassStore.open();
     final source = await store.add(kind: 'source', title: '资料', body: '可公开摘录');

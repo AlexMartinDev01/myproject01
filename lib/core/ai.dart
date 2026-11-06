@@ -41,8 +41,9 @@ class AiClient {
   };
 
   Future<AiHealth> health() async {
+    // Render Free may require a cold start; a 12-second probe is misleading.
     final response = await _get(endpoint('/health'), headers: headers)
-        .timeout(const Duration(seconds: 12));
+        .timeout(const Duration(seconds: 70));
     if (response.statusCode != 200) throw Exception('节点不可用（HTTP ${response.statusCode}）');
     final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     return AiHealth(connected: data['ok'] == true,

@@ -58,6 +58,44 @@ void main() {
     await tester.runAsync(() => store.closeForTests());
   });
 
+  testWidgets('empty inbox has actionable next step and filter reset', (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async {store = await CompassStore.open();});
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: InboxPage())));
+    expect(find.text('收集箱还是空的'), findsOneWidget);
+    expect(find.text('添加第一条素材'), findsOneWidget);
+    await tester.tap(find.text('待处理'));
+    await tester.pumpAndSettle();
+    expect(find.text('没有“待处理”的素材'), findsOneWidget);
+    await tester.tap(find.text('查看全部素材'));
+    await tester.pumpAndSettle();
+    expect(find.text('收集箱还是空的'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
+  testWidgets('knowledge empty state clears search without changing database',
+      (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async {
+      store = await CompassStore.open();
+      await store.add(kind: 'card', title: '测试知识卡', body: '一条本地内容');
+    });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: KnowledgePage())));
+    final search = find.byType(TextField).first;
+    await tester.enterText(search, '不存在的词');
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到匹配的知识卡'), findsOneWidget);
+    await tester.tap(find.text('清空筛选'));
+    await tester.pumpAndSettle();
+    expect(find.text('测试知识卡'), findsOneWidget);
+    expect(store.ofKind('card').length, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
   testWidgets('AI hub prioritizes everyday chat before advanced modes',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(home: AiHubPage()));

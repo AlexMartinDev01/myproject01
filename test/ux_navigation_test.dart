@@ -30,10 +30,30 @@ void main() {
     await tester.runAsync(() async { store = await CompassStore.open(); });
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: TodayPage())));
-    expect(find.text('今天想做什么？'), findsOneWidget);
+    expect(find.text('四个常用入口'), findsOneWidget);
     expect(find.text('随手记录'), findsOneWidget);
     expect(find.text('问问 AI'), findsOneWidget);
-    expect(find.text('写日记 / 导入已有日记'), findsOneWidget);
+    expect(find.text('我的日记'), findsOneWidget);
+    expect(find.text('知识网络'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
+  testWidgets('main navigation exposes journal and workspace as first-class tabs',
+      (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async { store = await CompassStore.open(); });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: HomeShell())));
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationDestination), findsNWidgets(5));
+    expect(find.text('日记'), findsOneWidget);
+    expect(find.text('工作台'), findsOneWidget);
+    await tester.tap(find.text('工作台'));
+    await tester.pumpAndSettle();
+    expect(find.text('我的工作台'), findsOneWidget);
+    expect(find.text('决策实验室'), findsOneWidget);
+    expect(find.text('AI 思考'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });

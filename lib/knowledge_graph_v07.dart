@@ -321,10 +321,13 @@ class RelatedCardsEditor extends StatefulWidget {
   State<RelatedCardsEditor> createState()=>_RelatedCardsEditorState();
 }
 class _RelatedCardsEditorState extends State<RelatedCardsEditor> {
+  final cardSearch = TextEditingController();
   final links=<String>{};
   final types=<String,String>{};
   bool initialized=false;
   bool saving=false;
+  @override
+  void dispose() {cardSearch.dispose();super.dispose();}
   @override
   Widget build(BuildContext context) {
     final store=CompassScope.of(context);
@@ -339,14 +342,24 @@ class _RelatedCardsEditorState extends State<RelatedCardsEditor> {
       }
       initialized=true;
     }
-    final candidates=store.ofKind('card').where((e)=>e.id!=card.id).toList()
-      ..sort((a,b)=>a.title.compareTo(b.title));
+    final candidates=store.ofKind('card').where((e)=>e.id!=card.id &&
+      ('${e.title} ${e.body}'.toLowerCase().contains(
+        cardSearch.text.trim().toLowerCase()))).toList()
+      ..sort((a,b){
+        final aa=links.contains(a.id), bb=links.contains(b.id);
+        if (aa != bb) return aa ? -1 : 1;
+        return a.title.compareTo(b.title);
+      });
     return PageFrame(title:'关联知识卡',
       subtitle:'手动选择有真实关联的知识卡，不会生成虚构关系',
       children:[
-        SoftCard(child:Text('当前知识卡：${card.title}')),
+        SoftCard(child:Text('当前知识卡：${card.title} · 已选 ${links.length} 张')),
+        TextField(controller:cardSearch, onChanged:(_)=>setState((){}),
+          decoration:const InputDecoration(prefixIcon:Icon(Icons.search),
+            hintText:'快速搜索可关联的知识卡')),
+        const SizedBox(height:8),
         if(candidates.isEmpty)
-          const SoftCard(child:Text('还没有其他知识卡可以关联。')),
+          const SoftCard(child:Text('没有匹配的知识卡，可调整搜索词。')),
         ...candidates.map((e)=>Column(children:[
           CheckboxListTile(
             value:links.contains(e.id),

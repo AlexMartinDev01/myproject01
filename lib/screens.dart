@@ -388,14 +388,19 @@ class _CapturePageState extends State<CapturePage> {
           await store.addNote(sourceId: matches.first.id,
             title: title.text.trim().isEmpty ? '新增摘录 / 笔记' : title.text.trim(),
             body: body.text.trim());
-          if (mounted) {notice(context, '内容已追加到原来源下，不会覆盖以前的笔记'); Navigator.pop(context);}
+          if (mounted) {
+            notice(context,'笔记已追加，接下来可整理成知识卡');
+            Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+              builder: (_) => SourceDetailPage(id: matches.first.id)));
+          }
         } else if (mounted) {
-          notice(context, '这个链接已经收藏；可以在原来源下继续追加笔记');
-          Navigator.pop(context);
+          notice(context,'已找到之前收藏的链接，可以继续整理');
+          Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+            builder: (_) => SourceDetailPage(id: matches.first.id)));
         }
         return;
       }
-      await store.add(kind: 'source', title: title.text.trim().isEmpty ?
+      final created = await store.add(kind: 'source', title: title.text.trim().isEmpty ?
           (raw.isEmpty ? body.text.trim().split('\n').first : raw) : title.text.trim(),
         body: body.text.trim(), origin: raw,
         status: body.text.trim().isEmpty ? '需补内容' : '待处理',
@@ -404,7 +409,11 @@ class _CapturePageState extends State<CapturePage> {
             (body.text.trim().isEmpty ? 'metadata_only' : 'user_supplied'),
           if (parsedPages != null) 'page_count': parsedPages,
           if (parseNotice != null) 'parse_message': parseNotice});
-      if (mounted) { notice(context, '已保存到收集箱'); Navigator.pop(context); }
+      if (mounted) {
+        notice(context,'收藏成功 · 下一步：整理成知识卡');
+        Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => SourceDetailPage(id: created.id)));
+      }
     } catch (e) {
       if (mounted) notice(context, '保存失败：$e');
     } finally {if (mounted) setState(() => saving = false);}

@@ -4,6 +4,9 @@ import 'ai_chat_v051.dart';
 import 'knowledge_ref_v053.dart';
 import 'core/ai.dart';
 import 'core/decision_support.dart';
+import 'core/decision_evidence_v094.dart';
+import 'decision_evidence_picker_v094.dart';
+import 'screens.dart' show KnowledgeDetailPage;
 import 'core/knowledge_index.dart';
 import 'core/store.dart';
 
@@ -69,23 +72,83 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
   }
 
   Future<void> analyze(CompassEntry decision) async {
-    if (analyzing) return;
+    if (analyzing || searching) return;
     final store = CompassScope.of(context);
     final sources = checked;
-    setState(() { analyzing = true; error = null; });
-    try {
-      final result = await AiClient(store).ask(decisionPrompt(decision),
-        mode: 'decision', evidence: sources.map((e) => e.toEvidence()).toList());
-      final report = await saveDecisionReview(store, decision.id, result.answer,
-        result.model, sources.map((h) => h.chunkId).toList());
-      if (mounted) {
-        setState(() => activeReportId = report.id);
-        notice(context, 'AI 报告已保存为一个历史版本');
+    final cards = availableDecisionCards(store, decision);
+    final allEvidence = [
+      ...cards,
+      ...sources.map((e) => e.toEvidence()),
+    ].take(12).toList();
+    if (allEvidence.isNotEmpty) {
+      final confirmation = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('确认本次决策分析使用的资料'),
+          content: SingleChildScrollView(child: Column(
+            mainAxisSize:MainAxisSize.min,
+            crossAxisAlignment:CrossAxisAlignment.start,
+            children:[
+              const Text('决策问题、目标和方案会发送到当前 AI 服务。'
+                '选择允许后，还会发送以下知识卡和资料片段的部分正文。'
+                '它们不代表已经验证的事实。'),
+              const SizedBox(height:10),
+              ...allEvidence.map((e)=>Padding(
+                padding:const EdgeInsets.symmetric(vertical:3),
+                child:Text('· ${e.title}（正文最多 6000 字符）'))),
+              const SizedBox(height:8),
+              const Text('私密日记不会参与。',style:TextStyle(
+                color:Colors.grey,fontSize:12)),
+            ],
+          )),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(ctx,'cancel'),
+              child:const Text('取消')),
+            TextButton(onPressed:()=>Navigator.pop(ctx,'question'),
+              child:const Text('只发送决策问题')),
+            FilledButton(onPressed:()=>Navigator.pop(ctx,'allow'),
+              child:const Text('允许并分析')),
+          ],
+        ),
+      );
+      if (!mounted || confirmation==null || confirmation=='cancel') return;
+      if (confirmation=='question') {
+        // The decision prompt contains only user-entered problem and options.
+        await runAnalysis(decision, const [], const []);
+        return;
       }
-    } catch (e) {
-      if (mounted) setState(() => error = '分析失败，未保存报告：' + e.toString());
-    } finally {
-      if (mounted) setState(() => analyzing = false);
+    }
+    await runAnalysis(decision,cards,sources);
+  }
+
+  Future<void> runAnalysis(CompassEntry decision,List<CompassEntry> cards,
+      List<KnowledgeHit> sources) async {
+    final store=CompassScope.of(context);
+    setState(() {analyzing=true;error=null;});
+    try {
+      final cardIds=cards.map((e)=>e.id).toList();
+      final brief=cards.isEmpty ? '' :
+        '\\n【用户为知识卡标记的证据方向（未独立核实）】\\n'
+        '${decisionEvidenceBrief(decision,store)}';
+      final result=await AiClient(store).ask(
+        decisionPrompt(decision)+brief,
+        mode:'decision',
+        evidence:[
+          ...cards,
+          ...sources.map((e)=>e.toEvidence()),
+        ].take(12).toList(),
+      );
+      final report=await saveDecisionReview(store,decision.id,result.answer,
+        result.model,sources.map((h)=>h.chunkId).toList(),
+        offeredCardIds:cardIds);
+      if(mounted){
+        setState(()=>activeReportId=report.id);
+        notice(context,'已保存本次决策分析，可随时复查依据');
+      }
+    }catch(e){
+      if(mounted)setState(()=>error='分析失败，未保存报告：$e');
+    }finally{
+      if(mounted)setState(()=>analyzing=false);
     }
   }
 
@@ -176,7 +239,8 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
       ],
       const SizedBox(height: 9),
       Text('模型：' + record.model + ' · 提供 ' +
-        record.offeredChunkIds.length.toString() + ' 段知识',
+        record.offeredChunkIds.length.toString() + ' 段资料、' +
+        record.offeredCardIds.length.toString() + ' 张知识卡',
         style: const TextStyle(fontSize: 11, color: Colors.grey)),
     ]));
 
@@ -207,10 +271,41 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
         const SizedBox(height: 8),
         Text('权重：' + (entry.meta['criteria']?.toString() ?? '{}')),
       ])),
-      const SectionHeading('① 选择参与分析的资料'),
+      const SectionHeading('① 从知识卡选择决策依据'),
+      SoftCard(color: const Color(0xFFF4EDF9),child:Column(
+        crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('先确定哪些知识支持、反对或尚不能判断。'
+            '人工分类不等于事实已核实。',style:TextStyle(height:1.5)),
+          const SizedBox(height:8),
+          Text('已关联 ${decisionCardEvidence(entry).length} 张知识卡',
+            style:const TextStyle(fontWeight:FontWeight.w700)),
+        ])),
+      ...decisionCardEvidence(entry).map((link) {
+        final card=store.byId(link.cardId);
+        if(card?.kind!='card') {
+          return const SoftCard(child:Text('一条关联的知识卡已删除，编辑依据可清理失效记录。'));
+        }
+        return NavCard(
+          icon: link.stance=='支持' ? Icons.thumb_up_alt_outlined :
+              link.stance=='反对' ? Icons.report_gmailerrorred_outlined :
+              Icons.help_outline,
+          title: card!.title,
+          subtitle: '${link.stance}${link.note.isEmpty ? '' : ' · ${link.note}'}',
+          onTap:()=>openPage(context,KnowledgeDetailPage(id:card.id)),
+        );
+      }),
+      OutlinedButton.icon(
+        onPressed:analyzing ? null:() async {
+          await openPage(context,DecisionEvidencePickerPage(decisionId:entry.id));
+          if(mounted)setState((){});
+        },
+        icon:const Icon(Icons.library_add_check_outlined),
+        label:const Text('选择或调整知识卡依据'),
+      ),
+      const SectionHeading('② 补充可检索的资料片段'),
       const SoftCard(color: Color(0xFFF4EDF9),
-        child: Text('先在本机检索知识，只会将勾选的段落发送给 AI。'
-          '私密日记不会参加自动检索。没有资料时只能生成待验证的思路。')),
+        child: Text('本机检索用于补充来源片段。'
+          '只有分析前明确确认的资料会发送给 AI；私密日记不会参加检索。')),
       if (searching) const Center(child: CircularProgressIndicator()),
       if (!searching && candidates.isEmpty)
         const SoftCard(child: Text('暂时没有找到相关资料，可以不使用知识库继续分析。')),
@@ -229,13 +324,12 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
       ],
       OutlinedButton.icon(onPressed: searching || analyzing ? null : findSources,
         icon: const Icon(Icons.refresh), label: const Text('重新检索')),
-      const SectionHeading('② AI 方案比较与反方审查'),
+      const SectionHeading('③ AI 方案比较与反方审查'),
       FilledButton.icon(
         icon: const Icon(Icons.psychology_outlined),
         onPressed: analyzing || searching ? null : () => analyze(entry),
-        label: Text(analyzing ? '分析中…' : checked.isEmpty
-          ? '不使用个人资料进行分析'
-          : '使用所选 ' + checked.length.toString() + ' 段资料分析'),
+        label: Text(analyzing ? '分析中…' :
+          '分析当前方案（${availableDecisionCards(store,entry).length} 张知识卡，${checked.length} 段资料）'),
       ),
       if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
       if (history.isNotEmpty) ...[
@@ -253,12 +347,12 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
         OutlinedButton.icon(
           onPressed: () => openPage(context, AiChatPage(
             mode: 'decision', restrictEvidenceToSelection: true,
-            selectedEvidence: checked.map((h) => h.toEvidence()).toList(),
+            selectedEvidence: availableDecisionCards(store, entry),
             initialPrompt: decisionFollowUpPrompt(entry, current))),
           icon: const Icon(Icons.forum_outlined),
           label: const Text('基于当前分析继续追问')),
       ],
-      const SectionHeading('③ 预测与现实复盘'),
+      const SectionHeading('④ 预测与现实复盘'),
       TextField(controller: forecast, minLines: 2, maxLines: 5,
         decoration: const InputDecoration(labelText: '预测、选择与成功指标')),
       const SizedBox(height: 10),

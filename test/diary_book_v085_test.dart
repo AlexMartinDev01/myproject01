@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -71,6 +72,29 @@ void main(){
     expect(files,contains('[Content_Types].xml'));
     expect(await store.privateJournalBody(a.id),'第一段<秘密>😀\\n第二段');
     await store.closeForTests();
+  });
+
+  test('journal PNG attachment is encrypted and can be retrieved privately', ()async {
+    final store=await CompassStore.open();
+    final entry=await store.add(kind:'journal',title:'有图的日记',body:'今天拍了一张照片');
+    final bytes=base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9wV9fzUAAAAASUVORK5CYII=');
+    final temp=File(join(Directory.systemTemp.path,
+      'private_journal_photo_${CompassStore.newId()}.png'));
+    try {
+      await temp.writeAsBytes(bytes,flush:true);
+      await store.addJournalAttachment(entry.id,temp,'回忆.png');
+      final assets=await store.journalAttachments(entry.id);
+      expect(assets.length,1);
+      expect(assets.single['mime'],'image/png');
+      final recovered=await store.readJournalAttachmentBytes(
+        entry.id,assets.single['id'] as String);
+      expect(recovered,orderedEquals(bytes));
+      expect(await store.privateJournalBody(entry.id),'今天拍了一张照片');
+    } finally {
+      if(await temp.exists())await temp.delete();
+      await store.closeForTests();
+    }
   });
 
   test('PDF cover theme accepts known styles and rejects unknown values', ()async{

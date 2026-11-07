@@ -21,7 +21,8 @@ import 'diary_book_page_v085.dart';
 import 'core/local_document_parse.dart';
 
 class WelcomePage extends StatelessWidget {
-  const WelcomePage({super.key});
+  const WelcomePage({super.key, this.onStart});
+  final Future<void> Function()? onStart;
   @override
   Widget build(BuildContext context)=>Scaffold(
     body:SafeArea(child:ListView(padding:const EdgeInsets.fromLTRB(24,28,24,24),
@@ -53,7 +54,17 @@ class WelcomePage extends StatelessWidget {
         ])),
         const SizedBox(height:14),
         SizedBox(width:double.infinity,child:FilledButton.icon(
-          onPressed:()=>CompassScope.of(context).setOnboarded(),
+          onPressed:() async {
+            try {
+              if (onStart != null) {
+                await onStart!();
+              } else {
+                await CompassScope.of(context).setOnboarded();
+              }
+            } catch(e) {
+              if(context.mounted)notice(context,'无法进入应用：$e');
+            }
+          },
           icon:const Icon(Icons.arrow_forward),label:const Text('开始，添加第一条内容'))),
         const SizedBox(height:12),
         const Text('不用注册 · 基础功能离线可用 · 私密日记独立加密保存',

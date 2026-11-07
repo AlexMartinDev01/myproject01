@@ -42,6 +42,26 @@ class DiaryBookDocxService {
     if (subtitle.runes.length > 120 || preface.runes.length > 3000) {
       throw const FormatException('副标题或序言过长');
     }
+    // DOCX and PDF must enforce identical completeness checks. Never
+    // create a book with an apparently valid cover/TOC but empty chapters.
+    var totalChars = 0;
+    final emptyTitles = <String>[];
+    for (final entry in ordered) {
+      final raw = await store.privateJournalBody(entry.id);
+      totalChars += raw.runes.length;
+      if (totalChars > DiaryBookService.maxCharacters) {
+        throw const FormatException('内容过长，建议分册导出');
+      }
+      if (raw.trim().isEmpty) emptyTitles.add(entry.title);
+    }
+    if (totalChars == 0) {
+      throw const FormatException('所选日记全部没有正文，无法生成有效的日记书。');
+    }
+    if (emptyTitles.isNotEmpty) {
+      throw FormatException('以下日记没有正文，已停止导出以避免空白章节：'
+        '${emptyTitles.take(5).join('、')}${emptyTitles.length > 5 ? '等' : ''}。'
+        '请补充正文或取消选择这些日记。');
+    }
     final body = StringBuffer();
     body.write(paragraph(name, style: 'Title'));
     if (subtitle.trim().isNotEmpty) {
@@ -70,13 +90,8 @@ class DiaryBookDocxService {
       }
     }
     String? currentMonth;
-    var totalChars = 0;
     for (final entry in ordered) {
       final raw = await store.privateJournalBody(entry.id);
-      totalChars += raw.runes.length;
-      if (totalChars > DiaryBookService.maxCharacters) {
-        throw const FormatException('内容过长，建议分册导出');
-      }
       final month = DiaryBookService.monthKey(entry.createdAt);
       if (month != currentMonth) {
         currentMonth = month;

@@ -78,13 +78,24 @@ class DiaryBookService {
     // the export, rather than silently omitting encrypted content.
     final bodies=<String,String>{};
     var chars=0;
+    final emptyTitles=<String>[];
     for(final entry in ordered) {
       final text=await store.privateJournalBody(entry.id);
       chars+=text.runes.length;
       if(chars>maxCharacters) {
         throw const FormatException('内容过长，建议缩小时间范围或分册导出');
       }
+      if(text.trim().isEmpty)emptyTitles.add(entry.title);
       bodies[entry.id]=text;
+    }
+    if(chars==0) {
+      throw const FormatException('所选日记全部没有正文，无法生成有效的日记书。'
+        '请重新导入文件正文或补写内容后再导出；仅保存的原文件附件不会自动成为书籍正文。');
+    }
+    if(emptyTitles.isNotEmpty) {
+      throw FormatException('以下日记没有正文，已停止导出以避免空白章节：'
+        '${emptyTitles.take(5).join('、')}${emptyTitles.length>5?'等':''}。'
+        '请补充正文或取消选择这些日记。');
     }
     // Decrypt selected journal pictures into memory only if explicitly requested.
     // Limit image count and total bytes to prevent unbounded export memory.

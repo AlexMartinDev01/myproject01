@@ -76,10 +76,11 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
     final store = CompassScope.of(context);
     final sources = checked;
     final cards = availableDecisionCards(store, decision);
+    final limitedSources = sources.take(12-cards.length).toList();
     final allEvidence = [
       ...cards,
-      ...sources.map((e) => e.toEvidence()),
-    ].take(12).toList();
+      ...limitedSources.map((e) => e.toEvidence()),
+    ];
     if (allEvidence.isNotEmpty) {
       final confirmation = await showDialog<String>(
         context: context,
@@ -118,7 +119,7 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
         return;
       }
     }
-    await runAnalysis(decision,cards,sources);
+    await runAnalysis(decision,cards,limitedSources);
   }
 
   Future<void> runAnalysis(CompassEntry decision,List<CompassEntry> cards,
@@ -128,7 +129,7 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
     try {
       final cardIds=cards.map((e)=>e.id).toList();
       final brief=cards.isEmpty ? '' :
-        '\\n【用户为知识卡标记的证据方向（未独立核实）】\\n'
+        '\n【用户为知识卡标记的证据方向（未独立核实）】\n'
         '${decisionEvidenceBrief(decision,store)}';
       final result=await AiClient(store).ask(
         decisionPrompt(decision)+brief,

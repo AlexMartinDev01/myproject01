@@ -286,7 +286,7 @@ class CompassStore extends ChangeNotifier {
 
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 7, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+      version: 8, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onUpgrade: (Database db, int oldV, int newV) async {
         if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         if (oldV < 3) {
@@ -300,6 +300,7 @@ class CompassStore extends ChangeNotifier {
         if (oldV < 5) await ChatStore.createSchema(db);
         if (oldV < 6) await KnowledgeIndex.createSchema(db);
         if (oldV < 7) await createReviewDraftSchema(db);
+        if (oldV < 8) await ChatStore.createContextSchema(db);
       }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
@@ -314,6 +315,7 @@ class CompassStore extends ChangeNotifier {
         await ChatStore.createSchema(database);
         await KnowledgeIndex.createSchema(database);
         await createReviewDraftSchema(database);
+        await ChatStore.createContextSchema(database);
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();

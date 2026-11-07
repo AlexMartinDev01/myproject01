@@ -21,7 +21,8 @@ import 'diary_book_page_v085.dart';
 import 'core/local_document_parse.dart';
 
 class WelcomePage extends StatelessWidget {
-  const WelcomePage({super.key});
+  const WelcomePage({super.key, this.onStart});
+  final Future<void> Function()? onStart;
   @override
   Widget build(BuildContext context)=>Scaffold(
     body:SafeArea(child:ListView(padding:const EdgeInsets.fromLTRB(24,28,24,24),
@@ -53,7 +54,17 @@ class WelcomePage extends StatelessWidget {
         ])),
         const SizedBox(height:14),
         SizedBox(width:double.infinity,child:FilledButton.icon(
-          onPressed:()=>CompassScope.of(context).setOnboarded(),
+          onPressed:() async {
+            try {
+              if (onStart != null) {
+                await onStart!();
+              } else {
+                await CompassScope.of(context).setOnboarded();
+              }
+            } catch(e) {
+              if(context.mounted)notice(context,'无法进入应用：$e');
+            }
+          },
           icon:const Icon(Icons.arrow_forward),label:const Text('开始，添加第一条内容'))),
         const SizedBox(height:12),
         const Text('不用注册 · 基础功能离线可用 · 私密日记独立加密保存',
@@ -377,14 +388,19 @@ class _CapturePageState extends State<CapturePage> {
           await store.addNote(sourceId: matches.first.id,
             title: title.text.trim().isEmpty ? '新增摘录 / 笔记' : title.text.trim(),
             body: body.text.trim());
-          if (mounted) {notice(context, '内容已追加到原来源下，不会覆盖以前的笔记'); Navigator.pop(context);}
+          if (mounted) {
+            notice(context,'笔记已追加，接下来可整理成知识卡');
+            Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+              builder: (_) => SourceDetailPage(id: matches.first.id)));
+          }
         } else if (mounted) {
-          notice(context, '这个链接已经收藏；可以在原来源下继续追加笔记');
-          Navigator.pop(context);
+          notice(context,'已找到之前收藏的链接，可以继续整理');
+          Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+            builder: (_) => SourceDetailPage(id: matches.first.id)));
         }
         return;
       }
-      await store.add(kind: 'source', title: title.text.trim().isEmpty ?
+      final created = await store.add(kind: 'source', title: title.text.trim().isEmpty ?
           (raw.isEmpty ? body.text.trim().split('\n').first : raw) : title.text.trim(),
         body: body.text.trim(), origin: raw,
         status: body.text.trim().isEmpty ? '需补内容' : '待处理',
@@ -393,7 +409,11 @@ class _CapturePageState extends State<CapturePage> {
             (body.text.trim().isEmpty ? 'metadata_only' : 'user_supplied'),
           if (parsedPages != null) 'page_count': parsedPages,
           if (parseNotice != null) 'parse_message': parseNotice});
-      if (mounted) { notice(context, '已保存到收集箱'); Navigator.pop(context); }
+      if (mounted) {
+        notice(context,'收藏成功 · 下一步：整理成知识卡');
+        Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => SourceDetailPage(id: created.id)));
+      }
     } catch (e) {
       if (mounted) notice(context, '保存失败：$e');
     } finally {if (mounted) setState(() => saving = false);}
@@ -535,7 +555,13 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
                 '提炼知识点 · 由我决定保存':'先补充内容'),
           )),
           const SizedBox(height:8),
-          const Text('只有你确认后，候选知识点才会保存；AI 提炼需联网并明确授权。',
+          SizedBox(width:double.infinity,child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,CardEditPage(
+              originalSourceId:source.id,initialTitle:source.title)),
+            icon:const Icon(Icons.edit_note_outlined),
+            label:const Text('不用 AI，自己写知识卡'))),
+          const SizedBox(height:8),
+          const Text('AI 提炼需联网及你的授权；手动整理完全离线。知识卡保存前由你确认。',
             style:TextStyle(fontSize:12,color:Colors.grey)),
         ])),
       SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -96,7 +96,11 @@ void main(){
     await tester.pumpWidget(CompassScope(store:store,
       child:const MaterialApp(home:DiaryBookPage())));
     expect(find.text('制作我的日记书'),findsOneWidget);
+    await tester.scrollUntilVisible(find.text('全部'), 350,
+      scrollable: find.byType(Scrollable).first);
     expect(find.text('全部'),findsOneWidget);
+    await tester.scrollUntilVisible(find.text('日记测试'), 350,
+      scrollable: find.byType(Scrollable).first);
     expect(find.text('日记测试'),findsOneWidget);
     expect(find.text('生成并保存 PDF 日记书'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

@@ -19,6 +19,8 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
   final subtitle=TextEditingController();
   String outputFormat='pdf';
   String coverStyle='classic';
+  Uint8List? coverPhoto;
+  String? coverPhotoName;
   final selectedIds=<String>{};
   String range='all';
   bool initialized=false;
@@ -49,6 +51,32 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
        e.createdAt.month==now.month)).toList();
   }
 
+  Future<void> chooseCoverPhoto() async {
+    try {
+      final file=await FilePicker.platform.pickFiles(type:FileType.image,
+        withData:true,allowMultiple:false);
+      if(file==null || !mounted)return;
+      final chosen=file.files.single;
+      final bytes=chosen.bytes;
+      if(bytes==null) {
+        setState(()=>message='没有读取到照片内容，请重试');return;
+      }
+      final name=chosen.name.toLowerCase();
+      final png=bytes.length>=8 && bytes[0]==0x89 && bytes[1]==0x50 &&
+        bytes[2]==0x4e && bytes[3]==0x47;
+      final jpg=bytes.length>=3 && bytes[0]==0xff && bytes[1]==0xd8 &&
+        bytes[2]==0xff;
+      if(!(png || jpg) || (!name.endsWith('.png') &&
+          !name.endsWith('.jpg') && !name.endsWith('.jpeg'))) {
+        setState(()=>message='封面仅支持 PNG、JPG 图片');return;
+      }
+      if(bytes.length>5*1024*1024){
+        setState(()=>message='图片超过 5 MB，请选择更小的照片');return;
+      }
+      setState((){coverPhoto=bytes;coverPhotoName=chosen.name;message='';});
+    }catch(e){if(mounted)setState(()=>message='选择封面照片失败：$e');}
+  }
+
   Future<void> exportBook() async {
     if(busy)return;
     final store=CompassScope.of(context);
@@ -76,7 +104,8 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
       final Uint8List bytes=outputFormat=='pdf'
         ? await DiaryBookService.build(
           store:store,entries:chosen,title:title.text,preface:preface.text,
-          subtitle:subtitle.text,coverStyle:coverStyle)
+          subtitle:subtitle.text,coverStyle:coverStyle,
+          coverImageBytes:coverPhoto)
         : await DiaryBookDocxService.build(
           store:store,entries:chosen,title:title.text,
           subtitle:subtitle.text,preface:preface.text);
@@ -149,6 +178,20 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         ]),
         if(outputFormat=='docx')const Text('Word 采用可编辑的简洁文字封面。',
           style:TextStyle(fontSize:12,color:Colors.grey)),
+        if(outputFormat=='pdf') ...[
+          const SizedBox(height:10),
+          Row(children:[
+            OutlinedButton.icon(onPressed:busy?null:chooseCoverPhoto,
+              icon:const Icon(Icons.add_photo_alternate_outlined),
+              label:const Text('选择封面照片')),
+            if(coverPhoto!=null)TextButton(onPressed:busy?null:()=>setState((){
+              coverPhoto=null;coverPhotoName=null;
+            }),child:const Text('移除')),
+          ]),
+          if(coverPhotoName!=null)Text('已选择：$coverPhotoName',
+            maxLines:1,overflow:TextOverflow.ellipsis,
+            style:const TextStyle(fontSize:12,color:Colors.grey)),
+        ],
         const SizedBox(height:12),
         AnimatedBuilder(animation:Listenable.merge([title,subtitle]),builder:(context,_) {
           final shade=coverStyle=='rose' ? const Color(0xFFF8EAEF) :
@@ -161,6 +204,12 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
               decoration:BoxDecoration(color:shade,borderRadius:BorderRadius.circular(8),
                 border:Border.all(color:inkColor.withValues(alpha:0.2))),
               child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+                if(outputFormat=='pdf' && coverPhoto!=null) ...[
+                  SizedBox(height:90,width:130,child:Image.memory(coverPhoto!,
+                    fit:BoxFit.cover,errorBuilder:(context,error,stack)=>
+                      const Icon(Icons.broken_image_outlined))),
+                  const SizedBox(height:10),
+                ],
                 Container(width:48,height:2,color:inkColor),
                 const SizedBox(height:24),
                 Text(title.text.trim().isEmpty?'我的日记书':title.text.trim(),

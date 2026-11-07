@@ -194,50 +194,85 @@ class InboxPage extends StatefulWidget {
 
 class _InboxPageState extends State<InboxPage> {
   String filter = '全部';
+  final search = TextEditingController();
+  @override
+  void dispose() { search.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final store = CompassScope.of(context);
-    final items = store.ofKind('source').where((e) => filter == '全部' || e.status == filter).toList();
-    return PageFrame(title: '收集箱', subtitle: '先收进来，再慢慢把信息变成自己的理解。', children: [
-      SoftCard(color: const Color(0xFFF2EAF8), child: Column(children: [
-        const Row(children: [Icon(Icons.add_circle_outline, color: grape), SizedBox(width: 8),
-          Expanded(child: Text('随手收集', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)))]),
-        const SizedBox(height: 12),
-        const Text('抖音 / 小红书 / B站 / YouTube 链接、书名、PDF、文字都可以保存。',
-          style: TextStyle(color: Color(0xFF6B5A72))),
-        const SizedBox(height: 12),
+    final all = store.ofKind('source');
+    final keyword = search.text.trim().toLowerCase();
+    final items = all.where((e) =>
+      (filter == '全部' || e.status == filter) &&
+      (keyword.isEmpty || e.title.toLowerCase().contains(keyword) ||
+       e.body.toLowerCase().contains(keyword))).toList();
+    final unprocessed = all.where((e)=>e.status=='待处理').length;
+    return PageFrame(title: '收集箱',
+      subtitle: '先记录，再整理；重要素材随时找得到。',
+      children: [
+      SoftCard(color: const Color(0xFFF2EAF8), child: Column(
+        crossAxisAlignment:CrossAxisAlignment.start, children: [
+        const Text('随手收集', style:TextStyle(fontWeight:FontWeight.w700,fontSize:19)),
+        const SizedBox(height:7),
+        Text('共 ${all.length} 条素材 · ${unprocessed} 条待处理',
+          style:const TextStyle(color:Color(0xFF6B5A72),fontSize:13)),
+        const SizedBox(height:12),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: () => openPage(context, const CapturePage()),
-          icon: const Icon(Icons.add), label: const Text('添加一条素材'))),
+          icon: const Icon(Icons.add), label: const Text('添加素材'))),
       ])),
-      const SectionHeading('处理状态'),
+      TextField(controller:search,onChanged:(_)=>setState((){}),
+        decoration:InputDecoration(prefixIcon:const Icon(Icons.search),
+          hintText:'搜索素材标题与内容',
+          suffixIcon:keyword.isEmpty?null:IconButton(
+            tooltip:'清空搜索',
+            onPressed:()=>setState(()=>search.clear()),
+            icon:const Icon(Icons.close)))),
+      const SizedBox(height:12),
       SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(
         children: ['全部', '待处理', '已整理', '需补内容', '失败'].map((f) =>
           Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-            label: Text(f), selected: filter == f, onSelected: (_) => setState(() => filter = f)))).toList())),
-      const SizedBox(height: 15),
+            label: Text(f), selected: filter == f,
+            onSelected: (_) => setState(() => filter = f)))).toList())),
+      const SizedBox(height:10),
+      Text('当前显示 ${items.length} 条',style:const TextStyle(
+        fontSize:12,color:Color(0xFF70657A))),
+      const SizedBox(height:8),
       if (items.isEmpty) EmptyStateCard(
-        icon: filter == '全部' ? Icons.inbox_outlined : Icons.filter_alt_off_outlined,
-        title: filter == '全部' ? '收集箱还是空的' : '没有“$filter”的素材',
-        description: filter == '全部'
-          ? '将链接、文字或文档先存进来，再慢慢整理。'
-          : '尝试切换筛选条件，或查看全部素材。',
-        actionLabel: filter == '全部' ? '添加第一条素材' : '查看全部素材',
-        onAction: filter == '全部'
-          ? () => openPage(context, const CapturePage())
-          : () => setState(() => filter = '全部')),
+        icon:keyword.isNotEmpty ? Icons.search_off_outlined :
+          filter == '全部' ? Icons.inbox_outlined : Icons.filter_alt_off_outlined,
+        title: keyword.isNotEmpty ? '没有找到相关素材' :
+          filter == '全部' ? '收集箱还是空的' : '没有“$filter”的素材',
+        description: keyword.isNotEmpty
+          ? '试试其他关键词，或清空搜索与筛选。'
+          : filter == '全部'
+            ? '收藏链接、文字或文档，再慢慢整理成自己的观点。'
+            : '切换筛选条件即可查看其他记录。',
+        actionLabel: keyword.isNotEmpty ? '清空筛选' :
+          filter == '全部' ? '添加第一条素材' : '查看全部素材',
+        onAction: keyword.isNotEmpty
+          ? () => setState(() {search.clear();filter='全部';})
+          : filter == '全部'
+            ? () => openPage(context, const CapturePage())
+            : () => setState(() => filter = '全部')),
       ...items.map((item) => Dismissible(
         key: ValueKey(item.id), direction: DismissDirection.endToStart,
-        background: Container(color: const Color(0xFFE8A8B5), alignment: Alignment.centerRight,
-          padding: const EdgeInsets.all(16), child: const Icon(Icons.delete, color: Colors.white)),
+        background: Container(color: const Color(0xFFE8A8B5),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.all(16),
+          child: const Icon(Icons.delete_outline, color: Colors.white)),
         confirmDismiss: (_) async => await showDialog<bool>(context: context,
-          builder: (c) => AlertDialog(title: const Text('删除这条收集？'),
-            content: const Text('删除来源也会删除该来源下的持续笔记和版本历史，操作无法撤销，请先备份。'), actions: [
-              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('取消')),
-              TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('删除'))])) ?? false,
+          builder: (c) => AlertDialog(title: const Text('永久删除这条素材？'),
+            content: const Text('所属的持续笔记与版本历史也会删除，操作无法撤销。'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c, false),
+                child: const Text('取消')),
+              TextButton(onPressed: () => Navigator.pop(c, true),
+                child: const Text('确认删除'))])) ?? false,
         onDismissed: (_) => store.remove(item),
-        child: _EntryTile(entry: item, onTap: () => openPage(context, SourceDetailPage(id: item.id))))),
-    ]);
+        child: _EntryTile(entry: item, onTap: () =>
+          openPage(context, SourceDetailPage(id: item.id))))),
+      ]);
   }
 }
 
@@ -786,46 +821,79 @@ class _KnowledgePageState extends State<KnowledgePage> {
   void dispose() {query.dispose(); super.dispose();}
   @override
   Widget build(BuildContext context) {
-    final store = CompassScope.of(context);
-    final cards = store.ofKind('card').where((e) =>
-      (theme == '全部' || e.meta['topic'] == theme) &&
-      ('${e.title}${e.body}'.toLowerCase().contains(query.text.trim().toLowerCase()))).toList();
-    return PageFrame(title: '知识库', subtitle: '我的知识体系 · 累积、联结、重新理解',
-      children: [
-        TextField(controller: query, onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
-            hintText: '检索概念、观点、知识卡…')),
-        Row(children: [
-          Expanded(child: OutlinedButton.icon(
-            onPressed: () => openPage(context, const CapturePage()),
-            icon: const Icon(Icons.add_link), label: const Text('收集资料'))),
-          const SizedBox(width: 8),
-          Expanded(child: OutlinedButton.icon(
-            onPressed: () => openPage(context, const CardEditPage()),
-            icon: const Icon(Icons.note_add_outlined), label: const Text('新建知识卡'))),
+    final store=CompassScope.of(context);
+    final all=store.ofKind('card');
+    final topics=<String>{};
+    for(final card in all){
+      final topic=card.meta['topic']?.toString().trim() ?? '';
+      if(topic.isNotEmpty)topics.add(topic);
+    }
+    final sortedTopics=topics.toList()..sort();
+    final availableTopics=['全部',...sortedTopics];
+    final keyword=query.text.trim().toLowerCase();
+    final selectedTopic=availableTopics.contains(theme)?theme:'全部';
+    final cards=all.where((e)=>
+      (selectedTopic=='全部'||e.meta['topic']==selectedTopic) &&
+      (keyword.isEmpty || ('${e.title} ${e.body}').toLowerCase().contains(keyword)))
+      .toList();
+    return PageFrame(title:'知识库',
+      subtitle:'把信息变成自己的理解，并不断建立联系。',
+      children:[
+        SoftCard(color:const Color(0xFFF3EBF8),child:Column(
+          crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text('已积累 ${all.length} 张知识卡 · ${topics.length} 个主题',
+            style:const TextStyle(fontWeight:FontWeight.w700,fontSize:17)),
+          const SizedBox(height:8),
+          const Text('先记录自己的观点，再用知识网络发现它们之间的关系。',
+            style:TextStyle(color:Color(0xFF716479),height:1.5)),
+          const SizedBox(height:12),
+          SizedBox(width:double.infinity,child:FilledButton.icon(
+            onPressed:()=>openPage(context,const CardEditPage()),
+            icon:const Icon(Icons.note_add_outlined),
+            label:const Text('创建知识卡'))),
+        ])),
+        Row(children:[
+          Expanded(child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,const CapturePage()),
+            icon:const Icon(Icons.add_link),label:const Text('收集资料'))),
+          const SizedBox(width:8),
+          Expanded(child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,const KnowledgeGraphPage()),
+            icon:const Icon(Icons.hub_outlined),label:const Text('知识网络'))),
         ]),
-        SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
-          onPressed: () => openPage(context, const KnowledgeGraphPage()),
-          icon: const Icon(Icons.hub_outlined),
-          label: const Text('查看知识网络图'))),
-        const SectionHeading('按主题筛选'),
-        Wrap(spacing: 8, runSpacing: 8,
-          children: ['全部', '心理学', '哲学', '历史', '社会学', '科技', '职业发展', '自我成长']
-            .map((s) => ChoiceChip(label: Text(s), selected: theme == s,
-              onSelected: (_) => setState(() => theme = s))).toList()),
-        SectionHeading('我的知识卡 · ${cards.length}'),
-        if (cards.isEmpty) EmptyStateCard(
-          icon: Icons.menu_book_outlined,
-          title: store.ofKind('card').isEmpty ? '知识库还没有知识卡' : '没有找到匹配的知识卡',
-          description: store.ofKind('card').isEmpty
-            ? '把一条材料整理成自己的观点，从第一张知识卡开始。'
-            : '可以清空搜索或切换为“全部”专题。',
-          actionLabel: store.ofKind('card').isEmpty ? '创建知识卡' : '清空筛选',
-          onAction: store.ofKind('card').isEmpty
-            ? () => openPage(context, const CardEditPage())
-            : () => setState(() {query.clear(); theme = '全部';})),
-        ...cards.map((item) => _EntryTile(entry: item,
-          onTap: () => openPage(context, KnowledgeDetailPage(id: item.id)))),
+        const SizedBox(height:14),
+        TextField(controller:query,onChanged:(_)=>setState((){}),
+          decoration:InputDecoration(prefixIcon:const Icon(Icons.search),
+            hintText:'搜索知识卡标题与正文',
+            suffixIcon:keyword.isEmpty?null:IconButton(
+              tooltip:'清空搜索',
+              onPressed:()=>setState(()=>query.clear()),
+              icon:const Icon(Icons.close)))),
+        const SizedBox(height:12),
+        if(topics.isNotEmpty)...[
+          const Text('按已有主题筛选',
+            style:TextStyle(fontWeight:FontWeight.w600)),
+          const SizedBox(height:8),
+          Wrap(spacing:8,runSpacing:8,
+            children:availableTopics.map((topic)=>ChoiceChip(
+              label:Text(topic),selected:selectedTopic==topic,
+              onSelected:(_)=>setState(()=>theme=topic))).toList()),
+          const SizedBox(height:12),
+        ],
+        Text('我的知识卡 · ${cards.length}',
+          style:const TextStyle(fontWeight:FontWeight.w700,fontSize:18)),
+        const SizedBox(height:10),
+        if(cards.isEmpty)EmptyStateCard(
+          icon:Icons.menu_book_outlined,
+          title:all.isEmpty?'知识库还没有知识卡':'没有找到匹配的知识卡',
+          description:all.isEmpty
+            ? '创建第一张知识卡，让想法可以被反复回顾。'
+            : '清除关键词或切换到全部主题，即可查看其他内容。',
+          actionLabel:all.isEmpty?'创建知识卡':'清空筛选',
+          onAction:all.isEmpty?()=>openPage(context,const CardEditPage()):
+            ()=>setState((){query.clear();theme='全部';})),
+        ...cards.map((e)=>_EntryTile(entry:e,
+          onTap:()=>openPage(context,KnowledgeDetailPage(id:e.id)))),
       ]);
   }
 }
@@ -988,19 +1056,25 @@ class AiHubPage extends StatelessWidget {
       SizedBox(width: double.infinity, child: FilledButton.icon(
         onPressed: () => openPage(context, const AiChatPage(mode: 'ask')),
         icon: const Icon(Icons.chat_bubble_outline), label: const Text('开始普通 AI 对话'))),
+      const SizedBox(height: 10),
+      OutlinedButton.icon(
+        onPressed: () => openPage(context, const ChatHistoryPage()),
+        icon: const Icon(Icons.history),
+        label: const Text('继续之前的对话')),
       const SizedBox(height: 12),
       const SectionHeading('其他思考方式'),
-      NavCard(icon: Icons.history, title: '历史对话',
-        subtitle: '本机加密保存 · 重命名、搜索和继续追问',
-        onTap: () => openPage(context, const ChatHistoryPage())),
       NavCard(icon: Icons.school_outlined, title: '费曼学习教练',
-        subtitle: '解释、复述、反例、主动回忆', onTap: () => openPage(context, const AiChatPage(mode: 'learn'))),
+        subtitle: '先理解，再用自己的语言解释',
+        onTap: () => openPage(context, const AiChatPage(mode: 'learn'))),
       NavCard(icon: Icons.forum_outlined, title: '反方思辨',
-        subtitle: '识别论证漏洞与忽略的前提', onTap: () => openPage(context, const AiChatPage(mode: 'challenge'))),
+        subtitle: '从不同角度挑战现有想法',
+        onTap: () => openPage(context, const AiChatPage(mode: 'challenge'))),
       NavCard(icon: Icons.balance, title: '决策实验室',
-        subtitle: '选项、证据、权衡与复盘', onTap: () => openPage(context, const DecisionPage())),
-      NavCard(icon: Icons.settings_outlined, title: '连接 AI 工作站',
-        subtitle: '设置 DeepSeek 私有代理或 Windows 节点',
+        subtitle: '整理选项、记录权衡并复盘',
+        onTap: () => openPage(context, const DecisionPage())),
+      const SectionHeading('使用前的连接设置'),
+      NavCard(icon: Icons.settings_outlined, title: '连接 AI 服务',
+        subtitle: 'AI 需要联网；普通日记不会自动上传',
         onTap: () => openPage(context, const DeviceSettingsPage())),
     ]);
 }
@@ -1941,19 +2015,19 @@ class WorkspacePage extends StatelessWidget {
               '${store.ofKind('journal').length} 篇日记',
               style: const TextStyle(color: Color(0xFF6B5A72))),
           ])),
-        const SectionHeading('行动与复盘'),
+        const SectionHeading('从这里继续'),
         NavCard(icon: Icons.balance_outlined, title: '决策实验室',
           subtitle: '比较方案、记录选择、继续复盘',
           onTap: () => openPage(context, const DecisionPage())),
         NavCard(icon: Icons.school_outlined, title: '成长与学习',
           subtitle: '学习专题、任务进度和完成记录',
           onTap: () => openPage(context, const LearningPage())),
-        const SectionHeading('可选 AI 工具'),
-        NavCard(icon: Icons.auto_awesome_outlined, title: 'AI 思考',
-          subtitle: '对话、证据分析和反方思辨 · 需配置服务',
-          onTap: () => openPage(context, const AiHubPage())),
-        NavCard(icon: Icons.history_outlined, title: '历史对话',
-          subtitle: '返回之前保存的多轮讨论',
+        const SectionHeading('AI 与历史'),
+        NavCard(icon: Icons.chat_bubble_outline, title: '开始 AI 对话',
+          subtitle: '联网时可用，也支持继续历史对话',
+          onTap: () => openPage(context, const AiChatPage(mode: 'ask'))),
+        NavCard(icon: Icons.history_outlined, title: '查看历史对话',
+          subtitle: '查找已保存的多轮讨论',
           onTap: () => openPage(context, const ChatHistoryPage())),
         const SectionHeading('管理与隐私'),
         NavCard(icon: Icons.person_outline, title: '我的资料与设置',

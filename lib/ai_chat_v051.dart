@@ -79,6 +79,8 @@ class _AiChatPageState extends State<AiChatPage> {
   List<ChatLine> lines = [];
   bool loading = true, sending = false, extracting = false;
   String? error;
+  List<String> persistedEvidenceIds = const [];
+  String? approvedEvidenceSignature;
   @override
   void initState() {
     super.initState();
@@ -105,7 +107,9 @@ class _AiChatPageState extends State<AiChatPage> {
         final info = await store.chats.getThread(threadId!);
         if (info == null) throw StateError('历史会话不存在或已被删除');
         final loaded = await store.chats.loadMessages(threadId!);
-        if (mounted) setState(() {mode = info.mode; lines = loaded; loading = false;});
+        final ids = await store.chats.getContext(threadId!);
+        if (mounted) setState(() {mode = info.mode; lines = loaded;
+          persistedEvidenceIds = ids; loading = false;});
         moveToBottom();
       } else if (mounted) {
         setState(() => loading = false);
@@ -139,22 +143,77 @@ class _AiChatPageState extends State<AiChatPage> {
     return picked.reversed.toList();
   }
 
+  /// Material scope is fixed for this task, even when reopened from history.
+  /// Missing or private items are silently excluded instead of being uploaded.
+  List<CompassEntry> scopedEvidence(CompassStore store) {
+    final ids = widget.selectedEvidence.isNotEmpty
+        ? widget.selectedEvidence.map((e) => e.id).toList()
+        : persistedEvidenceIds;
+    return ids.toSet().map(store.byId).whereType<CompassEntry>()
+      .where((e) => (e.kind == 'source' || e.kind == 'card') &&
+          e.body.trim().isNotEmpty).take(12).toList();
+  }
+
   Future<void> send() async {
     final prompt = input.text.trim();
     if (prompt.isEmpty || sending || loading) return;
     if (privateMode) {
-      notice(context, '云端日记 AI 尚未开放。请勿发送私密日记；此页面不会上传私密正文。');
+      notice(context, '私密日记不会通过这个 AI 对话发送。');
       return;
     }
-    setState(() {sending = true; error = null;});
     final store = CompassScope.of(context);
+    final fixedScope = widget.restrictEvidenceToSelection ||
+        widget.selectedEvidence.isNotEmpty || persistedEvidenceIds.isNotEmpty;
+    List<CompassEntry> evidence;
     try {
-      final hits = await store.findKnowledge(prompt, limit: 9);
-      final evidence = widget.restrictEvidenceToSelection
-        ? widget.selectedEvidence
-        : (widget.selectedEvidence.isNotEmpty
-            ? widget.selectedEvidence
-            : hits.map((hit) => hit.toEvidence()).toList());
+      if (fixedScope) {
+        evidence = scopedEvidence(store);
+      } else {
+        final hits = await store.findKnowledge(prompt, limit: 9);
+        evidence = hits.map((hit) => hit.toEvidence())
+          .where((e) => e.kind != 'journal' && e.body.trim().isNotEmpty)
+          .take(9).toList();
+      }
+      final fingerprint = evidence.map((e) =>
+        '${e.id}:${e.updatedAt.microsecondsSinceEpoch}:${e.body.length}').join('|');
+      if (evidence.isNotEmpty && fingerprint != approvedEvidenceSignature) {
+        if (!mounted) return;
+        final choice = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('确认本次 AI 使用的资料'),
+            content: SingleChildScrollView(child: Column(
+              mainAxisSize:MainAxisSize.min,
+              crossAxisAlignment:CrossAxisAlignment.start,
+              children: [
+                const Text('点击允许后，所列资料的部分正文及问题、会话历史将发送到已配置的 AI 服务。不会发送私密日记。'),
+                const SizedBox(height:10),
+                ...evidence.map((e) => Padding(
+                  padding:const EdgeInsets.symmetric(vertical:4),
+                  child: Text('· ${e.title}（最多发送 6000 字符）'))),
+                const SizedBox(height:10),
+                const Text('AI 引用资料不代表结论已验证。你也可以只发送问题。',
+                  style:TextStyle(fontSize:12,color:Colors.grey)),
+              ],
+            )),
+            actions: [
+              TextButton(onPressed:()=>Navigator.pop(ctx,'cancel'),
+                child:const Text('取消')),
+              TextButton(onPressed:()=>Navigator.pop(ctx,'question'),
+                child:const Text('只发送问题')),
+              FilledButton(onPressed:()=>Navigator.pop(ctx,'allow'),
+                child:const Text('允许并发送')),
+            ],
+          ),
+        );
+        if (!mounted || choice == null || choice == 'cancel') return;
+        if (choice == 'question') {
+          evidence = [];
+        } else {
+          approvedEvidenceSignature = fingerprint;
+        }
+      }
+      setState(() {sending = true; error = null;});
       final response = await AiClient(store).ask(prompt,
         mode: mode, evidence: evidence, history: conversationContext());
       var id = threadId;
@@ -162,6 +221,16 @@ class _AiChatPageState extends State<AiChatPage> {
         final created = await store.chats.createThread(title: prompt, mode: mode);
         id = created.id;
         threadId = id;
+      }
+      if (fixedScope && evidence.isNotEmpty) {
+        // Preserve source/card identities across future visits to chat history.
+        // Never retain generated snippets or private journal data.
+        final sourceIds = evidence.where((e)=>
+          e.kind == 'source' || e.kind == 'card').map((e)=>e.id).toList();
+        if (sourceIds.isNotEmpty) {
+          await store.chats.setContext(id,sourceIds);
+          persistedEvidenceIds = sourceIds;
+        }
       }
       await store.chats.addMessage(id, 'user', prompt);
       await store.chats.addMessage(id, 'assistant', response.answer,
@@ -293,6 +362,25 @@ class _AiChatPageState extends State<AiChatPage> {
           padding: const EdgeInsets.all(12), color: const Color(0xFFFFF0EE),
           child: const Text('为了避免旧版云端授权提示不准确，V0.5.1 暂不支持将日记发往云端。'
             '本页不会发送或保存日记内容。')),
+        if (widget.selectedEvidence.isNotEmpty || persistedEvidenceIds.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding:const EdgeInsets.fromLTRB(14,9,14,9),
+            color:const Color(0xFFF2EBF8),
+            child:Column(
+              crossAxisAlignment:CrossAxisAlignment.start,
+              children:[
+                const Text('本次 AI 任务 · 指定资料范围',
+                  style:TextStyle(fontWeight:FontWeight.w700)),
+                const SizedBox(height:3),
+                Text(scopedEvidence(store).isEmpty
+                  ? '原资料已删除或没有正文，将只发送你输入的问题。'
+                  : scopedEvidence(store).map((e)=>e.title).join(' · '),
+                  maxLines:2,overflow:TextOverflow.ellipsis,
+                  style:const TextStyle(fontSize:12,color:Color(0xFF75667E))),
+              ],
+            ),
+          ),
         if (store.serverUrl.isEmpty) ListTile(
           leading: const Icon(Icons.wifi_off),
           title: const Text('AI 服务尚未连接'),

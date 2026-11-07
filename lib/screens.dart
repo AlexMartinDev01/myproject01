@@ -620,6 +620,14 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
           )),
           const SizedBox(height:8),
           SizedBox(width:double.infinity,child:OutlinedButton.icon(
+            onPressed:() => openPage(context, AiChatPage(
+              mode:'ask', selectedEvidence:[source],
+              restrictEvidenceToSelection:true,
+              initialPrompt:'请帮我理解这份收藏中的核心观点，并指出适用条件和可能的反例。')),
+            icon:const Icon(Icons.chat_bubble_outline),
+            label:const Text('和 AI 讨论这条收藏'))),
+          const SizedBox(height:8),
+          SizedBox(width:double.infinity,child:OutlinedButton.icon(
             onPressed:()=>openPage(context,CardEditPage(
               originalSourceId:source.id,initialTitle:source.title)),
             icon:const Icon(Icons.edit_note_outlined),
@@ -1200,8 +1208,18 @@ class KnowledgeDetailPage extends StatelessWidget {
         subtitle: '查看已有的知识卡与素材来源关系',
         onTap: () => openPage(context, const KnowledgeGraphPage())),
       SoftCard(child: Column(children: [
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: () => openPage(context, AiChatPage(
+            mode: 'ask', selectedEvidence: [entry],
+            restrictEvidenceToSelection: true,
+            initialPrompt:'请解释这张知识卡的适用边界、可能的反例，以及实际可以怎么运用。')),
+          icon:const Icon(Icons.chat_bubble_outline),
+          label:const Text('围绕这张知识卡问 AI'))),
+        const SizedBox(height:8),
         SizedBox(width: double.infinity, child: FilledButton.tonal(
-          onPressed: () => openPage(context, AiChatPage(mode: 'learn', selectedEvidence: [entry])),
+          onPressed: () => openPage(context, AiChatPage(
+            mode: 'learn', selectedEvidence: [entry],
+            restrictEvidenceToSelection: true)),
           child: const Text('用 AI 考考我'))),
         TextButton(onPressed: () => store.update(entry.copyWith(status: '已掌握')),
           child: const Text('标记为已掌握')),

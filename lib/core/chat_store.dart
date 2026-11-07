@@ -45,6 +45,38 @@ class ChatStore {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_ai_lines_thread ON ai_messages(conversation_id, created_at, id)');
   }
 
+  /// Context is stored as IDs only, never private text or file bytes.
+  static Future<void> createContextSchema(Database db) async {
+    await db.execute('''CREATE TABLE IF NOT EXISTS ai_conversation_context (
+      conversation_id TEXT PRIMARY KEY,
+      evidence_ids TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(conversation_id)
+        REFERENCES ai_conversations(id) ON DELETE CASCADE
+    )''');
+  }
+
+  Future<void> setContext(String threadId, List<String> evidenceIds) async {
+    if (await getThread(threadId) == null) {
+      throw StateError('会话不存在，不能附加来源');
+    }
+    final unique = evidenceIds.toSet().take(12).toList();
+    await _db.insert('ai_conversation_context', {
+      'conversation_id':threadId,
+      'evidence_ids':jsonEncode(unique),
+      'updated_at':DateTime.now().toUtc().toIso8601String(),
+    }, conflictAlgorithm:ConflictAlgorithm.replace);
+  }
+
+  Future<List<String>> getContext(String threadId) async {
+    final rows=await _db.query('ai_conversation_context',
+      where:'conversation_id=?',whereArgs:[threadId],limit:1);
+    if (rows.isEmpty) return const [];
+    final parsed=jsonDecode(rows.single['evidence_ids'] as String);
+    if (parsed is! List) return const [];
+    return parsed.whereType<String>().take(12).toList();
+  }
+
   String newId() => 'c_${DateTime.now().microsecondsSinceEpoch}_${DateTime.now().hashCode.abs()}';
 
   Future<ChatThread> createThread({String title = '新对话', String mode = 'ask'}) async {

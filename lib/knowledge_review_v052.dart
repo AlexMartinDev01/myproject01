@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'main.dart';
+import 'ai_chat_v051.dart';
 import 'core/knowledge_candidates.dart';
 import 'core/review_draft_v091.dart';
 import 'core/store.dart';
@@ -325,6 +326,28 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
               maxLines: 2, updateDuplicates: true),
             editorSection('核心解释', item.explanation,
               minLines: 3, maxLines: 9, maxLength: 2500),
+            OutlinedButton.icon(
+              onPressed: saving ? null : () {
+                scheduleDraftSave();
+                final store=CompassScope.of(context);
+                final sourceId=widget.originalSourceId;
+                final source=sourceId==null ? null : store.byId(sourceId);
+                final evidence=source?.kind=='source' ? [source!] : <CompassEntry>[];
+                final details=item.explanation.text.trim();
+                final excerpt=details.length>1000
+                    ? details.substring(0,1000) : details;
+                openPage(context,AiChatPage(
+                  mode:'challenge',
+                  selectedEvidence:evidence,
+                  restrictEvidenceToSelection:true,
+                  initialPrompt:'请针对我正在审核的候选知识点提出可能的反例、适用条件与修改建议。'
+                      '候选标题：${item.title.text}。我的解释：$excerpt。'
+                      '请不要替我自动保存知识卡。',
+                ));
+              },
+              icon:const Icon(Icons.chat_bubble_outline),
+              label:const Text('让 AI 帮我检查这个观点')),
+            const SizedBox(height:8),
             DropdownButtonFormField<String>(
               initialValue: item.topic,
               items: knowledgeTopics.map((s) =>

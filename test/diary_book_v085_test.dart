@@ -78,7 +78,7 @@ void main(){
     final store=await CompassStore.open();
     final entry=await store.add(kind:'journal',title:'有图的日记',body:'今天拍了一张照片');
     final bytes=base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9wV9fzUAAAAASUVORK5CYII=');
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPcEtXDwMDAxMDAwMDAAAATigGeibtIzAAAAABJRU5ErkJggg==');
     final temp=File(join(Directory.systemTemp.path,
       'private_journal_photo_${CompassStore.newId()}.png'));
     try {
@@ -91,6 +91,27 @@ void main(){
         entry.id,assets.single['id'] as String);
       expect(recovered,orderedEquals(bytes));
       expect(await store.privateJournalBody(entry.id),'今天拍了一张照片');
+    } finally {
+      if(await temp.exists())await temp.delete();
+      await store.closeForTests();
+    }
+  });
+
+  test('PDF can include user-selected encrypted diary photos offline', ()async {
+    final store=await CompassStore.open();
+    final entry=await store.add(kind:'journal',title:'秋日小记',body:'一张照片');
+    final image=base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPcEtXDwMDAxMDAwMDAAAATigGeibtIzAAAAABJRU5ErkJggg==');
+    final temp=File(join(Directory.systemTemp.path,
+      'book_export_image_${CompassStore.newId()}.png'));
+    try {
+      await temp.writeAsBytes(image);
+      await store.addJournalAttachment(entry.id,temp,'生活照.png');
+      final pdf=await DiaryBookService.build(store:store,
+        entries:[entry],title:'日记',includePhotos:true);
+      expect(latin1.decode(pdf.take(8).toList()),startsWith('%PDF-'));
+      expect(pdf.length,greaterThan(3000));
+      expect(await store.privateJournalBody(entry.id),'一张照片');
     } finally {
       if(await temp.exists())await temp.delete();
       await store.closeForTests();

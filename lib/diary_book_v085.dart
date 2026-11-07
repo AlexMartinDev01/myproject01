@@ -31,9 +31,12 @@ class DiaryBookService {
   static String monthKey(DateTime date) =>
     '${date.year} 年 ${date.month.toString().padLeft(2,'0')} 月';
 
-  /// Small text widgets allow long diary contents to flow between pages.
-  /// Keep Unicode surrogate pairs intact and never rewrite the original text.
-  static List<String> splitBody(String body,{int chunkSize=360}) {
+  /// MultiPage cannot split one Text widget across pages. The old 360-rune
+  /// chunks were often several lines tall and moved together to the next page,
+  /// leaving large, uneven white gaps. Use short flowing runs instead.
+  /// Preserve original Unicode code points and paragraph boundaries.
+  static List<String> splitBody(String body,{int chunkSize=48}) {
+    if(chunkSize<=0)throw ArgumentError.value(chunkSize,'chunkSize');
     if(body.isEmpty)return ['（本篇日记暂无正文）'];
     final result=<String>[];
     for(final para in body.split('\n')) {
@@ -210,7 +213,11 @@ class DiaryBookService {
         content.add(pw.Text(formatDate(entry.createdAt),style:smallStyle));
         content.add(pw.SizedBox(height:8));
         for(final line in splitBody(bodies[entry.id]!)) {
-          content.add(pw.Text(line.isEmpty?' ':line,style:bodyStyle));
+          // Keep deliberate empty paragraphs, but don't consume a full text
+          // line for each blank line. Short runs flow onto the same PDF page.
+          content.add(line.isEmpty
+            ? pw.SizedBox(height:8)
+            : pw.Text(line,style:bodyStyle));
         }
         for(final picture in photos[entry.id] ?? <Uint8List>[]){
           content.add(pw.SizedBox(height:12));

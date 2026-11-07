@@ -1356,7 +1356,9 @@ class JournalReadPage extends StatelessWidget {
             }
             return Column(children: snapshot.data!.map((asset) => NavCard(
               icon: asset['mime'] == 'application/pdf' ?
-                Icons.picture_as_pdf_outlined : Icons.description_outlined,
+                Icons.picture_as_pdf_outlined :
+                (asset['mime']?.toString().startsWith('image/') ?? false) ?
+                Icons.image_outlined : Icons.description_outlined,
               title: asset['filename']?.toString() ?? '私密附件',
               subtitle: '点击查看 · 仅本机解密',
               onTap: () => openPage(context, JournalAttachmentViewer(
@@ -1467,6 +1469,49 @@ class _JournalEditPageState extends State<JournalEditPage> {
       return false;
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> attachJournalPhoto() async {
+    if (busy || !loaded) return;
+    File? temporary;
+    try {
+      final picked=await FilePicker.platform.pickFiles(
+        type:FileType.custom,allowedExtensions:['png','jpg','jpeg'],
+        withData:true);
+      if(picked==null || picked.files.isEmpty || !mounted)return;
+      final item=picked.files.single;
+      if(item.size<=0 || item.size>8*1024*1024) {
+        throw const FormatException('请选择 8 MB 以内的 PNG / JPG 照片');
+      }
+      File source;
+      if(item.path!=null && await File(item.path!).exists()) {
+        source=File(item.path!);
+      } else if(item.bytes!=null) {
+        final tmp=await getTemporaryDirectory();
+        final ext=item.name.toLowerCase().endsWith('.png')?'png':'jpg';
+        temporary=File(path.join(tmp.path,
+          'journal_photo_${CompassStore.newId()}.$ext'));
+        await temporary.writeAsBytes(item.bytes!,flush:true);
+        source=temporary;
+      } else {
+        throw StateError('无法读取照片，请先将照片保存到手机本地');
+      }
+      if(_id==null || dirty) {
+        if(!await save())return;
+      }
+      if(!mounted)return;
+      await CompassScope.of(context).addJournalAttachment(_id!,source,item.name);
+      if(mounted){
+        setState(()=>refreshAssets++);
+        notice(context,'照片已加密保存，可以在导出 PDF 时收录');
+      }
+    } catch(e) {
+      if(mounted)notice(context,'照片添加失败：$e');
+    } finally {
+      if(temporary!=null && await temporary.exists()) {
+        try {await temporary.delete();}catch(_){}
+      }
     }
   }
 
@@ -1631,8 +1676,17 @@ class _JournalEditPageState extends State<JournalEditPage> {
             onChanged: changed, decoration: const InputDecoration(
               labelText: '本次追加内容 · 不覆盖已保存的旧正文（不限字数）')),
           const SizedBox(height: 10),
-          OutlinedButton.icon(onPressed: busy || !loaded ? null : importDocument,
-            icon: const Icon(Icons.upload_file), label: const Text('导入 Word / PDF 日记')),
+          Row(children:[
+            Expanded(child:OutlinedButton.icon(
+              onPressed:busy || !loaded ? null : importDocument,
+              icon:const Icon(Icons.upload_file_outlined,size:18),
+              label:const Text('导入文档'))),
+            const SizedBox(width:10),
+            Expanded(child:OutlinedButton.icon(
+              onPressed:busy || !loaded ? null : attachJournalPhoto,
+              icon:const Icon(Icons.add_photo_alternate_outlined,size:18),
+              label:const Text('添加照片'))),
+          ]),
           // Cloud diary access is disabled until the consent UI is upgraded.
 
           if (id != null) ...[
@@ -1646,7 +1700,9 @@ class _JournalEditPageState extends State<JournalEditPage> {
                 if (snap.data!.isEmpty) return const SoftCard(child: Text('还没有附件'));
                 return Column(children: snap.data!.map((a) => ListTile(
                   leading: Icon(a['mime'] == 'application/pdf' ?
-                    Icons.picture_as_pdf_outlined : Icons.description_outlined,
+                    Icons.picture_as_pdf_outlined :
+                    (a['mime']?.toString().startsWith('image/') ?? false) ?
+                    Icons.image_outlined : Icons.description_outlined,
                     color: grape),
                   title: Text(a['filename']?.toString() ?? '私密附件'),
                   subtitle: Text('加密附件 · ${a['byte_count']} 字节 · 点击查看'),

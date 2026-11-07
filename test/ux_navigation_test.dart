@@ -109,11 +109,9 @@ void main() {
     await tester.runAsync(() async { store = await CompassStore.open(); });
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: JournalPage())));
-    expect(find.text('写一篇日记'), findsOneWidget);
-    expect(find.text('制作我的日记书'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('导入 Word / PDF 到日记'),
-      200,scrollable:find.byType(Scrollable).first);
-    expect(find.text('导入 Word / PDF 到日记'), findsOneWidget);
+    expect(find.text('写一篇新日记'), findsOneWidget);
+    expect(find.text('日记成书'), findsOneWidget);
+    expect(find.text('导入文件'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });
@@ -125,7 +123,8 @@ void main() {
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: JournalEditPage())));
     expect(find.text('保存本次内容'), findsOneWidget);
-    expect(find.text('导入 Word / PDF 日记'), findsOneWidget);
+    expect(find.text('导入文档'), findsOneWidget);
+    expect(find.text('添加照片'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(scaffold.bottomNavigationBar, isNotNull);

@@ -16,6 +16,8 @@ on:
       - 'feature/knowledge-compass-v092'
       - 'feature/knowledge-compass-v093'
       - 'feature/knowledge-compass-v094'
+      - 'feature/knowledge-compass-v095'
+      - 'feature/knowledge-compass-v094'
   workflow_dispatch:
 concurrency:
   group: knowledge-compass-release-${{ github.ref }}

@@ -52,6 +52,17 @@ class DiaryBookDocxService {
       '${DiaryBookService.formatDate(ordered.first.createdAt)} — '
       '${DiaryBookService.formatDate(ordered.last.createdAt)}'));
     body.write(paragraph('共 ${ordered.length} 篇日记'));
+    body.write(paragraph('目录', style: 'Heading1', pageBreak: true));
+    String? tocMonth;
+    for (final entry in ordered) {
+      final month = DiaryBookService.monthKey(entry.createdAt);
+      if (tocMonth != month) {
+        tocMonth = month;
+        body.write(paragraph(month, style: 'Heading2'));
+      }
+      body.write(paragraph(
+        '${entry.createdAt.day.toString().padLeft(2, '0')} 日 · ${entry.title}'));
+    }
     if (preface.trim().isNotEmpty) {
       body.write(paragraph('序言', style: 'Heading1', pageBreak: true));
       for (final para in preface.split('\n')) {

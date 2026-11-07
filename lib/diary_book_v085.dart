@@ -52,11 +52,19 @@ class DiaryBookService {
     required List<CompassEntry> entries,
     required String title,
     String preface = '',
+    String subtitle = '',
+    String coverStyle = 'classic',
   }) async {
     final ordered=sortEntries(entries);
     final bookTitle=title.trim();
     if(bookTitle.isEmpty || bookTitle.runes.length>80) {
       throw const FormatException('书名应为 1–80 个字符');
+    }
+    if(subtitle.runes.length>120) {
+      throw const FormatException('副标题请控制在 120 字以内');
+    }
+    if(!['classic','rose','minimal'].contains(coverStyle)) {
+      throw const FormatException('未知封面样式');
     }
     if(preface.runes.length>3000) {
       throw const FormatException('序言请控制在 3000 字以内');
@@ -79,7 +87,11 @@ class DiaryBookService {
       title:bookTitle,author:'知行罗盘 · 私人日记',compress:true);
     const dark=PdfColor.fromInt(0xFF40334D);
     const muted=PdfColor.fromInt(0xFF82758B);
-    const plum=PdfColor.fromInt(0xFF80649B);
+    final plum=coverStyle=='rose'
+      ? const PdfColor.fromInt(0xFFB06C83)
+      : coverStyle=='minimal'
+        ? const PdfColor.fromInt(0xFF626B79)
+        : const PdfColor.fromInt(0xFF80649B);
     final coverStyle=pw.TextStyle(font:font,fontSize:28,color:dark);
     final bodyStyle=pw.TextStyle(font:font,fontSize:11.5,
       color:dark,lineSpacing:6);
@@ -90,10 +102,15 @@ class DiaryBookService {
         mainAxisAlignment:pw.MainAxisAlignment.center,
         crossAxisAlignment:pw.CrossAxisAlignment.center,
         children:[
-          pw.Container(height:2,width:72,color:plum),
+          pw.Container(height:coverStyle=='minimal'?1:3,width:72,color:plum),
           pw.SizedBox(height:32),
           pw.Text(bookTitle,style:coverStyle,textAlign:pw.TextAlign.center),
           pw.SizedBox(height:20),
+          if(subtitle.trim().isNotEmpty) ...[
+            pw.Text(subtitle.trim(),style:pw.TextStyle(font:font,
+              fontSize:13,color:plum),textAlign:pw.TextAlign.center),
+            pw.SizedBox(height:12),
+          ],
           pw.Text('我的私人日记集',style:smallStyle),
           pw.SizedBox(height:45),
           pw.Text('${formatDate(ordered.first.createdAt)} — '

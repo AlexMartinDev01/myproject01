@@ -1197,64 +1197,105 @@ class JournalPage extends StatefulWidget {
 class _JournalPageState extends State<JournalPage> {
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   final search = TextEditingController();
+  bool searchAllMonths = false;
   @override
-  void dispose() { search.dispose(); super.dispose(); }
+  void dispose() {search.dispose();super.dispose();}
   @override
   Widget build(BuildContext context) {
-    final entries = CompassScope.of(context).ofKind('journal').where((e) =>
-      e.createdAt.year == month.year && e.createdAt.month == month.month &&
-      e.title.toLowerCase().contains(search.text.toLowerCase())).toList();
-    return PageFrame(title: '我的日记', subtitle: '写下来，留给未来的自己。内容仅保存在本机。',
-      children: [
-        SizedBox(width: double.infinity, child: FilledButton.icon(
-          onPressed: () => openPage(context, const JournalEditPage()),
-          icon: const Icon(Icons.edit_outlined), label: const Text('写一篇日记'))),
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: OutlinedButton.icon(
-          onPressed: () => openPage(context, const DiaryBookPage()),
-          icon: const Icon(Icons.auto_stories_outlined),
-          label: const Text('制作我的日记书'))),
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: OutlinedButton.icon(
-          onPressed: () => openPage(context, const JournalReviewPage()),
-          icon: const Icon(Icons.auto_stories_outlined),
-          label: const Text('查看每周 / 每月回顾'))),
-        Row(children: [
-          IconButton(onPressed: () => setState(() => month = DateTime(month.year, month.month - 1)),
-            icon: const Icon(Icons.chevron_left)),
-          Expanded(child: Center(child: Text('${month.year} 年 ${month.month} 月',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)))),
-          IconButton(onPressed: () => setState(() => month = DateTime(month.year, month.month + 1)),
-            icon: const Icon(Icons.chevron_right)),
+    final store=CompassScope.of(context);
+    final all=store.ofKind('journal')
+      ..sort((a,b)=>b.createdAt.compareTo(a.createdAt));
+    final query=search.text.trim().toLowerCase();
+    final entries=all.where((e)=>
+      (searchAllMonths || (e.createdAt.year==month.year && e.createdAt.month==month.month)) &&
+      (query.isEmpty || e.title.toLowerCase().contains(query))).toList();
+    final now=DateTime.now();
+    final currentMonth=month.year==now.year && month.month==now.month;
+    return PageFrame(title:'我的日记',
+      subtitle:'写下生活，慢慢回看。日记默认仅保存在本机。',
+      children:[
+        SoftCard(color:const Color(0xFFF4EDF9),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            const Text('给今天留一点记录',
+              style:TextStyle(fontSize:19,fontWeight:FontWeight.w700)),
+            const SizedBox(height:8),
+            Text('已经珍藏 ${all.length} 篇日记 · 每篇都是独一无二的日子',
+              style:const TextStyle(color:Color(0xFF70657A),fontSize:13)),
+            const SizedBox(height:14),
+            SizedBox(width:double.infinity,child:FilledButton.icon(
+              onPressed:()=>openPage(context,const JournalEditPage()),
+              icon:const Icon(Icons.edit_note_outlined),
+              label:const Text('写一篇新日记'))),
+          ])),
+        Row(children:[
+          Expanded(child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,const DiaryBookPage()),
+            icon:const Icon(Icons.auto_stories_outlined),
+            label:const Text('日记成书'))),
+          const SizedBox(width:10),
+          Expanded(child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,const JournalReviewPage()),
+            icon:const Icon(Icons.history_outlined),
+            label:const Text('我的回顾'))),
         ]),
-        TextField(controller: search, onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
-            hintText: '按标题搜索当月日记（不检索私密正文）')),
-        const SizedBox(height: 10),
-        SectionHeading('日记记录 · ${entries.length} 篇'),
-        if (entries.isEmpty) EmptyStateCard(
-          icon: Icons.edit_note_outlined,
-          title: search.text.trim().isNotEmpty ? '没有符合关键词的日记' : '这个月还没有日记',
-          description: search.text.trim().isNotEmpty
-            ? '这里只查找日记标题，不会检索私密正文。'
-            : '写下第一篇日记，或者导入已有的 Word / PDF。',
-          actionLabel: search.text.trim().isNotEmpty ? '清空搜索' : '导入已有日记',
-          onAction: search.text.trim().isNotEmpty
-            ? () => setState(() => search.clear())
-            : () => openPage(context, const JournalEditPage(autoImport: true))),
-        ...entries.map((e) => NavCard(icon: Icons.book_outlined,
-          title: e.title,
-          subtitle: '私密 · ${e.createdAt.year}-${e.createdAt.month}-${e.createdAt.day} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',
-          onTap: () => openPage(context, JournalReadPage(id: e.id)))),
-        OutlinedButton.icon(onPressed: () => openPage(context, const JournalEditPage(autoImport: true)),
-          icon: const Icon(Icons.upload_file_outlined), label: const Text('导入 Word / PDF 到日记')),
-        const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text(
-          '隐私说明：日记和附件在本机加密，默认不参与 AI 问答。普通数据备份不包含日记。',
-          style: TextStyle(fontSize: 12, color: Colors.grey))),
+        const SizedBox(height:18),
+        Row(children:[
+          const Expanded(child:Text('日记记录',
+            style:TextStyle(fontWeight:FontWeight.w700,fontSize:18))),
+          TextButton.icon(
+            onPressed:()=>openPage(context,const JournalEditPage(autoImport:true)),
+            icon:const Icon(Icons.file_upload_outlined,size:18),
+            label:const Text('导入文件')),
+        ]),
+        Row(children:[
+          IconButton(tooltip:'上个月',
+            onPressed:()=>setState(()=>month=DateTime(month.year,month.month-1)),
+            icon:const Icon(Icons.chevron_left)),
+          Expanded(child:Center(child:Text('${month.year} 年 ${month.month} 月',
+            style:const TextStyle(fontSize:16,fontWeight:FontWeight.w700)))),
+          IconButton(tooltip:'下个月',
+            onPressed:()=>setState(()=>month=DateTime(month.year,month.month+1)),
+            icon:const Icon(Icons.chevron_right)),
+          if(!currentMonth)TextButton(onPressed:()=>setState(() {
+            month=DateTime(now.year,now.month);searchAllMonths=false;
+          }),child:const Text('本月')),
+        ]),
+        TextField(controller:search,onChanged:(_)=>setState((){}),
+          textInputAction:TextInputAction.search,
+          decoration:InputDecoration(prefixIcon:const Icon(Icons.search),
+            hintText:'搜索日记标题（不读取私密正文）',
+            suffixIcon:query.isNotEmpty?IconButton(
+              tooltip:'清空搜索',onPressed:()=>setState(()=>search.clear()),
+              icon:const Icon(Icons.close)):null)),
+        const SizedBox(height:8),
+        Row(children:[
+          Checkbox(value:searchAllMonths,onChanged:(v)=>
+            setState(()=>searchAllMonths=v??false)),
+          const Expanded(child:Text('在全部月份中查找',
+            style:TextStyle(fontSize:13))),
+          Text('${entries.length} 篇',style:const TextStyle(
+            fontSize:13,color:Color(0xFF73657A))),
+        ]),
+        if(entries.isEmpty) EmptyStateCard(
+          icon:Icons.edit_note_outlined,
+          title:query.isNotEmpty?'没有找到相关日记':searchAllMonths?
+            '还没有日记':'这个月还没有日记',
+          description:query.isNotEmpty?
+            '只搜索标题。试试其他关键词，或切换到全部月份。':
+            '写下一个瞬间，或者导入已有的 Word / PDF。',
+          actionLabel:query.isNotEmpty?'清空搜索':'写一篇日记',
+          onAction:query.isNotEmpty?()=>setState(()=>search.clear()):
+            ()=>openPage(context,const JournalEditPage())),
+        ...entries.map((e)=>NavCard(icon:Icons.book_outlined,
+          title:e.title,
+          subtitle:'${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2,'0')}-${e.createdAt.day.toString().padLeft(2,'0')} · 最近编辑 ${e.updatedAt.month}/${e.updatedAt.day}',
+          onTap:()=>openPage(context,JournalReadPage(id:e.id)))),
+        const Padding(padding:EdgeInsets.symmetric(vertical:12),
+          child:Text('日记及附件保存在本机，默认不参加 AI 问答。普通知识备份不包含日记，请另行备份私密数据。',
+            style:TextStyle(color:Colors.grey,fontSize:12,height:1.5))),
       ]);
   }
 }
-
 
 /// Read-first private journal page. Tapping a saved diary does not enter
 /// append mode, and decrypted content is kept in memory only for the viewer.
@@ -1315,7 +1356,9 @@ class JournalReadPage extends StatelessWidget {
             }
             return Column(children: snapshot.data!.map((asset) => NavCard(
               icon: asset['mime'] == 'application/pdf' ?
-                Icons.picture_as_pdf_outlined : Icons.description_outlined,
+                Icons.picture_as_pdf_outlined :
+                (asset['mime']?.toString().startsWith('image/') ?? false) ?
+                Icons.image_outlined : Icons.description_outlined,
               title: asset['filename']?.toString() ?? '私密附件',
               subtitle: '点击查看 · 仅本机解密',
               onTap: () => openPage(context, JournalAttachmentViewer(
@@ -1426,6 +1469,49 @@ class _JournalEditPageState extends State<JournalEditPage> {
       return false;
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> attachJournalPhoto() async {
+    if (busy || !loaded) return;
+    File? temporary;
+    try {
+      final picked=await FilePicker.platform.pickFiles(
+        type:FileType.custom,allowedExtensions:['png','jpg','jpeg'],
+        withData:true);
+      if(picked==null || picked.files.isEmpty || !mounted)return;
+      final item=picked.files.single;
+      if(item.size<=0 || item.size>8*1024*1024) {
+        throw const FormatException('请选择 8 MB 以内的 PNG / JPG 照片');
+      }
+      File source;
+      if(item.path!=null && await File(item.path!).exists()) {
+        source=File(item.path!);
+      } else if(item.bytes!=null) {
+        final tmp=await getTemporaryDirectory();
+        final ext=item.name.toLowerCase().endsWith('.png')?'png':'jpg';
+        temporary=File(path.join(tmp.path,
+          'journal_photo_${CompassStore.newId()}.$ext'));
+        await temporary.writeAsBytes(item.bytes!,flush:true);
+        source=temporary;
+      } else {
+        throw StateError('无法读取照片，请先将照片保存到手机本地');
+      }
+      if(_id==null || dirty) {
+        if(!await save())return;
+      }
+      if(!mounted)return;
+      await CompassScope.of(context).addJournalAttachment(_id!,source,item.name);
+      if(mounted){
+        setState(()=>refreshAssets++);
+        notice(context,'照片已加密保存，可以在导出 PDF 时收录');
+      }
+    } catch(e) {
+      if(mounted)notice(context,'照片添加失败：$e');
+    } finally {
+      if(temporary!=null && await temporary.exists()) {
+        try {await temporary.delete();}catch(_){}
+      }
     }
   }
 
@@ -1590,8 +1676,17 @@ class _JournalEditPageState extends State<JournalEditPage> {
             onChanged: changed, decoration: const InputDecoration(
               labelText: '本次追加内容 · 不覆盖已保存的旧正文（不限字数）')),
           const SizedBox(height: 10),
-          OutlinedButton.icon(onPressed: busy || !loaded ? null : importDocument,
-            icon: const Icon(Icons.upload_file), label: const Text('导入 Word / PDF 日记')),
+          Row(children:[
+            Expanded(child:OutlinedButton.icon(
+              onPressed:busy || !loaded ? null : importDocument,
+              icon:const Icon(Icons.upload_file_outlined,size:18),
+              label:const Text('导入文档'))),
+            const SizedBox(width:10),
+            Expanded(child:OutlinedButton.icon(
+              onPressed:busy || !loaded ? null : attachJournalPhoto,
+              icon:const Icon(Icons.add_photo_alternate_outlined,size:18),
+              label:const Text('添加照片'))),
+          ]),
           // Cloud diary access is disabled until the consent UI is upgraded.
 
           if (id != null) ...[
@@ -1605,7 +1700,9 @@ class _JournalEditPageState extends State<JournalEditPage> {
                 if (snap.data!.isEmpty) return const SoftCard(child: Text('还没有附件'));
                 return Column(children: snap.data!.map((a) => ListTile(
                   leading: Icon(a['mime'] == 'application/pdf' ?
-                    Icons.picture_as_pdf_outlined : Icons.description_outlined,
+                    Icons.picture_as_pdf_outlined :
+                    (a['mime']?.toString().startsWith('image/') ?? false) ?
+                    Icons.image_outlined : Icons.description_outlined,
                     color: grape),
                   title: Text(a['filename']?.toString() ?? '私密附件'),
                   subtitle: Text('加密附件 · ${a['byte_count']} 字节 · 点击查看'),

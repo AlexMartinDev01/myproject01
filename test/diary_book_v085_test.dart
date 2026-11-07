@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -71,6 +72,50 @@ void main(){
     expect(files,contains('[Content_Types].xml'));
     expect(await store.privateJournalBody(a.id),'第一段<秘密>😀\\n第二段');
     await store.closeForTests();
+  });
+
+  test('journal PNG attachment is encrypted and can be retrieved privately', ()async {
+    final store=await CompassStore.open();
+    final entry=await store.add(kind:'journal',title:'有图的日记',body:'今天拍了一张照片');
+    final bytes=base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPcEtXDwMDAxMDAwMDAAAATigGeibtIzAAAAABJRU5ErkJggg==');
+    final temp=File(join(Directory.systemTemp.path,
+      'private_journal_photo_${CompassStore.newId()}.png'));
+    try {
+      await temp.writeAsBytes(bytes,flush:true);
+      await store.addJournalAttachment(entry.id,temp,'回忆.png');
+      final assets=await store.journalAttachments(entry.id);
+      expect(assets.length,1);
+      expect(assets.single['mime'],'image/png');
+      final recovered=await store.readJournalAttachmentBytes(
+        entry.id,assets.single['id'] as String);
+      expect(recovered,orderedEquals(bytes));
+      expect(await store.privateJournalBody(entry.id),'今天拍了一张照片');
+    } finally {
+      if(await temp.exists())await temp.delete();
+      await store.closeForTests();
+    }
+  });
+
+  test('PDF can include user-selected encrypted diary photos offline', ()async {
+    final store=await CompassStore.open();
+    final entry=await store.add(kind:'journal',title:'秋日小记',body:'一张照片');
+    final image=base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPcEtXDwMDAxMDAwMDAAAATigGeibtIzAAAAABJRU5ErkJggg==');
+    final temp=File(join(Directory.systemTemp.path,
+      'book_export_image_${CompassStore.newId()}.png'));
+    try {
+      await temp.writeAsBytes(image);
+      await store.addJournalAttachment(entry.id,temp,'生活照.png');
+      final pdf=await DiaryBookService.build(store:store,
+        entries:[entry],title:'日记',includePhotos:true);
+      expect(latin1.decode(pdf.take(8).toList()),startsWith('%PDF-'));
+      expect(pdf.length,greaterThan(3000));
+      expect(await store.privateJournalBody(entry.id),'一张照片');
+    } finally {
+      if(await temp.exists())await temp.delete();
+      await store.closeForTests();
+    }
   });
 
   test('PDF cover theme accepts known styles and rejects unknown values', ()async{

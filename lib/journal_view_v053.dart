@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pdfx/pdfx.dart';
@@ -16,6 +17,7 @@ class JournalAttachmentViewer extends StatefulWidget {
 class _JournalAttachmentViewerState extends State<JournalAttachmentViewer> {
   PdfControllerPinch? pdf;
   Future<String>? word;
+  Uint8List? picture;
   bool loading = true;
   String? error;
 
@@ -31,6 +33,10 @@ class _JournalAttachmentViewerState extends State<JournalAttachmentViewer> {
       if (!mounted) return;
       if (widget.filename.toLowerCase().endsWith('.pdf')) {
         pdf = PdfControllerPinch(document: PdfDocument.openData(bytes));
+      } else if (widget.filename.toLowerCase().endsWith('.png') ||
+                 widget.filename.toLowerCase().endsWith('.jpg') ||
+                 widget.filename.toLowerCase().endsWith('.jpeg')) {
+        picture = bytes;
       } else if (widget.filename.toLowerCase().endsWith('.docx')) {
         word = compute(parseDocxBytes, bytes);
       } else {
@@ -53,6 +59,8 @@ class _JournalAttachmentViewerState extends State<JournalAttachmentViewer> {
       maxLines: 1, overflow: TextOverflow.ellipsis)),
     body: loading ? const Center(child: CircularProgressIndicator())
       : error != null ? Center(child: Text('无法打开附件：$error'))
+      : picture != null ? InteractiveViewer(minScale:0.7,maxScale:5,
+          child:Center(child:Image.memory(picture!,fit:BoxFit.contain)))
       : pdf != null ? PdfViewPinch(controller: pdf!)
       : FutureBuilder<String>(future: word, builder: (ctx, snap) {
           if (snap.hasError) return Center(child: Padding(

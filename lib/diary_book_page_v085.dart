@@ -18,6 +18,9 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
   final title=TextEditingController(text:'写给未来的自己');
   final preface=TextEditingController();
   final subtitle=TextEditingController();
+  final diarySearch=TextEditingController();
+  bool onlySelected=false;
+  bool includePhotos=true;
   String outputFormat='pdf';
   String coverStyle='classic';
   Uint8List? coverPhoto;
@@ -40,7 +43,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
 
   @override
   void dispose() {
-    title.dispose();subtitle.dispose();preface.dispose();super.dispose();
+    title.dispose();subtitle.dispose();preface.dispose();diarySearch.dispose();super.dispose();
   }
 
   List<CompassEntry> eligible(List<CompassEntry> diaries) {
@@ -88,7 +91,8 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
     try {
       final bytes=await DiaryBookService.build(store:store,entries:chosen,
         title:title.text,preface:preface.text,subtitle:subtitle.text,
-        coverStyle:coverStyle,coverImageBytes:coverPhoto);
+        coverStyle:coverStyle,coverImageBytes:coverPhoto,
+        includePhotos:includePhotos);
       if(!mounted)return;
       setState(()=>message='');
       await Navigator.of(context).push(MaterialPageRoute<void>(
@@ -125,7 +129,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         ? await DiaryBookService.build(
           store:store,entries:chosen,title:title.text,preface:preface.text,
           subtitle:subtitle.text,coverStyle:coverStyle,
-          coverImageBytes:coverPhoto)
+          coverImageBytes:coverPhoto,includePhotos:includePhotos)
         : await DiaryBookDocxService.build(
           store:store,entries:chosen,title:title.text,
           subtitle:subtitle.text,preface:preface.text);
@@ -154,6 +158,10 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
       ..sort((a,b)=>a.createdAt.compareTo(b.createdAt));
     final options=eligible(diaries);
     final selectedCount=options.where((e)=>selectedIds.contains(e.id)).length;
+    final query=diarySearch.text.trim().toLowerCase();
+    final visibleOptions=options.where((e)=>
+      (query.isEmpty || e.title.toLowerCase().contains(query)) &&
+      (!onlySelected || selectedIds.contains(e.id))).toList();
     return PageFrame(title:'制作我的日记书',
       subtitle:'离线整理 · 自动排版 · PDF / Word',
       bottomBar:SafeArea(top:false,child:Padding(
@@ -189,6 +197,60 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
           decoration:const InputDecoration(labelText:'副标题（可选）',
             hintText:'例如：2026 年的生活记录')),
         const SizedBox(height:14),
+        const Text('3 · 选择要收录的日记',style:TextStyle(fontWeight:FontWeight.w700)),
+        const SizedBox(height:8),
+        SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(
+          children:[
+            for(final option in [
+              ('all','全部'),('year','今年'),('month','本月')])
+              Padding(padding:const EdgeInsets.only(right:8),
+                child:ChoiceChip(label:Text(option.$2),
+                  selected:range==option.$1,
+                  onSelected:busy?null:(_)=>setState((){
+                    range=option.$1;
+                    selectedIds..clear()..addAll(eligible(diaries).map((e)=>e.id));
+                  }))),
+          ])),
+        const SizedBox(height:10),
+        Row(children:[
+          Expanded(child:Text('已选 $selectedCount / ${options.length} 篇',
+            style:const TextStyle(fontWeight:FontWeight.w600))),
+          TextButton(onPressed:busy?null:()=>setState(()=>
+            selectedIds.addAll(options.map((e)=>e.id))),
+            child:const Text('全选')),
+          TextButton(onPressed:busy?null:()=>setState(()=>
+            selectedIds.removeAll(options.map((e)=>e.id))),
+            child:const Text('清空')),
+        ]),
+        if(options.isEmpty)const SoftCard(
+          child:Text('当前范围没有日记，可以切换“全部”或先写一篇。')),
+        const SizedBox(height:8),
+        TextField(controller:diarySearch,onChanged:(_)=>setState((){}),
+          decoration:InputDecoration(prefixIcon:const Icon(Icons.search),
+            hintText:'按标题查找日记',
+            suffixIcon:query.isEmpty?null:IconButton(
+              onPressed:()=>setState(()=>diarySearch.clear()),
+              tooltip:'清除搜索',icon:const Icon(Icons.close)))),
+        CheckboxListTile(contentPadding:EdgeInsets.zero,
+          value:onlySelected,onChanged:busy?null:(v)=>setState(()=>onlySelected=v??false),
+          title:const Text('只查看已选择的日记')),
+        if(visibleOptions.isEmpty && options.isNotEmpty)
+          const Padding(padding:EdgeInsets.all(12),
+            child:Text('没有符合条件的日记，请清空搜索或关闭筛选。')),
+        ...visibleOptions.map((entry)=>CheckboxListTile(
+          dense:true,contentPadding:EdgeInsets.zero,
+          value:selectedIds.contains(entry.id),
+          title:Text(entry.title,maxLines:2,overflow:TextOverflow.ellipsis),
+          subtitle:Text(DiaryBookService.formatDate(entry.createdAt)),
+          onChanged:busy?null:(checked)=>setState((){
+            if(checked==true){selectedIds.add(entry.id);}
+            else{selectedIds.remove(entry.id);}
+          }),
+        )),
+        const SizedBox(height:10),
+        const SizedBox(height:12),
+        const Text('4 · 个性化封面（可选）',style:TextStyle(fontWeight:FontWeight.w700)),
+        const SizedBox(height:8),
         const Text('PDF 封面风格',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         Wrap(spacing:8,runSpacing:8,children:[
@@ -253,45 +315,12 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         const Text('封面示意预览，最终页码与全文排版请以导出文件为准。',
           textAlign:TextAlign.center,style:TextStyle(fontSize:12,color:Colors.grey)),
         const SizedBox(height:16),
-        const Text('3 · 选择日记',style:TextStyle(fontWeight:FontWeight.w700)),
-        const SizedBox(height:8),
-        SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(
-          children:[
-            for(final option in [
-              ('all','全部'),('year','今年'),('month','本月')])
-              Padding(padding:const EdgeInsets.only(right:8),
-                child:ChoiceChip(label:Text(option.$2),
-                  selected:range==option.$1,
-                  onSelected:busy?null:(_)=>setState((){
-                    range=option.$1;
-                    selectedIds..clear()..addAll(eligible(diaries).map((e)=>e.id));
-                  }))),
-          ])),
-        const SizedBox(height:10),
-        Row(children:[
-          Expanded(child:Text('已选 $selectedCount / ${options.length} 篇',
-            style:const TextStyle(fontWeight:FontWeight.w600))),
-          TextButton(onPressed:busy?null:()=>setState(()=>
-            selectedIds.addAll(options.map((e)=>e.id))),
-            child:const Text('全选')),
-          TextButton(onPressed:busy?null:()=>setState(()=>
-            selectedIds.removeAll(options.map((e)=>e.id))),
-            child:const Text('清空')),
-        ]),
-        if(options.isEmpty)const SoftCard(
-          child:Text('当前范围没有日记，可以切换“全部”或先写一篇。')),
-        ...options.map((entry)=>CheckboxListTile(
-          dense:true,contentPadding:EdgeInsets.zero,
-          value:selectedIds.contains(entry.id),
-          title:Text(entry.title,maxLines:2,overflow:TextOverflow.ellipsis),
-          subtitle:Text(DiaryBookService.formatDate(entry.createdAt)),
-          onChanged:busy?null:(checked)=>setState((){
-            if(checked==true){selectedIds.add(entry.id);}
-            else{selectedIds.remove(entry.id);}
-          }),
-        )),
-        const SizedBox(height:10),
-        const Text('4 · 可选序言',style:TextStyle(fontWeight:FontWeight.w700)),
+        CheckboxListTile(contentPadding:EdgeInsets.zero,
+          title:const Text('将日记照片收录进 PDF'),
+          subtitle:const Text('仅收录所选日记的加密照片；Word 暂不嵌入图片'),
+          value:includePhotos,onChanged:busy?null:(v)=>
+            setState(()=>includePhotos=v??false)),
+        const Text('5 · 可选序言',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         TextField(controller:preface,minLines:3,maxLines:5,maxLength:3000,
           decoration:const InputDecoration(

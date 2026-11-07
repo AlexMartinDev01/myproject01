@@ -1,7 +1,7 @@
 name: zhixing_compass
 description: 知行罗盘 - offline-first personal knowledge and decision companion
 publish_to: none
-version: 0.8.6+25
+version: 0.8.7+26
 environment:
   sdk: '>=3.4.0 <4.0.0'
 dependencies:

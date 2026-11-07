@@ -51,6 +51,14 @@ void main(){
     await store.closeForTests();
   });
 
+  test('Word book export also refuses empty diary bodies',() async {
+    final store=await CompassStore.open();
+    final empty=await store.add(kind:'journal',title:'空白章节',body:'');
+    await expectLater(DiaryBookDocxService.build(store:store,entries:[empty],
+      title:'不应生成空白 Word'),throwsFormatException);
+    await store.closeForTests();
+  });
+
   test('offline PDF export produces valid PDF and never changes private original', ()async{
     final store=await CompassStore.open();
     final a=await store.add(kind:'journal',title:'我的第一篇',body:'今天我学会了记录。',

@@ -828,7 +828,8 @@ class _KnowledgePageState extends State<KnowledgePage> {
       final topic=card.meta['topic']?.toString().trim() ?? '';
       if(topic.isNotEmpty)topics.add(topic);
     }
-    final availableTopics=['全部',...topics.toList()..sort()];
+    final sortedTopics=topics.toList()..sort();
+    final availableTopics=['全部',...sortedTopics];
     final keyword=query.text.trim().toLowerCase();
     final selectedTopic=availableTopics.contains(theme)?theme:'全部';
     final cards=all.where((e)=>

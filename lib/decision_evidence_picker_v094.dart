@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'main.dart';
-import 'core/store.dart';
 import 'core/decision_evidence_v094.dart';
 
 class DecisionEvidencePickerPage extends StatefulWidget {

@@ -98,8 +98,8 @@ jobs:
           "$SDK_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature-report.txt
           sha256sum "$APK" | tee apk-sha256.txt
           "$SDK_TOOLS/aapt" dump badging "$APK" | grep '^package:' | tee apk-version-report.txt
-          grep -q "versionCode='24'" apk-version-report.txt
-          grep -q "versionName='0.8.5'" apk-version-report.txt
+          grep -q "versionCode='25'" apk-version-report.txt
+          grep -q "versionName='0.8.6'" apk-version-report.txt
           grep -q "com.zhixingcompass.zhixing_compass" apk-version-report.txt
           echo "Preview signing only; DO NOT claim cross-version overwrite compatibility."
       - name: Upload build provenance report

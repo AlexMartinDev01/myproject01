@@ -23,33 +23,43 @@ import 'core/local_document_parse.dart';
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(child: Padding(padding: const EdgeInsets.all(26),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Spacer(),
-        const Icon(Icons.explore, color: grape, size: 68),
-        const SizedBox(height: 28),
-        const Text('知行罗盘', style: TextStyle(fontSize: 42, fontWeight: FontWeight.w800, color: ink)),
-        const SizedBox(height: 8),
-        const Text('把信息变成知识，把知识变成判断。',
-          style: TextStyle(fontSize: 18, color: Color(0xFF736576))),
-        const SizedBox(height: 32),
-        const SoftCard(color: Color(0xFFF4EDF9), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('你的知识，由你掌控', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            SizedBox(height: 8),
-            Text('手机离线保存内容；可选连接自己的 云端 AI 网关。'),
-            SizedBox(height: 10),
-            Text('私密日记默认本机加密。云端分析需另行授权并由服务端启用。'),
-          ])),
-        const Spacer(),
-        SizedBox(width: double.infinity, child: FilledButton(
-          onPressed: () async => CompassScope.of(context).setOnboarded(),
-          child: const Text('开始我的知识之旅'))),
-        const SizedBox(height: 12),
-        const Center(child: Text('无须账号 · 无须付费 AI API · 默认离线可用',
-          style: TextStyle(color: Colors.grey, fontSize: 12))),
-      ]))),
+  Widget build(BuildContext context)=>Scaffold(
+    body:SafeArea(child:ListView(padding:const EdgeInsets.fromLTRB(24,28,24,24),
+      children:[
+        const SizedBox(height:36),
+        const Icon(Icons.auto_stories_outlined,color:grape,size:58),
+        const SizedBox(height:20),
+        const Text('知行罗盘',textAlign:TextAlign.center,
+          style:TextStyle(fontSize:36,fontWeight:FontWeight.w800,color:ink)),
+        const SizedBox(height:12),
+        const Text('把看到的内容，\n变成真正属于自己的知识。',
+          textAlign:TextAlign.center,
+          style:TextStyle(fontSize:23,fontWeight:FontWeight.w700,
+            color:ink,height:1.45)),
+        const SizedBox(height:18),
+        const Text('收藏视频、文章和文档，提炼重点，\n形成自己的知识卡，随时回顾和使用。',
+          textAlign:TextAlign.center,
+          style:TextStyle(fontSize:14,height:1.6,color:Color(0xFF776B80))),
+        const SizedBox(height:30),
+        const SoftCard(color:Color(0xFFF2EBF8),child:Column(
+          crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text('① 收集资料',style:TextStyle(fontSize:16,fontWeight:FontWeight.w700)),
+          SizedBox(height:10),
+          Text('② 理解重点 · 可以借助 AI'),
+          SizedBox(height:10),
+          Text('③ 选出值得留下的知识卡'),
+          SizedBox(height:10),
+          Text('④ 回顾知识，帮助学习和决策'),
+        ])),
+        const SizedBox(height:14),
+        SizedBox(width:double.infinity,child:FilledButton.icon(
+          onPressed:()=>CompassScope.of(context).setOnboarded(),
+          icon:const Icon(Icons.arrow_forward),label:const Text('开始，添加第一条内容'))),
+        const SizedBox(height:12),
+        const Text('不用注册 · 基础功能离线可用 · 私密日记独立加密保存',
+          textAlign:TextAlign.center,
+          style:TextStyle(fontSize:12,color:Colors.grey)),
+      ])),
   );
 }
 
@@ -57,71 +67,92 @@ class TodayPage extends StatelessWidget {
   const TodayPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final store = CompassScope.of(context);
-    final inboxCount = store.ofKind('source').where((e) => e.status == '待处理').length;
-    final cards = store.ofKind('card').length;
-    final decisions = store.ofKind('decision').length;
-    final tasks = store.ofKind('task');
-    return PageFrame(title: '知行罗盘', subtitle: '今天的收获，终会成为自己的判断力。',
-      children: [
-        SoftCard(color: const Color(0xFFF4EAF6), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Row(children: [Icon(Icons.auto_awesome, color: grape), SizedBox(width: 8),
-              Text('今日思考', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))]),
-            const SizedBox(height: 14),
-            const Text('一个观点让你信服，是因为证据充分，还是因为它恰好符合你的期待？',
-              style: TextStyle(fontSize: 19, height: 1.55, color: ink)),
-            const SizedBox(height: 12),
-            Align(alignment: Alignment.centerRight, child: FilledButton.tonal(
-              onPressed: () => openPage(context, const AiChatPage(mode: 'challenge')),
-              child: const Text('展开思考 →'))),
+    final store=CompassScope.of(context);
+    final sources=store.ofKind('source');
+    final waiting=sources.where((s)=>s.status=='待处理').toList();
+    final cards=store.ofKind('card');
+    final firstTime=sources.isEmpty && cards.isEmpty;
+    return PageFrame(title:'知行罗盘',
+      subtitle:'把看到的内容，变成真正属于自己的知识。',
+      children:[
+        SoftCard(color:const Color(0xFFF2EBF8),child:Column(
+          crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(firstTime?'从第一条收藏开始':'你的知识，正在一点点积累',
+              style:const TextStyle(fontSize:21,fontWeight:FontWeight.w700,color:ink)),
+            const SizedBox(height:8),
+            Text(firstTime?'收藏一个视频、一篇文章，或写下一段想法。'
+              :'已收集 ${sources.length} 条内容 · 沉淀 ${cards.length} 张知识卡',
+              style:const TextStyle(color:Color(0xFF6F6378),height:1.5)),
+            const SizedBox(height:16),
+            SizedBox(width:double.infinity,child:FilledButton.icon(
+              onPressed:()=>openPage(context,const CapturePage()),
+              icon:const Icon(Icons.add),
+              label:Text(firstTime?'添加第一条内容':'添加新内容'))),
           ])),
-        const SectionHeading('四个常用入口'),
-        Row(children: [
-          Expanded(child: _Shortcut(Icons.edit_note_outlined, '随手记录', '想法与资料',
-            () => openPage(context, const CapturePage()))),
-          const SizedBox(width: 8),
-          Expanded(child: _Shortcut(Icons.auto_awesome_outlined, '问问 AI', '直接开始对话',
-            () => openPage(context, const AiChatPage(mode: 'ask')))),
+        const SizedBox(height:10),
+        const Text('只需四步',style:TextStyle(
+          fontWeight:FontWeight.w700,fontSize:18,color:ink)),
+        const SizedBox(height:10),
+        const SoftCard(child:Column(children:[
+          _JourneyStep(index:'1',title:'收集',subtitle:'视频、文章、PDF 或想法',
+            icon:Icons.bookmark_add_outlined),
+          Divider(),
+          _JourneyStep(index:'2',title:'理解',subtitle:'查看原文，提炼关键点',
+            icon:Icons.lightbulb_outline),
+          Divider(),
+          _JourneyStep(index:'3',title:'沉淀',subtitle:'筛选和编辑自己的知识卡',
+            icon:Icons.style_outlined),
+          Divider(),
+          _JourneyStep(index:'4',title:'应用',subtitle:'回顾、连接知识或辅助决策',
+            icon:Icons.explore_outlined),
+        ])),
+        if(waiting.isNotEmpty)...[
+          SectionHeading('继续下一步 · ${waiting.length} 条待整理'),
+          NavCard(icon:Icons.move_to_inbox_outlined,
+            title:waiting.first.title,
+            subtitle:'已经收藏，继续补充内容并整理成知识卡',
+            onTap:()=>openPage(context,SourceDetailPage(id:waiting.first.id))),
+        ] else if(cards.isNotEmpty)...[
+          const SectionHeading('看看已经留下的知识'),
+          NavCard(icon:Icons.menu_book_outlined,title:'我的知识库',
+            subtitle:'${cards.length} 张知识卡，随时回顾',
+            onTap:()=>openPage(context,const KnowledgePage())),
+        ],
+        const SectionHeading('其他常用功能'),
+        Row(children:[
+          Expanded(child:_Shortcut(Icons.chat_bubble_outline,'AI 对话','辅助思考',
+            ()=>openPage(context,const AiHubPage()))),
+          const SizedBox(width:10),
+          Expanded(child:_Shortcut(Icons.edit_note_outlined,'私密日记','记录生活',
+            ()=>openPage(context,const JournalPage()))),
         ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: _Shortcut(Icons.edit_note_outlined, '我的日记', '记录与回顾',
-            () => openPage(context, const JournalPage()))),
-          const SizedBox(width: 8),
-          Expanded(child: _Shortcut(Icons.hub_outlined, '知识网络', '浏览关联知识',
-            () => openPage(context, const KnowledgeGraphPage()))),
-        ]),
-        SectionHeading('继续上次的事'),
-        Row(children: [
-          Expanded(child: _Shortcut(Icons.inbox_outlined, '处理收集', '$inboxCount 条',
-            () => openPage(context, const InboxPage()))),
-          const SizedBox(width: 8),
-          Expanded(child: _Shortcut(Icons.auto_stories_outlined, '我的知识', '$cards 张',
-            () => openPage(context, const KnowledgePage()))),
-          const SizedBox(width: 8),
-          Expanded(child: _Shortcut(Icons.balance_outlined, '继续决策', '$decisions 个',
-            () => openPage(context, const DecisionPage()))),
-        ]),
-        SectionHeading('今日待办', action: Text('${tasks.where((e) => e.status == '已完成').length}/${tasks.length}',
-          style: const TextStyle(color: grape))),
-        if (tasks.isEmpty) SoftCard(child: Column(children: [
-          const Text('从一件小事开始，把知识真正用起来。'),
-          TextButton(onPressed: () => openPage(context, const LearningPage()),
-            child: const Text('创建学习任务'))]))
-        else SoftCard(child: Column(children: tasks.take(4).map((task) =>
-          CheckboxListTile(contentPadding: EdgeInsets.zero,
-            value: task.status == '已完成', title: Text(task.title),
-            onChanged: (v) => store.update(task.copyWith(status: v == true ? '已完成' : '进行中')),
-          )).toList())),
-        SectionHeading('最近收集'),
-        ...store.ofKind('source').take(3).map((item) => _EntryTile(entry: item,
-          onTap: () => openPage(context, SourceDetailPage(id: item.id)))),
-        if (store.ofKind('source').isEmpty) const SoftCard(child: Text('还没有素材。试试收藏一个视频链接或一段读书笔记。')),
-        const SoftCard(color: Color(0xFFF8EBF0), child: Text('提醒：收藏只是开始，复述、反驳和真实应用才会让知识留下来。',
-          style: TextStyle(color: ink, height: 1.6))),
+        const SizedBox(height:12),
+        const Text('AI 为可选工具；没有 AI 也能收藏、整理和保存知识。私密日记不自动参与 AI。',
+          style:TextStyle(fontSize:12,color:Colors.grey,height:1.5)),
       ]);
   }
+}
+
+/// The product journey is stable across onboarding and the home page.
+class _JourneyStep extends StatelessWidget {
+  final String index,title,subtitle;
+  final IconData icon;
+  const _JourneyStep({required this.index,required this.title,
+    required this.subtitle,required this.icon});
+  @override
+  Widget build(BuildContext context)=>Row(children:[
+    Container(width:32,height:32,alignment:Alignment.center,
+      decoration:BoxDecoration(color:const Color(0xFFF1EAF7),
+        borderRadius:BorderRadius.circular(10)),
+      child:Text(index,style:const TextStyle(
+        color:grape,fontWeight:FontWeight.w700))),
+    const SizedBox(width:12),
+    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(title,style:const TextStyle(fontWeight:FontWeight.w700)),
+      Text(subtitle,style:const TextStyle(fontSize:12,color:Color(0xFF766B7D))),
+    ])),
+    Icon(icon,size:21,color:grape),
+  ]);
 }
 
 /// Reusable, accessible empty state with one clear next action.

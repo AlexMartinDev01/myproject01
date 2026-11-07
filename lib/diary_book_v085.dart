@@ -92,7 +92,7 @@ class DiaryBookService {
       : coverStyle=='minimal'
         ? const PdfColor.fromInt(0xFF626B79)
         : const PdfColor.fromInt(0xFF80649B);
-    final coverStyle=pw.TextStyle(font:font,fontSize:28,color:dark);
+    final coverTextStyle=pw.TextStyle(font:font,fontSize:28,color:dark);
     final bodyStyle=pw.TextStyle(font:font,fontSize:11.5,
       color:dark,lineSpacing:6);
     final smallStyle=pw.TextStyle(font:font,fontSize:9,color:muted);
@@ -104,7 +104,7 @@ class DiaryBookService {
         children:[
           pw.Container(height:coverStyle=='minimal'?1:3,width:72,color:plum),
           pw.SizedBox(height:32),
-          pw.Text(bookTitle,style:coverStyle,textAlign:pw.TextAlign.center),
+          pw.Text(bookTitle,style:coverTextStyle,textAlign:pw.TextAlign.center),
           pw.SizedBox(height:20),
           if(subtitle.trim().isNotEmpty) ...[
             pw.Text(subtitle.trim(),style:pw.TextStyle(font:font,

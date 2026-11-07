@@ -25,17 +25,19 @@ class DecisionReviewRecord {
   final String answer;
   final String model;
   final List<String> offeredChunkIds;
+  final List<String> offeredCardIds;
   final List<String> citedChunkIds;
   final List<String> unknownChunkIds;
   const DecisionReviewRecord({
     required this.id, required this.createdAt, required this.answer,
     required this.model, required this.offeredChunkIds,
-    required this.citedChunkIds, required this.unknownChunkIds,
+    this.offeredCardIds = const [], required this.citedChunkIds, required this.unknownChunkIds,
   });
   Map<String, dynamic> toJson() => {
     'id': id, 'created_at': createdAt.toUtc().toIso8601String(),
     'answer': answer, 'model': model,
     'offered_chunk_ids': offeredChunkIds,
+    'offered_card_ids': offeredCardIds,
     'cited_chunk_ids': citedChunkIds,
     'unknown_chunk_ids': unknownChunkIds,
   };
@@ -49,6 +51,7 @@ class DecisionReviewRecord {
       answer: json['answer']?.toString() ?? '',
       model: json['model']?.toString() ?? '',
       offeredChunkIds: strings('offered_chunk_ids'),
+      offeredCardIds: strings('offered_card_ids'),
       citedChunkIds: strings('cited_chunk_ids'),
       unknownChunkIds: strings('unknown_chunk_ids'),
     );
@@ -108,7 +111,7 @@ ${clip(entry.meta['criteria'], 700)}
 
 Future<DecisionReviewRecord> saveDecisionReview(
   CompassStore store, String decisionId, String answer, String model,
-  List<String> offeredChunkIds,
+  List<String> offeredChunkIds, {List<String> offeredCardIds = const []}
 ) async {
   if (answer.trim().isEmpty || answer.length > 50000) {
     throw const FormatException('AI 决策报告为空或长度超出限制');
@@ -125,6 +128,15 @@ Future<DecisionReviewRecord> saveDecisionReview(
       throw StateError('引用源已失效或没有授权：$id');
     }
   }
+  if (offeredCardIds.length > 12 ||
+      offeredCardIds.toSet().length != offeredCardIds.length) {
+    throw const FormatException('知识卡证据数量异常');
+  }
+  for (final cardId in offeredCardIds) {
+    if (store.byId(cardId)?.kind != 'card') {
+      throw StateError('知识卡证据已失效：$cardId');
+    }
+  }
   final audit = DecisionCitationAudit.inspect(answer, offeredChunkIds);
   final record = DecisionReviewRecord(
     id: CompassStore.newId(),
@@ -132,6 +144,7 @@ Future<DecisionReviewRecord> saveDecisionReview(
     answer: answer.trim(),
     model: model,
     offeredChunkIds: List.unmodifiable(offeredChunkIds),
+    offeredCardIds: List.unmodifiable(offeredCardIds),
     citedChunkIds: audit.citedIds,
     unknownChunkIds: audit.unknownIds,
   );

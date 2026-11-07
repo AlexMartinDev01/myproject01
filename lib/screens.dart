@@ -14,6 +14,7 @@ import 'ai_chat_v051.dart';
 import 'decision_review_v055.dart';
 import 'core/knowledge_candidates.dart';
 import 'core/card_trace_v092.dart';
+import 'core/decision_evidence_v094.dart';
 import 'core/review_draft_v091.dart';
 import 'knowledge_review_v052.dart';
 import 'knowledge_graph_v07.dart';
@@ -1207,6 +1208,10 @@ class KnowledgeDetailPage extends StatelessWidget {
       NavCard(icon: Icons.account_tree_outlined, title: '查看知识网络',
         subtitle: '查看已有的知识卡与素材来源关系',
         onTap: () => openPage(context, const KnowledgeGraphPage())),
+      NavCard(icon: Icons.balance_outlined,
+        title: '用这张知识卡辅助决策',
+        subtitle: '带入这张卡，建立一条自己的决策记录',
+        onTap: () => openPage(context, DecisionEditPage(initialCardId:entry.id))),
       SoftCard(child: Column(children: [
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: () => openPage(context, AiChatPage(
@@ -1302,7 +1307,8 @@ class DecisionPage extends StatelessWidget {
 }
 
 class DecisionEditPage extends StatefulWidget {
-  const DecisionEditPage({super.key});
+  final String? initialCardId;
+  const DecisionEditPage({super.key,this.initialCardId});
   @override
   State<DecisionEditPage> createState() => _DecisionEditPageState();
 }
@@ -1356,6 +1362,11 @@ class _DecisionEditPageState extends State<DecisionEditPage> {
             'goal': goal.text.trim(), 'options': [optionA.text.trim(), optionB.text.trim()],
             'criteria': {'成长价值': growth, '时间投入': time, '风险控制': risk},
             'prediction': '', 'observed': '', 'next_action': '',
+            'evidence_cards': [
+              if(widget.initialCardId!=null &&
+                 CompassScope.of(context).byId(widget.initialCardId!)?.kind=='card')
+                DecisionCardEvidence(widget.initialCardId!,stance:'待核实').toJson(),
+            ],
           });
         if (context.mounted) {
           Navigator.pop(context);

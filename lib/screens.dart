@@ -821,46 +821,78 @@ class _KnowledgePageState extends State<KnowledgePage> {
   void dispose() {query.dispose(); super.dispose();}
   @override
   Widget build(BuildContext context) {
-    final store = CompassScope.of(context);
-    final cards = store.ofKind('card').where((e) =>
-      (theme == '全部' || e.meta['topic'] == theme) &&
-      ('${e.title}${e.body}'.toLowerCase().contains(query.text.trim().toLowerCase()))).toList();
-    return PageFrame(title: '知识库', subtitle: '我的知识体系 · 累积、联结、重新理解',
-      children: [
-        TextField(controller: query, onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(prefixIcon: Icon(Icons.search),
-            hintText: '检索概念、观点、知识卡…')),
-        Row(children: [
-          Expanded(child: OutlinedButton.icon(
-            onPressed: () => openPage(context, const CapturePage()),
-            icon: const Icon(Icons.add_link), label: const Text('收集资料'))),
-          const SizedBox(width: 8),
-          Expanded(child: OutlinedButton.icon(
-            onPressed: () => openPage(context, const CardEditPage()),
-            icon: const Icon(Icons.note_add_outlined), label: const Text('新建知识卡'))),
+    final store=CompassScope.of(context);
+    final all=store.ofKind('card');
+    final topics=<String>{};
+    for(final card in all){
+      final topic=card.meta['topic']?.toString().trim() ?? '';
+      if(topic.isNotEmpty)topics.add(topic);
+    }
+    final availableTopics=['全部',...topics.toList()..sort()];
+    final keyword=query.text.trim().toLowerCase();
+    final selectedTopic=availableTopics.contains(theme)?theme:'全部';
+    final cards=all.where((e)=>
+      (selectedTopic=='全部'||e.meta['topic']==selectedTopic) &&
+      (keyword.isEmpty || ('${e.title} ${e.body}').toLowerCase().contains(keyword)))
+      .toList();
+    return PageFrame(title:'知识库',
+      subtitle:'把信息变成自己的理解，并不断建立联系。',
+      children:[
+        SoftCard(color:const Color(0xFFF3EBF8),child:Column(
+          crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text('已积累 ${all.length} 张知识卡 · ${topics.length} 个主题',
+            style:const TextStyle(fontWeight:FontWeight.w700,fontSize:17)),
+          const SizedBox(height:8),
+          const Text('先记录自己的观点，再用知识网络发现它们之间的关系。',
+            style:TextStyle(color:Color(0xFF716479),height:1.5)),
+          const SizedBox(height:12),
+          SizedBox(width:double.infinity,child:FilledButton.icon(
+            onPressed:()=>openPage(context,const CardEditPage()),
+            icon:const Icon(Icons.note_add_outlined),
+            label:const Text('创建知识卡'))),
+        ])),
+        Row(children:[
+          Expanded(child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,const CapturePage()),
+            icon:const Icon(Icons.add_link),label:const Text('收集资料'))),
+          const SizedBox(width:8),
+          Expanded(child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,const KnowledgeGraphPage()),
+            icon:const Icon(Icons.hub_outlined),label:const Text('知识网络'))),
         ]),
-        SizedBox(width: double.infinity, child: FilledButton.tonalIcon(
-          onPressed: () => openPage(context, const KnowledgeGraphPage()),
-          icon: const Icon(Icons.hub_outlined),
-          label: const Text('查看知识网络图'))),
-        const SectionHeading('按主题筛选'),
-        Wrap(spacing: 8, runSpacing: 8,
-          children: ['全部', '心理学', '哲学', '历史', '社会学', '科技', '职业发展', '自我成长']
-            .map((s) => ChoiceChip(label: Text(s), selected: theme == s,
-              onSelected: (_) => setState(() => theme = s))).toList()),
-        SectionHeading('我的知识卡 · ${cards.length}'),
-        if (cards.isEmpty) EmptyStateCard(
-          icon: Icons.menu_book_outlined,
-          title: store.ofKind('card').isEmpty ? '知识库还没有知识卡' : '没有找到匹配的知识卡',
-          description: store.ofKind('card').isEmpty
-            ? '把一条材料整理成自己的观点，从第一张知识卡开始。'
-            : '可以清空搜索或切换为“全部”专题。',
-          actionLabel: store.ofKind('card').isEmpty ? '创建知识卡' : '清空筛选',
-          onAction: store.ofKind('card').isEmpty
-            ? () => openPage(context, const CardEditPage())
-            : () => setState(() {query.clear(); theme = '全部';})),
-        ...cards.map((item) => _EntryTile(entry: item,
-          onTap: () => openPage(context, KnowledgeDetailPage(id: item.id)))),
+        const SizedBox(height:14),
+        TextField(controller:query,onChanged:(_)=>setState((){}),
+          decoration:InputDecoration(prefixIcon:const Icon(Icons.search),
+            hintText:'搜索知识卡标题与正文',
+            suffixIcon:keyword.isEmpty?null:IconButton(
+              tooltip:'清空搜索',
+              onPressed:()=>setState(()=>query.clear()),
+              icon:const Icon(Icons.close)))),
+        const SizedBox(height:12),
+        if(topics.isNotEmpty)...[
+          const Text('按已有主题筛选',
+            style:TextStyle(fontWeight:FontWeight.w600)),
+          const SizedBox(height:8),
+          Wrap(spacing:8,runSpacing:8,
+            children:availableTopics.map((topic)=>ChoiceChip(
+              label:Text(topic),selected:selectedTopic==topic,
+              onSelected:(_)=>setState(()=>theme=topic))).toList()),
+          const SizedBox(height:12),
+        ],
+        Text('我的知识卡 · ${cards.length}',
+          style:const TextStyle(fontWeight:FontWeight.w700,fontSize:18)),
+        const SizedBox(height:10),
+        if(cards.isEmpty)EmptyStateCard(
+          icon:Icons.menu_book_outlined,
+          title:all.isEmpty?'知识库还没有知识卡':'没有找到匹配的知识卡',
+          description:all.isEmpty
+            ? '创建第一张知识卡，让想法可以被反复回顾。'
+            : '清除关键词或切换到全部主题，即可查看其他内容。',
+          actionLabel:all.isEmpty?'创建知识卡':'清空筛选',
+          onAction:all.isEmpty?()=>openPage(context,const CardEditPage()):
+            ()=>setState((){query.clear();theme='全部';})),
+        ...cards.map((e)=>_EntryTile(entry:e,
+          onTap:()=>openPage(context,KnowledgeDetailPage(id:e.id)))),
       ]);
   }
 }

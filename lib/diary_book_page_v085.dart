@@ -18,6 +18,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
   final preface=TextEditingController();
   final subtitle=TextEditingController();
   String outputFormat='pdf';
+  String coverStyle='classic';
   final selectedIds=<String>{};
   String range='all';
   bool initialized=false;
@@ -74,7 +75,8 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
     try{
       final Uint8List bytes=outputFormat=='pdf'
         ? await DiaryBookService.build(
-          store:store,entries:chosen,title:title.text,preface:preface.text)
+          store:store,entries:chosen,title:title.text,preface:preface.text,
+          subtitle:subtitle.text,coverStyle:coverStyle)
         : await DiaryBookDocxService.build(
           store:store,entries:chosen,title:title.text,
           subtitle:subtitle.text,preface:preface.text);
@@ -135,9 +137,46 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
           setState(()=>outputFormat=value.first)),
         const SizedBox(height:8),
         TextField(controller:subtitle,maxLength:120,
-          decoration:const InputDecoration(labelText:'副标题（Word 可用）',
+          decoration:const InputDecoration(labelText:'副标题（可选）',
             hintText:'例如：2026 年的生活记录')),
-        const SizedBox(height:9),
+        const SizedBox(height:14),
+        const Text('封面风格',style:TextStyle(fontWeight:FontWeight.w700)),
+        const SizedBox(height:8),
+        Wrap(spacing:8,runSpacing:8,children:[
+          for(final option in [('classic','经典紫'),('rose','柔雾粉'),('minimal','极简灰')])
+            ChoiceChip(label:Text(option.$2),selected:coverStyle==option.$1,
+              onSelected:busy?null:(_)=>setState(()=>coverStyle=option.$1)),
+        ]),
+        const SizedBox(height:12),
+        AnimatedBuilder(animation:Listenable.merge([title,subtitle]),builder:(context,_) {
+          final shade=coverStyle=='rose' ? const Color(0xFFF8EAEF) :
+            coverStyle=='minimal' ? const Color(0xFFF1F2F4) : const Color(0xFFF2EBFA);
+          final inkColor=coverStyle=='rose' ? const Color(0xFF965D73) :
+            coverStyle=='minimal' ? const Color(0xFF555E6B) : const Color(0xFF80649B);
+          return Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:240),
+            child:AspectRatio(aspectRatio:0.706,child:Container(
+              padding:const EdgeInsets.all(20),
+              decoration:BoxDecoration(color:shade,borderRadius:BorderRadius.circular(8),
+                border:Border.all(color:inkColor.withValues(alpha:0.2))),
+              child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+                Container(width:48,height:2,color:inkColor),
+                const SizedBox(height:24),
+                Text(title.text.trim().isEmpty?'我的日记书':title.text.trim(),
+                  textAlign:TextAlign.center,maxLines:4,overflow:TextOverflow.ellipsis,
+                  style:TextStyle(color:inkColor,fontSize:22,fontWeight:FontWeight.w700)),
+                if(subtitle.text.trim().isNotEmpty) ...[
+                  const SizedBox(height:12),
+                  Text(subtitle.text.trim(),textAlign:TextAlign.center,maxLines:3,
+                    overflow:TextOverflow.ellipsis,style:TextStyle(color:inkColor,fontSize:12)),
+                ],
+                const SizedBox(height:22),
+                Text('我的私人日记集',style:TextStyle(color:inkColor,fontSize:11)),
+              ])))));
+        }),
+        const SizedBox(height:6),
+        const Text('封面示意预览，最终页码与全文排版请以导出文件为准。',
+          textAlign:TextAlign.center,style:TextStyle(fontSize:12,color:Colors.grey)),
+        const SizedBox(height:16),
         const Text('3 · 选择日记',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(

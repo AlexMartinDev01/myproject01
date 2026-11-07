@@ -126,7 +126,7 @@ jobs:
     name: Publish direct APK download
     runs-on: ubuntu-latest
     needs: build-apk
-    if: github.ref == 'refs/heads/feature/knowledge-compass-cloud'
+    if: github.ref == 'refs/heads/feature/knowledge-compass-v086'
     permissions:
       contents: write
     steps:
@@ -143,14 +143,14 @@ jobs:
         run: |
           set -euo pipefail
           test -s release-assets/app-release.apk
-          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.8.5-preview.apk
-          TAG=knowledge-compass-v0.8.5-preview
+          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.8.6-preview.apk
+          TAG=knowledge-compass-v0.8.6-preview
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/KnowledgeCompass-v0.8.5-preview.apk --clobber
+            gh release upload "$TAG" release-assets/KnowledgeCompass-v0.8.6-preview.apk --clobber
           else
-            gh release create "$TAG" release-assets/KnowledgeCompass-v0.8.5-preview.apk \
+            gh release create "$TAG" release-assets/KnowledgeCompass-v0.8.6-preview.apk \
               --target "$GITHUB_SHA" \
-              --title "知行罗盘 v0.8.5 Android 开发预览版" \
+              --title "知行罗盘 v0.8.6 Android 开发预览版" \
               --notes "Flutter Android 开发预览版。已完成 CI 编译；DeepSeek 在线联调和 Android 真机全功能验收尚未完成。不要在客户端保存 DeepSeek API Key。" \
               --prerelease
           fi

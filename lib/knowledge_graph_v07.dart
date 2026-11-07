@@ -73,14 +73,33 @@ class KnowledgeGraphSnapshot {
     }
     final sources = {for (final e in all.where((e) => e.kind == 'source')) e.id: e};
     for (final card in selected) {
-      final sourceId = card.meta['source_id'];
-      if (sourceId is! String || !sources.containsKey(sourceId)) continue;
-      if (nodeIds.add(sourceId)) {
-        final source = sources[sourceId]!;
-        nodes.add(GraphNode(source.id, source.title, '原始来源', isSource: true));
+      final sourceIds = <String>{};
+      final primary = card.meta['source_id'];
+      if (primary is String) sourceIds.add(primary);
+      final reviews = card.meta['ai_candidate_reviews'];
+      if (reviews is List) {
+        for (final review in reviews) {
+          if (review is! Map) continue;
+          final original = review['original_source_id'];
+          if (original is String) sourceIds.add(original);
+          final offered = review['offered_source_ids'];
+          if (offered is List) {
+            for (final id in offered.whereType<String>()) {
+              if (sources.containsKey(id)) sourceIds.add(id);
+            }
+          }
+        }
       }
-      edges.add(GraphEdge(card.id, sourceId, isSource: true,
-        relation: '来源'));
+      for (final sourceId in sourceIds) {
+        if (!sources.containsKey(sourceId)) continue;
+        if (nodeIds.add(sourceId)) {
+          final source = sources[sourceId]!;
+          nodes.add(GraphNode(source.id, source.title, '原始来源',
+            isSource: true));
+        }
+        edges.add(GraphEdge(card.id, sourceId, isSource: true,
+          relation: '来源'));
+      }
     }
     return KnowledgeGraphSnapshot(nodes, edges,
       filtered.length - selected.length);

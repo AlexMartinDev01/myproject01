@@ -194,50 +194,85 @@ class InboxPage extends StatefulWidget {
 
 class _InboxPageState extends State<InboxPage> {
   String filter = '全部';
+  final search = TextEditingController();
+  @override
+  void dispose() { search.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final store = CompassScope.of(context);
-    final items = store.ofKind('source').where((e) => filter == '全部' || e.status == filter).toList();
-    return PageFrame(title: '收集箱', subtitle: '先收进来，再慢慢把信息变成自己的理解。', children: [
-      SoftCard(color: const Color(0xFFF2EAF8), child: Column(children: [
-        const Row(children: [Icon(Icons.add_circle_outline, color: grape), SizedBox(width: 8),
-          Expanded(child: Text('随手收集', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)))]),
-        const SizedBox(height: 12),
-        const Text('抖音 / 小红书 / B站 / YouTube 链接、书名、PDF、文字都可以保存。',
-          style: TextStyle(color: Color(0xFF6B5A72))),
-        const SizedBox(height: 12),
+    final all = store.ofKind('source');
+    final keyword = search.text.trim().toLowerCase();
+    final items = all.where((e) =>
+      (filter == '全部' || e.status == filter) &&
+      (keyword.isEmpty || e.title.toLowerCase().contains(keyword) ||
+       e.body.toLowerCase().contains(keyword))).toList();
+    final unprocessed = all.where((e)=>e.status=='待处理').length;
+    return PageFrame(title: '收集箱',
+      subtitle: '先记录，再整理；重要素材随时找得到。',
+      children: [
+      SoftCard(color: const Color(0xFFF2EAF8), child: Column(
+        crossAxisAlignment:CrossAxisAlignment.start, children: [
+        const Text('随手收集', style:TextStyle(fontWeight:FontWeight.w700,fontSize:19)),
+        const SizedBox(height:7),
+        Text('共 ${all.length} 条素材 · ${unprocessed} 条待处理',
+          style:const TextStyle(color:Color(0xFF6B5A72),fontSize:13)),
+        const SizedBox(height:12),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           onPressed: () => openPage(context, const CapturePage()),
-          icon: const Icon(Icons.add), label: const Text('添加一条素材'))),
+          icon: const Icon(Icons.add), label: const Text('添加素材'))),
       ])),
-      const SectionHeading('处理状态'),
+      TextField(controller:search,onChanged:(_)=>setState((){}),
+        decoration:InputDecoration(prefixIcon:const Icon(Icons.search),
+          hintText:'搜索素材标题与内容',
+          suffixIcon:keyword.isEmpty?null:IconButton(
+            tooltip:'清空搜索',
+            onPressed:()=>setState(()=>search.clear()),
+            icon:const Icon(Icons.close)))),
+      const SizedBox(height:12),
       SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(
         children: ['全部', '待处理', '已整理', '需补内容', '失败'].map((f) =>
           Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-            label: Text(f), selected: filter == f, onSelected: (_) => setState(() => filter = f)))).toList())),
-      const SizedBox(height: 15),
+            label: Text(f), selected: filter == f,
+            onSelected: (_) => setState(() => filter = f)))).toList())),
+      const SizedBox(height:10),
+      Text('当前显示 ${items.length} 条',style:const TextStyle(
+        fontSize:12,color:Color(0xFF70657A))),
+      const SizedBox(height:8),
       if (items.isEmpty) EmptyStateCard(
-        icon: filter == '全部' ? Icons.inbox_outlined : Icons.filter_alt_off_outlined,
-        title: filter == '全部' ? '收集箱还是空的' : '没有“$filter”的素材',
-        description: filter == '全部'
-          ? '将链接、文字或文档先存进来，再慢慢整理。'
-          : '尝试切换筛选条件，或查看全部素材。',
-        actionLabel: filter == '全部' ? '添加第一条素材' : '查看全部素材',
-        onAction: filter == '全部'
-          ? () => openPage(context, const CapturePage())
-          : () => setState(() => filter = '全部')),
+        icon:keyword.isNotEmpty ? Icons.search_off_outlined :
+          filter == '全部' ? Icons.inbox_outlined : Icons.filter_alt_off_outlined,
+        title: keyword.isNotEmpty ? '没有找到相关素材' :
+          filter == '全部' ? '收集箱还是空的' : '没有“$filter”的素材',
+        description: keyword.isNotEmpty
+          ? '试试其他关键词，或清空搜索与筛选。'
+          : filter == '全部'
+            ? '收藏链接、文字或文档，再慢慢整理成自己的观点。'
+            : '切换筛选条件即可查看其他记录。',
+        actionLabel: keyword.isNotEmpty ? '清空筛选' :
+          filter == '全部' ? '添加第一条素材' : '查看全部素材',
+        onAction: keyword.isNotEmpty
+          ? () => setState(() {search.clear();filter='全部';})
+          : filter == '全部'
+            ? () => openPage(context, const CapturePage())
+            : () => setState(() => filter = '全部')),
       ...items.map((item) => Dismissible(
         key: ValueKey(item.id), direction: DismissDirection.endToStart,
-        background: Container(color: const Color(0xFFE8A8B5), alignment: Alignment.centerRight,
-          padding: const EdgeInsets.all(16), child: const Icon(Icons.delete, color: Colors.white)),
+        background: Container(color: const Color(0xFFE8A8B5),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.all(16),
+          child: const Icon(Icons.delete_outline, color: Colors.white)),
         confirmDismiss: (_) async => await showDialog<bool>(context: context,
-          builder: (c) => AlertDialog(title: const Text('删除这条收集？'),
-            content: const Text('删除来源也会删除该来源下的持续笔记和版本历史，操作无法撤销，请先备份。'), actions: [
-              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('取消')),
-              TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('删除'))])) ?? false,
+          builder: (c) => AlertDialog(title: const Text('永久删除这条素材？'),
+            content: const Text('所属的持续笔记与版本历史也会删除，操作无法撤销。'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c, false),
+                child: const Text('取消')),
+              TextButton(onPressed: () => Navigator.pop(c, true),
+                child: const Text('确认删除'))])) ?? false,
         onDismissed: (_) => store.remove(item),
-        child: _EntryTile(entry: item, onTap: () => openPage(context, SourceDetailPage(id: item.id))))),
-    ]);
+        child: _EntryTile(entry: item, onTap: () =>
+          openPage(context, SourceDetailPage(id: item.id))))),
+      ]);
   }
 }
 

@@ -6,7 +6,12 @@ import 'diary_book_v085.dart';
 /// Standalone, offline OOXML DOCX export. No AI or network requests.
 /// Export files are readable, NOT encrypted private backups.
 class DiaryBookDocxService {
-  static String escapeXml(String value) => value
+  // XML 1.0 disallows most control codes even when escaped.
+  static String escapeXml(String value) => String.fromCharCodes(value.runes.where(
+    (r) => r == 0x9 || r == 0xA || r == 0xD ||
+      (r >= 0x20 && r <= 0xD7FF) ||
+      (r >= 0xE000 && r <= 0xFFFD) ||
+      (r >= 0x10000 && r <= 0x10FFFF)))
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;')

@@ -20,6 +20,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
   final subtitle=TextEditingController();
   final diarySearch=TextEditingController();
   bool onlySelected=false;
+  bool includePhotos=true;
   String outputFormat='pdf';
   String coverStyle='classic';
   Uint8List? coverPhoto;
@@ -90,7 +91,8 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
     try {
       final bytes=await DiaryBookService.build(store:store,entries:chosen,
         title:title.text,preface:preface.text,subtitle:subtitle.text,
-        coverStyle:coverStyle,coverImageBytes:coverPhoto);
+        coverStyle:coverStyle,coverImageBytes:coverPhoto,
+        includePhotos:includePhotos);
       if(!mounted)return;
       setState(()=>message='');
       await Navigator.of(context).push(MaterialPageRoute<void>(
@@ -127,7 +129,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         ? await DiaryBookService.build(
           store:store,entries:chosen,title:title.text,preface:preface.text,
           subtitle:subtitle.text,coverStyle:coverStyle,
-          coverImageBytes:coverPhoto)
+          coverImageBytes:coverPhoto,includePhotos:includePhotos)
         : await DiaryBookDocxService.build(
           store:store,entries:chosen,title:title.text,
           subtitle:subtitle.text,preface:preface.text);
@@ -313,6 +315,11 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         const Text('封面示意预览，最终页码与全文排版请以导出文件为准。',
           textAlign:TextAlign.center,style:TextStyle(fontSize:12,color:Colors.grey)),
         const SizedBox(height:16),
+        CheckboxListTile(contentPadding:EdgeInsets.zero,
+          title:const Text('将日记照片收录进 PDF'),
+          subtitle:const Text('仅收录所选日记的加密照片；Word 暂不嵌入图片'),
+          value:includePhotos,onChanged:busy?null:(v)=>
+            setState(()=>includePhotos=v??false)),
         const Text('5 · 可选序言',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         TextField(controller:preface,minLines:3,maxLines:5,maxLength:3000,

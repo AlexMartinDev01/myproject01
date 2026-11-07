@@ -53,7 +53,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('我的工作台'), findsOneWidget);
     expect(find.text('决策实验室'), findsOneWidget);
-    expect(find.text('AI 思考'), findsOneWidget);
+    expect(find.text('开始 AI 对话'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });
@@ -101,7 +101,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: AiHubPage()));
     expect(find.text('开始普通 AI 对话'), findsOneWidget);
     expect(find.text('其他思考方式'), findsOneWidget);
-    expect(find.text('历史对话'), findsOneWidget);
+    expect(find.text('继续之前的对话'), findsOneWidget);
   });
 
   testWidgets('journal list offers direct file import', (tester) async {
@@ -131,4 +131,40 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });
+  testWidgets('inbox search offers explicit reset without deleting entries',
+      (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async {
+      store = await CompassStore.open();
+      await store.add(kind:'source',title:'在学校学编程',body:'算法笔记');
+    });
+    await tester.pumpWidget(CompassScope(store:store,
+      child:const MaterialApp(home:InboxPage())));
+    await tester.enterText(find.byType(TextField).first,'不存在的素材');
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到相关素材'),findsOneWidget);
+    await tester.tap(find.text('清空筛选'));
+    await tester.pumpAndSettle();
+    expect(find.text('在学校学编程'),findsOneWidget);
+    expect(store.ofKind('source').length,1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(()=>store.closeForTests());
+  });
+
+  testWidgets('knowledge topics are based on existing cards', (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async {
+      store=await CompassStore.open();
+      await store.add(kind:'card',title:'原创标签卡',body:'卡片内容',
+        meta:{'topic':'交互设计'});
+    });
+    await tester.pumpWidget(CompassScope(store:store,
+      child:const MaterialApp(home:KnowledgePage())));
+    expect(find.text('交互设计'),findsOneWidget);
+    expect(find.text('原创标签卡'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(()=>store.closeForTests());
+  });
+
+
 }

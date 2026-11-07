@@ -1797,92 +1797,117 @@ class _JournalEditPageState extends State<JournalEditPage> {
   }
 
   Future<void> importDocument() async {
-    if (busy) return;
+    if (busy || !loaded) return;
     File? temporary;
     try {
-      final chosen = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['docx', 'pdf'],
-        withData: true,
-      );
-      if (chosen == null || chosen.files.isEmpty || !mounted) return;
-      final selected = chosen.files.single;
-      final name = selected.name;
-      final isWord = name.toLowerCase().endsWith('.docx');
-      final isPdf = name.toLowerCase().endsWith('.pdf');
-      if (!isWord && !isPdf) {
-        throw const FormatException('请选择 Word（DOCX）或 PDF 文件');
+      final chosen=await FilePicker.platform.pickFiles(
+        type:FileType.custom,allowedExtensions:['docx','pdf'],withData:true);
+      if(chosen==null||chosen.files.isEmpty||!mounted)return;
+      final selected=chosen.files.single;
+      final name=selected.name;
+      final lower=name.toLowerCase();
+      final isWord=lower.endsWith('.docx'),isPdf=lower.endsWith('.pdf');
+      if(!isWord&&!isPdf) {
+        throw const FormatException('请选择 Word（DOCX）或 PDF 文件；旧版 DOC 请先另存为 DOCX');
       }
-      if (selected.size <= 0 || selected.size > 40 * 1024 * 1024) {
+      if(selected.size<=0||selected.size>40*1024*1024) {
         throw const FormatException('请选择 40 MB 以内的非空文件');
       }
-
-      // Android cloud/document providers can return bytes without a usable path.
-      // Use the selected file itself instead of requiring a second picker.
       File source;
-      final pickedPath = selected.path;
-      if (pickedPath != null && await File(pickedPath).exists()) {
-        source = File(pickedPath);
-      } else if (selected.bytes != null) {
-        final dir = await getTemporaryDirectory();
-        temporary = File(path.join(dir.path, 'journal_import_${CompassStore.newId()}${isWord ? '.docx' : '.pdf'}'));
-        await temporary.writeAsBytes(selected.bytes!, flush: true);
-        source = temporary;
+      if(selected.path!=null&&await File(selected.path!).exists()) {
+        source=File(selected.path!);
+      } else if(selected.bytes!=null) {
+        final dir=await getTemporaryDirectory();
+        temporary=File(path.join(dir.path,
+          'journal_import_${CompassStore.newId()}${isWord?'.docx':'.pdf'}'));
+        await temporary.writeAsBytes(selected.bytes!,flush:true);
+        source=temporary;
       } else {
-        throw StateError('无法读取此文件，请下载到手机本地后再试');
+        throw StateError('系统没有提供文件内容，请先下载到手机本地后重试');
       }
-
-      final length = await source.length();
-      if (length <= 0 || length > 40 * 1024 * 1024) {
+      final length=await source.length();
+      if(length<=0||length>40*1024*1024) {
         throw const FormatException('文件大小须在 1 字节至 40 MB 之间');
       }
-      if (_id == null && title.text.trim().isEmpty) {
-        title.text = path.basenameWithoutExtension(name);
-      }
-      if (_id == null || dirty) {
-        if (!await save()) return;
-      }
-      final store = CompassScope.of(context);
-      await store.addJournalAttachment(_id!, source, name);
-      if (!mounted) return;
-      setState(() => refreshAssets++);
-      notice(context, '附件已加密保存到本机');
 
-      // Attachment persistence and optional text extraction are separate:
-      // a non-text/scanned PDF must never turn a saved attachment into failure.
-      String extracted;
+      // Parse BEFORE creating an entry or saving an attachment. A failed or
+      // empty extraction must never leave a seemingly successful blank diary.
+      setState(()=>busy=true);
+      LocalDocumentResult parsed;
       try {
-        extracted = (await LocalDocumentParser().parseFile(source)).text;
-      } catch (_) {
-        if (mounted) notice(context,
-          '附件已安全保存，暂时无法提取正文；你仍可点击附件查看原文件');
+        parsed=await LocalDocumentParser().parseFile(source);
+      } finally {
+        if(mounted)setState(()=>busy=false);
+      }
+      if(!mounted)return;
+      final extracted=parsed.text.trim();
+      if(extracted.isEmpty) {
+        throw const FormatException('没有提取到正文，未创建空白日记。扫描 PDF 需要 OCR。');
+      }
+      final preview=extracted.length>900
+        ? '${extracted.substring(0,900)}…' : extracted;
+      final choice=await showDialog<String>(context:context,
+        builder:(ctx)=>AlertDialog(
+          title:const Text('已识别文件正文'),
+          content:SingleChildScrollView(child:Column(
+            crossAxisAlignment:CrossAxisAlignment.start,
+            mainAxisSize:MainAxisSize.min,children:[
+              Text('文件：$name'),
+              const SizedBox(height:6),
+              Text('识别到 ${extracted.runes.length} 个字符'
+                '${parsed.pageCount==null?'':' · ${parsed.pageCount} 页'}'
+                '${parsed.partial?' · 部分提取':''}',
+                style:const TextStyle(fontWeight:FontWeight.w700)),
+              if(parsed.warning.isNotEmpty)Padding(
+                padding:const EdgeInsets.only(top:6),
+                child:Text(parsed.warning,style:const TextStyle(color:Colors.deepOrange))),
+              const Divider(),
+              SelectableText(preview,style:const TextStyle(fontSize:13,height:1.5)),
+              const SizedBox(height:8),
+              const Text('导入后会把识别出的文字写入日记正文，成书功能才能收录。'
+                '原文件可选择是否另存为加密附件。',style:TextStyle(fontSize:12)),
+            ])),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(ctx,'cancel'),
+              child:const Text('取消')),
+            TextButton(onPressed:()=>Navigator.pop(ctx,'text'),
+              child:const Text('只导入正文')),
+            FilledButton(onPressed:()=>Navigator.pop(ctx,'both'),
+              child:const Text('正文 + 原文件附件')),
+          ]));
+      if(!mounted||choice==null||choice=='cancel')return;
+
+      // Append to the current draft; save() merges with the prior encrypted
+      // body and clears the editor only after durable storage succeeds.
+      body.text=body.text.trim().isEmpty?extracted:'${body.text}\n\n$extracted';
+      if(_id==null&&title.text.trim().isEmpty) {
+        title.text=path.basenameWithoutExtension(name);
+      }
+      changed('');
+      if(!await save()) {
+        if(mounted)notice(context,'正文尚未保存，内容仍留在编辑框中，请重试保存');
         return;
       }
-      if (!mounted) return;
-      final append = await showDialog<bool>(context: context, builder: (ctx) =>
-        AlertDialog(title: const Text('将文件内容添加到日记？'),
-          content: Text('已识别 ${extracted.length} 个字符。原文件已安全保存，'
-            '添加正文不会覆盖原日记。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('仅保存附件')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('添加到正文')),
-          ]));
-      if (append == true && mounted) {
-        body.text = body.text.isEmpty ? extracted : '${body.text}\n\n$extracted';
-        changed('');
-        if (!await save() && mounted) {
-          notice(context, '附件已保存；正文保存未完成，请保留输入框中的内容');
+      if(choice=='both'&&mounted) {
+        try {
+          await CompassScope.of(context).addJournalAttachment(_id!,source,name);
+          if(mounted) {
+            setState(()=>refreshAssets++);
+            notice(context,'正文已导入并加密保存原文件附件');
+          }
+        } catch(e) {
+          if(mounted)notice(context,'正文已成功保存；原文件附件保存失败：$e');
         }
+      } else if(mounted) {
+        notice(context,'已导入并加密保存 ${extracted.runes.length} 个字符');
       }
-
-    } catch (e) {
-      if (mounted) notice(context, '未能完成导入：$e。已有日记不会被删除');
+    } catch(e) {
+      if(mounted)notice(context,'文件导入失败：$e。没有用空正文覆盖原日记');
     } finally {
-      if (temporary != null && await temporary.exists()) {
-        try { await temporary.delete(); } catch (_) { /* best-effort cleanup */ }
+      if(temporary!=null&&await temporary.exists()) {
+        try{await temporary.delete();}catch(_){}
       }
+      if(mounted&&busy)setState(()=>busy=false);
     }
   }
 

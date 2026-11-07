@@ -12,4 +12,10 @@ void main() {
     expect(text, contains('<w:br/>'));
     expect(text, contains('第二行'));
   });
+  test('Word export removes invalid XML characters without losing emoji', () {
+    expect(DiaryBookDocxService.escapeXml('你好\u0000世界😀'), '你好世界😀');
+  });
+  test('Word export keeps explicit empty paragraphs', () {
+    expect(DiaryBookDocxService.paragraph(''), contains('<w:t xml:space="preserve"></w:t>'));
+  });
 }

@@ -8,6 +8,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 import 'package:path/path.dart';
 import 'package:zhixing_compass/core/store.dart';
 import 'package:zhixing_compass/diary_book_v085.dart';
+import 'package:zhixing_compass/diary_book_docx_v086.dart';
+import 'package:archive/archive.dart';
 import 'package:zhixing_compass/diary_book_page_v085.dart';
 import 'package:zhixing_compass/main.dart';
 
@@ -53,6 +55,34 @@ void main(){
     expect(await store.privateJournalBody(a.id),'今天我学会了记录。');
     expect(await store.privateJournalBody(b.id),'回顾与感恩。\n下一段。');
     expect(store.ofKind('journal').length,2);
+    await store.closeForTests();
+  });
+
+  test('offline Word book contains OOXML parts without changing private diaries', ()async{
+    final store=await CompassStore.open();
+    final a=await store.add(kind:'journal',title:'春天 & 秋天',
+      body:'第一段<秘密>😀\\n第二段',status:'私密');
+    final docx=await DiaryBookDocxService.build(store:store,
+      entries:[a],title:'我的回忆',subtitle:'成长记录',preface:'给未来的自己');
+    expect(docx.length,greaterThan(1000));
+    final files=ZipDecoder().decodeBytes(docx).files.map((f)=>f.name).toSet();
+    expect(files,contains('word/document.xml'));
+    expect(files,contains('word/styles.xml'));
+    expect(files,contains('[Content_Types].xml'));
+    expect(await store.privateJournalBody(a.id),'第一段<秘密>😀\\n第二段');
+    await store.closeForTests();
+  });
+
+  test('PDF cover theme accepts known styles and rejects unknown values', ()async{
+    final store=await CompassStore.open();
+    final a=await store.add(kind:'journal',title:'日常',body:'普通的一天');
+    final pdf=await DiaryBookService.build(store:store,
+      entries:[a],title:'生活日记',subtitle:'2026',coverStyle:'rose');
+    expect(latin1.decode(pdf.take(8).toList()),startsWith('%PDF-'));
+    await expectLater(
+      DiaryBookService.build(store:store,entries:[a],
+        title:'生活日记',coverStyle:'unexpected'),
+      throwsFormatException);
     await store.closeForTests();
   });
 

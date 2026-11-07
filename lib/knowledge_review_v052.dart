@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'main.dart';
 import 'core/knowledge_candidates.dart';
+import 'core/review_draft_v091.dart';
 import 'core/store.dart';
 
 class KnowledgeReviewPage extends StatefulWidget {
@@ -11,6 +13,7 @@ class KnowledgeReviewPage extends StatefulWidget {
   final String? originalSourceId;
   final List<String> offeredSourceIds;
   final bool inputWasTruncated;
+  final KnowledgeReviewDraft? initialDraft;
 
   const KnowledgeReviewPage({
     super.key,
@@ -20,6 +23,7 @@ class KnowledgeReviewPage extends StatefulWidget {
     this.originalSourceId,
     this.offeredSourceIds = const [],
     this.inputWasTruncated = false,
+    this.initialDraft,
   });
 
   @override
@@ -34,15 +38,25 @@ class _EditableCandidate {
   final TextEditingController application;
   String topic;
   String? mergeTargetId;
-  bool selected = true;
+  bool selected;
 
-  _EditableCandidate(KnowledgeCandidate point)
+  _EditableCandidate(KnowledgeCandidate point, {
+    this.selected = true, this.mergeTargetId,
+  })
       : title = TextEditingController(text: point.title),
         explanation = TextEditingController(text: point.explanation),
         conditions = TextEditingController(text: point.conditions),
         counterexample = TextEditingController(text: point.counterexample),
         application = TextEditingController(text: point.application),
         topic = point.topic;
+
+  KnowledgeDraftPoint toReviewPoint() => KnowledgeDraftPoint(
+    candidate: KnowledgeCandidate(
+      title: title.text, explanation: explanation.text,
+      conditions: conditions.text, counterexample: counterexample.text,
+      application: application.text, topic: topic,
+    ), selected: selected, mergeTargetId: mergeTargetId,
+  );
 
   KnowledgeSaveDraft toDraft() => KnowledgeSaveDraft(
     title: title.text,
@@ -72,16 +86,64 @@ class _PotentialDuplicate {
 class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
   late final List<_EditableCandidate> editable;
   bool saving = false;
+  bool finished = false;
+  Timer? draftTimer;
+  CompassStore? draftStore;
+  Future<void> pendingDraftWrite = Future<void>.value();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    draftStore = CompassScope.of(context);
+  }
+
+  KnowledgeReviewDraft? snapshotDraft() {
+    final source = widget.originalSourceId;
+    if (source == null) return null;
+    return KnowledgeReviewDraft(
+      sourceId: source,
+      inputWasTruncated: widget.inputWasTruncated ||
+          (widget.initialDraft?.inputWasTruncated ?? false),
+      points: editable.map((e) => e.toReviewPoint()).toList(),
+    );
+  }
+
+  /// Serialize writes to avoid an older edit overwriting a newer one.
+  void persistDraft() {
+    if (finished || saving || draftStore == null) return;
+    final snapshot = snapshotDraft();
+    if (snapshot == null) return;
+    pendingDraftWrite = pendingDraftWrite.then((_) async {
+      await draftStore!.saveKnowledgeReviewDraft(snapshot);
+    }).catchError((Object error) {
+      if (mounted) notice(context, '草稿自动保存失败：$error');
+    });
+  }
+
+  void scheduleDraftSave() {
+    if (widget.originalSourceId == null || finished || saving) return;
+    draftTimer?.cancel();
+    draftTimer = Timer(const Duration(milliseconds: 350), persistDraft);
+  }
+
   int get selectedCount => editable.where((e) => e.selected).length;
 
   @override
   void initState() {
     super.initState();
-    editable = widget.candidates.map(_EditableCandidate.new).toList();
+    final draft = widget.initialDraft;
+    editable = draft == null
+        ? widget.candidates.map(_EditableCandidate.new).toList()
+        : draft.points.map((p) => _EditableCandidate(
+            p.candidate, selected: p.selected,
+            mergeTargetId: p.mergeTargetId,
+          )).toList();
   }
 
   @override
   void dispose() {
+    draftTimer?.cancel();
+    if (!finished) persistDraft();
     for (final item in editable) {
       item.dispose();
     }
@@ -146,6 +208,7 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
     if (!mounted || choice == null) return;
     setState(() => editable[index].mergeTargetId =
       choice == '__new__' ? null : choice);
+    scheduleDraftSave();
   }
 
   Future<void> saveSelected() async {
@@ -188,15 +251,20 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
       if (approved != true || !mounted) return;
     }
 
+    draftTimer?.cancel();
+    persistDraft();
     setState(() => saving = true);
     try {
+      await pendingDraftWrite;
       final ids = await CompassScope.of(context).saveKnowledgeCandidates(
         drafts,
         conversationId: widget.conversationId,
         messageId: widget.messageId,
         originalSourceId: widget.originalSourceId,
         offeredSourceIds: widget.offeredSourceIds,
+        reviewedDraftSourceId: widget.originalSourceId,
       );
+      finished = true;
       if (!mounted) return;
       notice(context, '已保存 ${ids.length} 个知识点（待验证），可在知识库中查看');
       Navigator.pop(context, ids);
@@ -215,7 +283,10 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
     child: TextField(
       controller: controller,
       minLines: minLines, maxLines: maxLines, maxLength: maxLength,
-      onChanged: updateDuplicates ? (_) => setState(() {}) : null,
+      onChanged: (_) {
+        scheduleDraftSave();
+        if (updateDuplicates) setState(() {});
+      },
       decoration: InputDecoration(labelText: label,
         floatingLabelBehavior: FloatingLabelBehavior.always),
     ),
@@ -235,7 +306,10 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         CheckboxListTile(
           value: item.selected,
-          onChanged: saving ? null : (v) => setState(() => item.selected = v ?? false),
+          onChanged: saving ? null : (v) {
+            setState(() => item.selected = v ?? false);
+            scheduleDraftSave();
+          },
           title: Text(item.title.text.trim().isEmpty ?
             '未填写标题' : item.title.text, maxLines: 2,
             style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -256,8 +330,10 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
               items: knowledgeTopics.map((s) =>
                 DropdownMenuItem(value: s, child: Text(s))).toList(),
               decoration: const InputDecoration(labelText: '知识专题'),
-              onChanged: (value) => setState(() =>
-                item.topic = value ?? item.topic),
+              onChanged: (value) {
+                setState(() => item.topic = value ?? item.topic);
+                scheduleDraftSave();
+              },
             ),
             const SizedBox(height: 15),
             editorSection('适用条件', item.conditions, maxLines: 4),
@@ -270,8 +346,10 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
               Wrap(spacing: 7, runSpacing: 5, children: matches.map((m) =>
                 ActionChip(
                   label: Text('${m.card.title} · ${(m.score * 100).round()}%'),
-                  onPressed: saving ? null : () => setState(() =>
-                    item.mergeTargetId = m.card.id),
+                  onPressed: saving ? null : () {
+                    setState(() => item.mergeTargetId = m.card.id);
+                    scheduleDraftSave();
+                  },
                 )).toList()),
               const SizedBox(height: 8),
             ],
@@ -325,12 +403,18 @@ class _KnowledgeReviewPageState extends State<KnowledgeReviewPage> {
         Row(children: [
           Expanded(child: Text('候选知识点 · ${editable.length}',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-          TextButton(onPressed: saving ? null : () => setState(() {
-            for (final item in editable) { item.selected = true; }
-          }), child: const Text('全选')),
-          TextButton(onPressed: saving ? null : () => setState(() {
-            for (final item in editable) { item.selected = false; }
-          }), child: const Text('全不选')),
+          TextButton(onPressed: saving ? null : () {
+            setState(() {
+              for (final item in editable) { item.selected = true; }
+            });
+            scheduleDraftSave();
+          }, child: const Text('全选')),
+          TextButton(onPressed: saving ? null : () {
+            setState(() {
+              for (final item in editable) { item.selected = false; }
+            });
+            scheduleDraftSave();
+          }, child: const Text('全不选')),
         ]),
         const SizedBox(height: 9),
         for (var i = 0; i < editable.length; i++) candidateTile(i),

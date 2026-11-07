@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'journal_vault.dart';
 import 'chat_store.dart';
 import 'knowledge_candidates.dart';
+import 'review_draft_v091.dart';
 import 'knowledge_index.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -108,6 +109,57 @@ class CompassStore extends ChangeNotifier {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_versions_source ON source_versions(source_id, created_at)');
   }
 
+
+  static Future<void> createReviewDraftSchema(Database db) async {
+    await db.execute('''CREATE TABLE IF NOT EXISTS knowledge_review_drafts (
+      source_id TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(source_id) REFERENCES entries(id) ON DELETE CASCADE
+    )''');
+  }
+
+  Future<KnowledgeReviewDraft?> loadKnowledgeReviewDraft(String sourceId) async {
+    final source = byId(sourceId);
+    if (source == null || source.kind != 'source') return null;
+    final rows = await _db.query('knowledge_review_drafts',
+      where: 'source_id=?', whereArgs: [sourceId], limit: 1);
+    if (rows.isEmpty) return null;
+    final decoded = jsonDecode(rows.first['payload'] as String);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('知识整理草稿格式损坏');
+    }
+    final draft = KnowledgeReviewDraft.fromJson(decoded);
+    if (draft.sourceId != sourceId) {
+      throw const FormatException('知识整理草稿来源不匹配');
+    }
+    return draft;
+  }
+
+  Future<void> saveKnowledgeReviewDraft(KnowledgeReviewDraft draft) async {
+    final source = byId(draft.sourceId);
+    if (source == null || source.kind != 'source') {
+      throw const FormatException('只能为普通收藏保存知识整理草稿');
+    }
+    if (draft.points.isEmpty || draft.points.length > 8) {
+      throw const FormatException('候选知识点数量必须为 1–8 条');
+    }
+    final payload = jsonEncode(draft.toJson());
+    if (payload.length > 80000) {
+      throw const FormatException('整理草稿超过存储限制');
+    }
+    await _db.insert('knowledge_review_drafts', {
+      'source_id': draft.sourceId, 'payload': payload,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    notifyListeners();
+  }
+
+  Future<void> clearKnowledgeReviewDraft(String sourceId) async {
+    await _db.delete('knowledge_review_drafts',
+      where: 'source_id=?', whereArgs: [sourceId]);
+    notifyListeners();
+  }
 
   static Future<void> createJournalSchema(Database db) async {
     await db.execute('''CREATE TABLE IF NOT EXISTS journal_revisions (
@@ -234,7 +286,7 @@ class CompassStore extends ChangeNotifier {
 
   static Future<CompassStore> open() async {
     final db = await openDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'),
-      version: 6, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
+      version: 7, onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onUpgrade: (Database db, int oldV, int newV) async {
         if (oldV < 2) await db.execute('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         if (oldV < 3) {
@@ -247,6 +299,7 @@ class CompassStore extends ChangeNotifier {
         if (oldV < 4) await createJournalSchema(db);
         if (oldV < 5) await ChatStore.createSchema(db);
         if (oldV < 6) await KnowledgeIndex.createSchema(db);
+        if (oldV < 7) await createReviewDraftSchema(db);
       }, onCreate: (Database database, int version) async {
         await database.execute('''CREATE TABLE entries (
           id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL,
@@ -260,6 +313,7 @@ class CompassStore extends ChangeNotifier {
         await createJournalSchema(database);
         await ChatStore.createSchema(database);
         await KnowledgeIndex.createSchema(database);
+        await createReviewDraftSchema(database);
       });
     final prefs = await SharedPreferences.getInstance();
     const secure = FlutterSecureStorage();
@@ -502,6 +556,7 @@ class CompassStore extends ChangeNotifier {
     String? messageId,
     String? originalSourceId,
     List<String> offeredSourceIds = const [],
+    String? reviewedDraftSourceId,
   }) async {
     if (drafts.isEmpty || drafts.length > 8) {
       throw const FormatException('一次只能确认保存 1–8 条知识点');
@@ -605,6 +660,12 @@ class CompassStore extends ChangeNotifier {
               where: "id=? AND kind='card'", whereArgs: [old.id]);
           ids.add(old.id);
         }
+      }
+      // Saving the selected cards and deleting their draft is atomic.
+      if (reviewedDraftSourceId != null &&
+          reviewedDraftSourceId == verifiedOriginal) {
+        await txn.delete('knowledge_review_drafts',
+          where: 'source_id=?', whereArgs: [reviewedDraftSourceId]);
       }
     });
     await reload();

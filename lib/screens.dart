@@ -13,6 +13,7 @@ import 'core/ai.dart';
 import 'ai_chat_v051.dart';
 import 'decision_review_v055.dart';
 import 'core/knowledge_candidates.dart';
+import 'core/review_draft_v091.dart';
 import 'knowledge_review_v052.dart';
 import 'knowledge_graph_v07.dart';
 import 'journal_view_v053.dart';
@@ -456,6 +457,32 @@ class SourceDetailPage extends StatefulWidget {
   State<SourceDetailPage> createState() => _SourceDetailPageState();
 }
 class _SourceDetailPageState extends State<SourceDetailPage> {
+  Future<KnowledgeReviewDraft?>? draftFuture;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    draftFuture ??= CompassScope.of(context)
+        .loadKnowledgeReviewDraft(widget.id);
+  }
+
+  void reloadReviewDraft() {
+    if (mounted) {
+      setState(() => draftFuture = CompassScope.of(context)
+          .loadKnowledgeReviewDraft(widget.id));
+    }
+  }
+
+  Future<void> continueReview(KnowledgeReviewDraft draft) async {
+    await openPage(context, KnowledgeReviewPage(
+      candidates: draft.points.map((p) => p.candidate).toList(),
+      initialDraft: draft,
+      originalSourceId: draft.sourceId,
+      offeredSourceIds: [draft.sourceId],
+      inputWasTruncated: draft.inputWasTruncated,
+    ));
+    reloadReviewDraft();
+  }
+
   bool thinking = false;
   String? aiBrief;
   Future<void> summarize(CompassEntry source) async {
@@ -514,10 +541,30 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
         knowledgeExtractionPrompt(material), mode: 'ask');
       final points = parseKnowledgeCandidates(result.answer);
       if (!mounted) return;
-      await openPage(context, KnowledgeReviewPage(
-        candidates: points, originalSourceId: source.id,
-        offeredSourceIds: [source.id], inputWasTruncated: material.length > 6500,
-      ));
+      final draft = KnowledgeReviewDraft.fromCandidates(
+        source.id, points, inputWasTruncated: material.length > 6500,
+      );
+      final existing = await store.loadKnowledgeReviewDraft(source.id);
+      if (!mounted) return;
+      if (existing != null) {
+        final replace = await showDialog<bool>(
+          context: context, builder: (c) => AlertDialog(
+            title: const Text('已有未完成的人工审核草稿'),
+            content: const Text('重新提炼会替换旧候选和之前的勾选、修改。'
+                '取消则保留旧草稿，稍后仍可继续审核。'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c, false),
+                child: const Text('保留旧草稿')),
+              FilledButton(onPressed: () => Navigator.pop(c, true),
+                child: const Text('使用新候选')),
+            ],
+          ),
+        );
+        if (replace != true || !mounted) return;
+      }
+      await store.saveKnowledgeReviewDraft(draft);
+      if (!mounted) return;
+      await continueReview(draft);
     } catch (e) {
       if (mounted) notice(context, '知识提炼失败，尚未保存：$e');
     } finally {
@@ -532,6 +579,22 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
     if (source == null) return const PageFrame(title: '来源不存在', children: [Text('这条记录可能已经删除。')]);
     final full = source.body.trim().isNotEmpty;
     return PageFrame(title: '整理这条收藏', subtitle: source.title, children: [
+      FutureBuilder<KnowledgeReviewDraft?>(
+        future: draftFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return SoftCard(child: Text('未完成的草稿暂时无法读取：${snapshot.error}'));
+          }
+          final draft = snapshot.data;
+          if (draft == null) return const SizedBox.shrink();
+          return NavCard(
+            icon: Icons.fact_check_outlined,
+            title: '继续人工选择 · ${draft.points.length} 条候选',
+            subtitle: '恢复上次勾选和修改，不必重新调用 AI',
+            onTap: () => continueReview(draft),
+          );
+        },
+      ),
       SoftCard(color:const Color(0xFFF2EBF8),child:Column(
         crossAxisAlignment:CrossAxisAlignment.start,children:[
           const Text('下一步：把这条内容变成知识',

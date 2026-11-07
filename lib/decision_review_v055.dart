@@ -5,6 +5,7 @@ import 'knowledge_ref_v053.dart';
 import 'core/ai.dart';
 import 'core/decision_support.dart';
 import 'core/decision_evidence_v094.dart';
+import 'core/decision_feedback_v096.dart';
 import 'decision_evidence_picker_v094.dart';
 import 'screens.dart' show KnowledgeDetailPage;
 import 'core/knowledge_index.dart';
@@ -159,6 +160,20 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
       if(mounted)setState(()=>error='分析失败，未保存报告：$e');
     }finally{
       if(mounted)setState(()=>analyzing=false);
+    }
+  }
+
+  Future<void> usePreviousExperience(ExperienceSuggestion candidate) async {
+    try {
+      final added=await attachExperienceToDecision(
+        CompassScope.of(context),widget.id,candidate.lessonCard.id);
+      if(!mounted)return;
+      notice(context,added
+        ? '已加入历史经验，请判断是否适用于本次决策'
+        : '这张经验卡已经在本次决策依据中');
+      setState(() {});
+    }catch(e){
+      if(mounted)notice(context,'引用经验失败：$e');
     }
   }
 
@@ -346,6 +361,40 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
         icon:const Icon(Icons.library_add_check_outlined),
         label:const Text('选择或调整知识卡依据'),
       ),
+      const SectionHeading('从过去的决策中学习'),
+      const SoftCard(color:Color(0xFFF5F0F9),child:Text(
+        '在本机根据决策主题寻找过去亲自复盘过的经验。'
+        '仅展示建议，不自动加入证据，也不会将日记发送给 AI。')),
+      if(recommendPastExperiences(store,entry).isEmpty)
+        const SoftCard(child:Text('暂时没有相关的历史复盘。完成一次行动并把经验保存成知识卡后，这里就可能出现可借鉴的经验。')),
+      ...recommendPastExperiences(store,entry).map((suggestion) =>
+        SoftCard(child:Column(
+          crossAxisAlignment:CrossAxisAlignment.start,
+          children:[
+            Text(suggestion.previousDecision.title,
+              style:const TextStyle(fontWeight:FontWeight.w700)),
+            const SizedBox(height:6),
+            Text(suggestion.lessonCard.body.length>180
+              ? '${suggestion.lessonCard.body.substring(0,180)}…'
+              : suggestion.lessonCard.body,
+              maxLines:6,overflow:TextOverflow.ellipsis),
+            const SizedBox(height:8),
+            Row(children:[
+              Expanded(child:OutlinedButton(
+                onPressed:()=>openPage(context,
+                  KnowledgeDetailPage(id:suggestion.lessonCard.id)),
+                child:const Text('查看原经验'))),
+              const SizedBox(width:8),
+              Expanded(child:FilledButton.tonal(
+                onPressed:decisionCardEvidence(entry).any((e)=>
+                  e.cardId==suggestion.lessonCard.id)
+                    ? null:()=>usePreviousExperience(suggestion),
+                child:Text(decisionCardEvidence(entry).any((e)=>
+                  e.cardId==suggestion.lessonCard.id)
+                    ? '已引用':'引用这段经验'))),
+            ]),
+          ],
+        ))),
       const SectionHeading('② 补充可检索的资料片段'),
       const SoftCard(color: Color(0xFFF4EDF9),
         child: Text('本机检索用于补充来源片段。'

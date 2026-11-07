@@ -54,6 +54,39 @@ void main() {
     await tester.runAsync(()=>store.closeForTests());
   });
 
+  testWidgets('first-time start opens capture directly without another tap',
+      (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async {store=await CompassStore.open();});
+    await tester.pumpWidget(CompassApp(store:store));
+    expect(find.text('开始，添加第一条内容'),findsOneWidget);
+    await tester.ensureVisible(find.text('开始，添加第一条内容'));
+    await tester.tap(find.text('开始，添加第一条内容'));
+    await tester.pumpAndSettle();
+    expect(find.text('快速收集'),findsOneWidget);
+    expect(find.text('保存到收集箱'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(()=>store.closeForTests());
+  });
+
+  testWidgets('source detail offers AI and offline manual knowledge paths',
+      (tester) async {
+    late CompassStore store;
+    late CompassEntry source;
+    await tester.runAsync(() async {
+      store=await CompassStore.open();
+      source=await store.add(kind:'source',title:'测试来源',
+        body:'一段可整理的材料',status:'待处理');
+    });
+    await tester.pumpWidget(CompassScope(store:store,
+      child:MaterialApp(home:SourceDetailPage(id:source.id))));
+    expect(find.text('下一步：把这条内容变成知识'),findsOneWidget);
+    expect(find.text('提炼知识点 · 由我决定保存'),findsOneWidget);
+    expect(find.text('不用 AI，自己写知识卡'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(()=>store.closeForTests());
+  });
+
   testWidgets('main navigation exposes journal and workspace as first-class tabs',
       (tester) async {
     late CompassStore store;

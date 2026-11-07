@@ -1208,6 +1208,14 @@ class KnowledgeDetailPage extends StatelessWidget {
       NavCard(icon: Icons.account_tree_outlined, title: '查看知识网络',
         subtitle: '查看已有的知识卡与素材来源关系',
         onTap: () => openPage(context, const KnowledgeGraphPage())),
+      if(entry.meta['generated_from']=='decision_retrospective' &&
+         entry.meta['decision_id'] is String &&
+         store.byId(entry.meta['decision_id'] as String)?.kind=='decision')
+        NavCard(icon:Icons.history_edu_outlined,
+          title:'查看产生这张经验的决策',
+          subtitle:'回看当时的行动、观察与复盘记录',
+          onTap:()=>openPage(context,DecisionReviewPage(
+            id:entry.meta['decision_id'] as String))),
       NavCard(icon: Icons.balance_outlined,
         title: '用这张知识卡辅助决策',
         subtitle: '带入这张卡，建立一条自己的决策记录',

@@ -32,6 +32,8 @@ void main() {
       child: const MaterialApp(home: TodayPage())));
     expect(find.text('只需四步'), findsOneWidget);
     expect(find.text('收集'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('AI 对话'), 250,
+      scrollable:find.byType(Scrollable).first);
     expect(find.text('AI 对话'), findsOneWidget);
     expect(find.text('私密日记'), findsOneWidget);
     expect(find.text('添加第一条内容'), findsOneWidget);
@@ -45,7 +47,7 @@ void main() {
     await tester.runAsync(() async {store=await CompassStore.open();});
     await tester.pumpWidget(CompassScope(store:store,
       child:const MaterialApp(home:WelcomePage())));
-    expect(find.text('把看到的内容，\\n变成真正属于自己的知识。'),
+    expect(find.text('把看到的内容，\n变成真正属于自己的知识。'),
       findsOneWidget);
     expect(find.text('开始，添加第一条内容'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

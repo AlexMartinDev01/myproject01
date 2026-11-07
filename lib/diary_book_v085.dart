@@ -55,6 +55,7 @@ class DiaryBookService {
     String subtitle = '',
     String coverStyle = 'classic',
     Uint8List? coverImageBytes,
+    bool includePhotos = false,
   }) async {
     final ordered=sortEntries(entries);
     final bookTitle=title.trim();
@@ -84,6 +85,29 @@ class DiaryBookService {
         throw const FormatException('内容过长，建议缩小时间范围或分册导出');
       }
       bodies[entry.id]=text;
+    }
+    // Decrypt selected journal pictures into memory only if explicitly requested.
+    // Limit image count and total bytes to prevent unbounded export memory.
+    final photos=<String,List<Uint8List>>{};
+    if(includePhotos){
+      var total=0;
+      for(final entry in ordered){
+        final assets=await store.journalAttachments(entry.id);
+        final imageAssets=assets.where((a)=>
+          (a['mime']?.toString().startsWith('image/') ?? false)).toList();
+        if(imageAssets.length>12){
+          throw const FormatException('每篇日记最多导出 12 张照片，请分册导出');
+        }
+        for(final asset in imageAssets){
+          final data=await store.readJournalAttachmentBytes(
+            entry.id,asset['id'] as String);
+          total+=data.length;
+          if(total>30*1024*1024){
+            throw const FormatException('照片总大小超过 30 MB，请缩小范围或关闭照片收录');
+          }
+          photos.putIfAbsent(entry.id,()=>[]).add(data);
+        }
+      }
     }
     final fontData=await rootBundle.load(fontAsset);
     final font=pw.Font.ttf(fontData);
@@ -176,6 +200,11 @@ class DiaryBookService {
         content.add(pw.SizedBox(height:8));
         for(final line in splitBody(bodies[entry.id]!)) {
           content.add(pw.Text(line.isEmpty?' ':line,style:bodyStyle));
+        }
+        for(final picture in photos[entry.id] ?? <Uint8List>[]){
+          content.add(pw.SizedBox(height:12));
+          content.add(pw.Container(height:190,
+            child:pw.Image(pw.MemoryImage(picture),fit:pw.BoxFit.contain)));
         }
         content.add(pw.SizedBox(height:20));
       }

@@ -176,13 +176,24 @@ class CompassStore extends ChangeNotifier {
     final mime = suffix.endsWith('.pdf') ? 'application/pdf'
         : suffix.endsWith('.docx')
             ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : suffix.endsWith('.png') ? 'image/png'
+            : suffix.endsWith('.jpg') || suffix.endsWith('.jpeg') ? 'image/jpeg'
             : '';
-    if (mime.isEmpty) throw const FormatException('仅支持 PDF 或 DOCX');
+    if (mime.isEmpty) throw const FormatException('仅支持 PDF、DOCX、PNG、JPG');
+    if (mime.startsWith('image/') && size > 8 * 1024 * 1024) {
+      throw const FormatException('单张日记照片不能超过 8 MB');
+    }
     final reader = await file.open();
-    final bytes = await reader.read(5);
+    final bytes = await reader.read(8);
     await reader.close();
     final valid = mime == 'application/pdf'
-        ? bytes.length == 5 && String.fromCharCodes(bytes) == '%PDF-'
+        ? bytes.length >= 5 && String.fromCharCodes(bytes.take(5)) == '%PDF-'
+        : mime == 'image/png'
+            ? bytes.length == 8 && bytes[0] == 0x89 && bytes[1] == 0x50 &&
+              bytes[2] == 0x4e && bytes[3] == 0x47 && bytes[4] == 0x0d &&
+              bytes[5] == 0x0a && bytes[6] == 0x1a && bytes[7] == 0x0a
+        : mime == 'image/jpeg'
+            ? bytes.length >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff
         : bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4b;
     if (!valid) throw const FormatException('文件内容与扩展名不匹配');
     final id = newId();

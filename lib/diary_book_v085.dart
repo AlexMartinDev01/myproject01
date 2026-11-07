@@ -54,6 +54,7 @@ class DiaryBookService {
     String preface = '',
     String subtitle = '',
     String coverStyle = 'classic',
+    Uint8List? coverImageBytes,
   }) async {
     final ordered=sortEntries(entries);
     final bookTitle=title.trim();
@@ -62,6 +63,9 @@ class DiaryBookService {
     }
     if(subtitle.runes.length>120) {
       throw const FormatException('副标题请控制在 120 字以内');
+    }
+    if(coverImageBytes != null && coverImageBytes.length > 5*1024*1024) {
+      throw const FormatException('封面照片不能超过 5 MB');
     }
     if(!['classic','rose','minimal'].contains(coverStyle)) {
       throw const FormatException('未知封面样式');
@@ -102,6 +106,12 @@ class DiaryBookService {
         mainAxisAlignment:pw.MainAxisAlignment.center,
         crossAxisAlignment:pw.CrossAxisAlignment.center,
         children:[
+          if(coverImageBytes != null) ...[
+            pw.Container(height:138,width:138,
+              child:pw.Image(pw.MemoryImage(coverImageBytes),
+                fit:pw.BoxFit.cover)),
+            pw.SizedBox(height:18),
+          ],
           pw.Container(height:coverStyle=='minimal'?1:3,width:72,color:plum),
           pw.SizedBox(height:32),
           pw.Text(bookTitle,style:coverTextStyle,textAlign:pw.TextAlign.center),

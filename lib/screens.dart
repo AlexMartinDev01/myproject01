@@ -13,6 +13,7 @@ import 'core/ai.dart';
 import 'ai_chat_v051.dart';
 import 'decision_review_v055.dart';
 import 'core/knowledge_candidates.dart';
+import 'core/card_trace_v092.dart';
 import 'core/review_draft_v091.dart';
 import 'knowledge_review_v052.dart';
 import 'knowledge_graph_v07.dart';
@@ -1141,6 +1142,7 @@ class KnowledgeDetailPage extends StatelessWidget {
     final store = CompassScope.of(context);
     final entry = store.byId(id);
     if (entry == null) return const PageFrame(title: '内容不存在', children: [Text('知识卡已删除。')]);
+    final trace = CardTrace.forCard(entry, store.items);
     return PageFrame(title: '知识卡', subtitle: entry.title,
       actions: [IconButton(onPressed: () => openPage(context, CardEditPage(id: id)),
         icon: const Icon(Icons.edit_outlined))], children: [
@@ -1160,13 +1162,43 @@ class KnowledgeDetailPage extends StatelessWidget {
       const SectionHeading('应用到现实'),
       SoftCard(child: Text(entry.meta['application']?.toString().isNotEmpty == true ?
         entry.meta['application'].toString() : '还没有留下真实应用。')),
-      const SectionHeading('知识网络关联'),
+      const SectionHeading('知识来源 · 可以追溯'),
+      SoftCard(color: const Color(0xFFF2ECF8), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(trace.aiAssisted
+            ? 'AI 辅助提炼${trace.humanSelected ? ' · 已经过人工选择' : ''}'
+            : '人工整理的知识卡',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          const Text('来源可追溯不等于内容已验证。请根据原文判断准确性。',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
+        ])),
+      if (trace.sources.isEmpty)
+        SoftCard(child: Text(trace.hasMissingSources
+          ? '来源记录已不存在，原有知识卡仍保留；请补充或重新关联来源。'
+          : '这张卡还没有可追溯的来源，可以先保留自己的理解。',
+          style: const TextStyle(color: Color(0xFF75667E)))),
+      ...trace.sources.map((source) => NavCard(
+        icon: Icons.source_outlined, title: source.title,
+        subtitle: '原始收藏 · 点击查看来源和历史版本',
+        onTap: () => openPage(context, SourceDetailPage(id: source.id)))),
+      if (trace.hasMissingSources && trace.sources.isNotEmpty)
+        const Text('部分早期来源已删除或无法访问。',
+          style: TextStyle(fontSize: 12, color: Colors.grey)),
+      SectionHeading('相关知识 · ${trace.relatedCards.length}'),
+      if (trace.relatedCards.isEmpty)
+        const SoftCard(child: Text('还没有建立知识关联。可以手动将支持观点、反例和延伸阅读连接起来。')),
+      ...trace.relatedCards.map((relation) => NavCard(
+        icon: Icons.hub_outlined, title: relation.card.title,
+        subtitle: '${relation.type} · ${relation.direction}',
+        onTap: () => openPage(context,
+          KnowledgeDetailPage(id: relation.card.id)))),
       NavCard(icon: Icons.hub_outlined, title: '管理关联的知识卡',
-        subtitle: '手动确认概念之间的关系',
+        subtitle: '建立支持、反例、对比等关系；不会自动虚构关联',
         onTap: () => openPage(context, RelatedCardsEditor(cardId: id))),
-      if (entry.meta['source_id'] is String)
-        NavCard(icon: Icons.source_outlined, title: '查看原始来源',
-          onTap: () => openPage(context, SourceDetailPage(id: entry.meta['source_id'] as String))),
+      NavCard(icon: Icons.account_tree_outlined, title: '查看知识网络',
+        subtitle: '查看已有的知识卡与素材来源关系',
+        onTap: () => openPage(context, const KnowledgeGraphPage())),
       SoftCard(child: Column(children: [
         SizedBox(width: double.infinity, child: FilledButton.tonal(
           onPressed: () => openPage(context, AiChatPage(mode: 'learn', selectedEvidence: [entry])),

@@ -8,6 +8,8 @@ import 'package:path/path.dart';
 import 'package:zhixing_compass/main.dart';
 import 'package:zhixing_compass/screens.dart';
 import 'package:zhixing_compass/core/store.dart';
+import 'package:zhixing_compass/core/knowledge_candidates.dart';
+import 'package:zhixing_compass/core/review_draft_v091.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -83,6 +85,32 @@ void main() {
     expect(find.text('下一步：把这条内容变成知识'),findsOneWidget);
     expect(find.text('提炼知识点 · 由我决定保存'),findsOneWidget);
     expect(find.text('不用 AI，自己写知识卡'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(()=>store.closeForTests());
+  });
+
+  testWidgets('source page resumes a persisted human-selection draft',
+      (tester) async {
+    late CompassStore store;
+    late CompassEntry source;
+    await tester.runAsync(() async {
+      store=await CompassStore.open();
+      source=await store.add(kind:'source',
+        title:'可继续的资料',body:'可提炼的正文');
+      await store.saveKnowledgeReviewDraft(
+        KnowledgeReviewDraft.fromCandidates(source.id,[
+          const KnowledgeCandidate(title:'可复用的经验',
+            explanation:'从经验中总结规则'),
+        ]));
+    });
+    await tester.pumpWidget(CompassScope(store:store,
+      child:MaterialApp(home:SourceDetailPage(id:source.id))));
+    await tester.pumpAndSettle();
+    expect(find.text('继续人工选择 · 1 条候选'),findsOneWidget);
+    await tester.tap(find.text('继续人工选择 · 1 条候选'));
+    await tester.pumpAndSettle();
+    expect(find.text('提炼知识点 · 人工筛选'),findsOneWidget);
+    expect(find.text('可复用的经验'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(()=>store.closeForTests());
   });

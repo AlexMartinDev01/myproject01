@@ -5,6 +5,7 @@ import 'main.dart';
 import 'core/store.dart';
 import 'diary_book_v085.dart';
 import 'diary_book_docx_v086.dart';
+import 'diary_book_pdf_preview_v086.dart';
 
 /// User-driven export; nothing is uploaded or saved until an explicit action.
 class DiaryBookPage extends StatefulWidget {
@@ -75,6 +76,25 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
       }
       setState((){coverPhoto=bytes;coverPhotoName=chosen.name;message='';});
     }catch(e){if(mounted)setState(()=>message='选择封面照片失败：$e');}
+  }
+
+  Future<void> previewPdfBook() async {
+    if(busy || outputFormat!='pdf')return;
+    final store=CompassScope.of(context);
+    final chosen=store.ofKind('journal').where((e)=>
+      selectedIds.contains(e.id)).toList();
+    if(chosen.isEmpty){setState(()=>message='请先选择日记');return;}
+    setState((){busy=true;message='正在本地生成完整 PDF 预览…';});
+    try {
+      final bytes=await DiaryBookService.build(store:store,entries:chosen,
+        title:title.text,preface:preface.text,subtitle:subtitle.text,
+        coverStyle:coverStyle,coverImageBytes:coverPhoto);
+      if(!mounted)return;
+      setState(()=>message='');
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder:(_)=>DiaryBookPdfPreview(bytes:bytes)));
+    }catch(e){if(mounted)setState(()=>message='预览生成失败：$e');}
+    finally{if(mounted)setState(()=>busy=false);}
   }
 
   Future<void> exportBook() async {
@@ -224,6 +244,11 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
                 Text('我的私人日记集',style:TextStyle(color:inkColor,fontSize:11)),
               ])))));
         }),
+        const SizedBox(height:10),
+        if(outputFormat=='pdf')OutlinedButton.icon(
+          onPressed:busy?null:previewPdfBook,
+          icon:const Icon(Icons.preview_outlined),
+          label:const Text('查看 PDF 完整逐页预览')),
         const SizedBox(height:6),
         const Text('封面示意预览，最终页码与全文排版请以导出文件为准。',
           textAlign:TextAlign.center,style:TextStyle(fontSize:12,color:Colors.grey)),

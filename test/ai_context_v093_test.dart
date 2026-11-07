@@ -8,7 +8,6 @@ import 'package:path/path.dart';
 import 'package:zhixing_compass/core/store.dart';
 import 'package:zhixing_compass/ai_chat_v051.dart';
 import 'package:zhixing_compass/main.dart';
-import 'package:zhixing_compass/screens.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

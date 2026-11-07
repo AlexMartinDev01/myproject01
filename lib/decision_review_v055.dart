@@ -22,6 +22,10 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
   final forecast = TextEditingController();
   final reality = TextEditingController();
   final nextAction = TextEditingController();
+  final executionLog = TextEditingController();
+  final successMetric = TextEditingController();
+  final lesson = TextEditingController();
+  String actionStatus = '未开始';
   List<KnowledgeHit> candidates = [];
   final selectedIds = <String>{};
   String? activeReportId, error;
@@ -37,6 +41,10 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
         forecast.text = e.meta['prediction']?.toString() ?? '';
         nextAction.text = e.meta['next_action']?.toString() ?? '';
         reality.text = e.meta['observed']?.toString() ?? '';
+        executionLog.text = e.meta['execution_log']?.toString() ?? '';
+        successMetric.text = e.meta['success_metric']?.toString() ?? '';
+        lesson.text = e.meta['lesson']?.toString() ?? '';
+        actionStatus = e.meta['action_status']?.toString() ?? '未开始';
       }
       findSources();
     });
@@ -45,6 +53,7 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
   @override
   void dispose() {
     forecast.dispose(); reality.dispose(); nextAction.dispose();
+    executionLog.dispose(); successMetric.dispose(); lesson.dispose();
     super.dispose();
   }
 
@@ -154,18 +163,47 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
   }
 
   Future<void> saveRetrospective() async {
-    final store = CompassScope.of(context);
-    final entry = store.byId(widget.id);
-    if (entry == null) return;
-    try {
+    final store=CompassScope.of(context);
+    final entry=store.byId(widget.id);
+    if(entry==null)return;
+    try{
       await store.update(entry.copyWith(
-        status: reality.text.trim().isEmpty ? '执行中' : '已复盘',
-        meta: {...entry.meta, 'prediction': forecast.text.trim(),
-          'next_action': nextAction.text.trim(), 'observed': reality.text.trim()}));
-      if (mounted) notice(context, '预测与复盘已保存');
-    } catch (e) {
-      if (mounted) notice(context, '保存失败：' + e.toString());
-    }
+        status:actionStatus=='已完成'?'已复盘':
+          actionStatus=='进行中'?'执行中':'待执行',
+        meta:{...entry.meta,
+          'prediction':forecast.text.trim(),
+          'next_action':nextAction.text.trim(),
+          'observed':reality.text.trim(),
+          'execution_log':executionLog.text.trim(),
+          'success_metric':successMetric.text.trim(),
+          'lesson':lesson.text.trim(),
+          'action_status':actionStatus,
+        }));
+      if(mounted)notice(context,'行动进度与复盘已保存');
+    }catch(e){if(mounted)notice(context,'保存失败：$e');}
+  }
+
+  Future<void> turnLessonIntoCard() async {
+    final text=lesson.text.trim();
+    if(text.isEmpty){notice(context,'先写下这次经历中值得留下的经验');return;}
+    final store=CompassScope.of(context);
+    final entry=store.byId(widget.id);
+    if(entry==null)return;
+    try{
+      final card=await store.add(kind:'card',
+        title:'决策复盘：${entry.title}',
+        body:'【决策】${entry.title}\n'
+          '【当时预测】${forecast.text.trim()}\n'
+          '【采取行动】${nextAction.text.trim()}\n'
+          '【执行记录】${executionLog.text.trim()}\n'
+          '【结果观察】${reality.text.trim()}\n'
+          '【经验沉淀】$text',
+        status:'待整理',origin:'decision:${entry.id}',
+        meta:{'decision_id':entry.id,'generated_from':'decision_retrospective'});
+      await store.update(entry.copyWith(meta:{...entry.meta,
+        'lesson_card_id':card.id,'lesson_card_created_at':DateTime.now().toIso8601String()}));
+      if(mounted)notice(context,'已将复盘经验保存为知识卡');
+    }catch(e){if(mounted)notice(context,'知识卡生成失败：$e');}
   }
 
   Future<void> deleteDecision(CompassEntry entry) async {
@@ -358,10 +396,30 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
         decoration: const InputDecoration(labelText: '预测、选择与成功指标')),
       const SizedBox(height: 10),
       TextField(controller: nextAction, minLines: 2, maxLines: 5,
-        decoration: const InputDecoration(labelText: '14 天最小实验')),
-      const SizedBox(height: 10),
+        decoration: const InputDecoration(labelText: '下一步行动 / 最小实验')),
+      const SizedBox(height:10),
+      DropdownButtonFormField<String>(
+        initialValue:actionStatus,
+        decoration:const InputDecoration(labelText:'行动状态'),
+        items:['未开始','进行中','已完成'].map((v)=>
+          DropdownMenuItem(value:v,child:Text(v))).toList(),
+        onChanged:(v){if(v!=null)setState(()=>actionStatus=v);}),
+      const SizedBox(height:10),
+      TextField(controller:successMetric,minLines:1,maxLines:3,
+        decoration:const InputDecoration(labelText:'预期成功指标 / 验收标准')),
+      const SizedBox(height:10),
+      TextField(controller:executionLog,minLines:2,maxLines:5,
+        decoration:const InputDecoration(labelText:'实际执行记录：做了什么、何时完成')),
+      const SizedBox(height:10),
       TextField(controller: reality, minLines: 2, maxLines: 6,
-        decoration: const InputDecoration(labelText: '真实观察结果')),
+        decoration: const InputDecoration(labelText: '真实结果与观察')),
+      const SizedBox(height:10),
+      TextField(controller:lesson,minLines:2,maxLines:5,
+        decoration:const InputDecoration(labelText:'这次经历留下了什么经验？')),
+      const SizedBox(height:10),
+      OutlinedButton.icon(onPressed:turnLessonIntoCard,
+        icon:const Icon(Icons.auto_awesome_outlined),
+        label:const Text('将复盘经验沉淀为知识卡')),
       const SizedBox(height: 14),
       FilledButton(onPressed: saveRetrospective,
         child: const Text('保存预测与复盘')),

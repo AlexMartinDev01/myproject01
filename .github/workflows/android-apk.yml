@@ -4,6 +4,9 @@ on:
     branches:
       - main
       - 'feature/knowledge-compass*'
+  pull_request:
+    branches:
+      - 'feature/knowledge-compass-cloud'
   workflow_dispatch:
 concurrency:
   group: knowledge-compass-release-${{ github.ref }}

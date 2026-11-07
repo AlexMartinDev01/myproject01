@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'main.dart';
 import 'core/store.dart';
 import 'diary_book_v085.dart';
+import 'diary_book_docx_v086.dart';
 
 /// User-driven export; nothing is uploaded or saved until an explicit action.
 class DiaryBookPage extends StatefulWidget {
@@ -15,6 +16,8 @@ class DiaryBookPage extends StatefulWidget {
 class _DiaryBookPageState extends State<DiaryBookPage> {
   final title=TextEditingController(text:'写给未来的自己');
   final preface=TextEditingController();
+  final subtitle=TextEditingController();
+  String outputFormat='pdf';
   final selectedIds=<String>{};
   String range='all';
   bool initialized=false;
@@ -33,7 +36,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
 
   @override
   void dispose() {
-    title.dispose();preface.dispose();super.dispose();
+    title.dispose();subtitle.dispose();preface.dispose();super.dispose();
   }
 
   List<CompassEntry> eligible(List<CompassEntry> diaries) {
@@ -55,34 +58,38 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
     }
     final approved=await showDialog<bool>(context:context,
       builder:(ctx)=>AlertDialog(
-        title:const Text('确认生成可阅读的日记书？'),
-        content:Text('本次选择 ${chosen.length} 篇日记。导出的 PDF 不加密，'
+        title:Text('确认生成 ${outputFormat.toUpperCase()} 日记书？'),
+        content:Text('本次选择 ${chosen.length} 篇日记。导出的文件不加密，'
           '可以被任何获得该文件的人阅读。\n\n'
           '内容仅在手机本机处理，不发送到 AI 或云端；原日记不会修改。'
-          '请将文件保存在私人位置，切勿把 PDF 当作加密备份。'),
+          '请将文件保存在私人位置，切勿把导出文件当作加密备份。'),
         actions:[
           TextButton(onPressed:()=>Navigator.pop(ctx,false),
             child:const Text('取消')),
           FilledButton(onPressed:()=>Navigator.pop(ctx,true),
-            child:const Text('我已了解，生成 PDF')),
+            child:const Text('我已了解，开始生成')),
         ]));
     if(approved!=true || !mounted)return;
     setState((){busy=true;message='正在本机排版，请勿关闭页面';});
     try{
-      final Uint8List bytes=await DiaryBookService.build(
-        store:store,entries:chosen,title:title.text,preface:preface.text);
+      final Uint8List bytes=outputFormat=='pdf'
+        ? await DiaryBookService.build(
+          store:store,entries:chosen,title:title.text,preface:preface.text)
+        : await DiaryBookDocxService.build(
+          store:store,entries:chosen,title:title.text,
+          subtitle:subtitle.text,preface:preface.text);
       if(!mounted)return;
       final now=DateTime.now();
       final filename='zhixing-diary-book-${now.year}-'
         '${now.month.toString().padLeft(2,'0')}-'
-        '${now.day.toString().padLeft(2,'0')}.pdf';
+        '${now.day.toString().padLeft(2,'0')}.$outputFormat';
       final saved=await FilePicker.platform.saveFile(
         dialogTitle:'保存我的日记书',
-        fileName:filename,type:FileType.custom,allowedExtensions:['pdf'],
+        fileName:filename,type:FileType.custom,allowedExtensions:[outputFormat],
         bytes:bytes);
       if(mounted)setState(()=>message=saved==null
         ? '已取消保存；原日记保持不变'
-        : '已请求系统保存 PDF：$saved。请打开文件检查文字和页码。');
+        : '已请求系统保存文件：$saved。请打开文件检查内容与排版。');
     }catch(e){
       if(mounted)setState(()=>message='生成失败：$e；原日记保持不变');
     }finally{
@@ -97,12 +104,12 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
     final options=eligible(diaries);
     final selectedCount=options.where((e)=>selectedIds.contains(e.id)).length;
     return PageFrame(title:'制作我的日记书',
-      subtitle:'离线整理 · 自动排版 · 私人 PDF',
+      subtitle:'离线整理 · 自动排版 · PDF / Word',
       bottomBar:SafeArea(top:false,child:Padding(
         padding:const EdgeInsets.fromLTRB(16,8,16,12),
         child:FilledButton.icon(onPressed:busy?null:exportBook,
-          icon:const Icon(Icons.picture_as_pdf_outlined),
-          label:Text(busy?'正在生成…':'生成并保存 PDF 日记书')))),
+          icon:Icon(outputFormat=='pdf' ? Icons.picture_as_pdf_outlined : Icons.description_outlined),
+          label:Text(busy?'正在生成…':'生成并保存 ${outputFormat.toUpperCase()} 日记书')))),
       children:[
         SoftCard(color:const Color(0xFFF1EAF8),child:Column(
           crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -110,7 +117,7 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
               style:TextStyle(fontSize:20,fontWeight:FontWeight.w700)),
             const SizedBox(height:9),
             const Text('自动生成封面、月份目录、每篇日期与正文。'
-              'A5 尺寸适合手机阅读，也便于后续打印。',
+              'PDF 为 A5 阅读版，Word 可以继续编辑。',
               style:TextStyle(height:1.5)),
           ])),
         const SizedBox(height:14),
@@ -119,7 +126,19 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
         TextField(controller:title,maxLength:80,
           decoration:const InputDecoration(hintText:'例如：写给未来的自己')),
         const SizedBox(height:9),
-        const Text('2 · 选择日记',style:TextStyle(fontWeight:FontWeight.w700)),
+        const Text('2 · 导出格式',style:TextStyle(fontWeight:FontWeight.w700)),
+        const SizedBox(height:8),
+        SegmentedButton<String>(segments:const [
+          ButtonSegment(value:'pdf',label:Text('PDF')),
+          ButtonSegment(value:'docx',label:Text('Word')),
+        ],selected:{outputFormat},onSelectionChanged:busy?null:(value)=>
+          setState(()=>outputFormat=value.first)),
+        const SizedBox(height:8),
+        TextField(controller:subtitle,maxLength:120,
+          decoration:const InputDecoration(labelText:'副标题（Word 可用）',
+            hintText:'例如：2026 年的生活记录')),
+        const SizedBox(height:9),
+        const Text('3 · 选择日记',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(
           children:[
@@ -157,13 +176,13 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
           }),
         )),
         const SizedBox(height:10),
-        const Text('3 · 可选序言',style:TextStyle(fontWeight:FontWeight.w700)),
+        const Text('4 · 可选序言',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         TextField(controller:preface,minLines:3,maxLines:5,maxLength:3000,
           decoration:const InputDecoration(
             hintText:'写几句话送给未来的自己（可留空）')),
         const SizedBox(height:8),
-        const SoftCard(child:Text('隐私提醒：PDF 为可阅读文件，不是加密备份。'
+        const SoftCard(child:Text('隐私提醒：导出文件可直接阅读，不是加密备份。'
           '本功能不接入 AI、不上传日记，也不更改已保存的日记。')),
         if(busy)const LinearProgressIndicator(),
         if(message.isNotEmpty)Text(message,

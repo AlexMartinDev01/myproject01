@@ -140,13 +140,15 @@ class _DiaryBookPageState extends State<DiaryBookPage> {
           decoration:const InputDecoration(labelText:'副标题（可选）',
             hintText:'例如：2026 年的生活记录')),
         const SizedBox(height:14),
-        const Text('封面风格',style:TextStyle(fontWeight:FontWeight.w700)),
+        const Text('PDF 封面风格',style:TextStyle(fontWeight:FontWeight.w700)),
         const SizedBox(height:8),
         Wrap(spacing:8,runSpacing:8,children:[
           for(final option in [('classic','经典紫'),('rose','柔雾粉'),('minimal','极简灰')])
             ChoiceChip(label:Text(option.$2),selected:coverStyle==option.$1,
-              onSelected:busy?null:(_)=>setState(()=>coverStyle=option.$1)),
+              onSelected:busy || outputFormat!='pdf'?null:(_)=>setState(()=>coverStyle=option.$1)),
         ]),
+        if(outputFormat=='docx')const Text('Word 采用可编辑的简洁文字封面。',
+          style:TextStyle(fontSize:12,color:Colors.grey)),
         const SizedBox(height:12),
         AnimatedBuilder(animation:Listenable.merge([title,subtitle]),builder:(context,_) {
           final shade=coverStyle=='rose' ? const Color(0xFFF8EAEF) :

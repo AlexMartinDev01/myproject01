@@ -394,7 +394,7 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
                     ? '已引用':'引用这段经验'))),
             ]),
           ],
-        )),
+        ))),
       const SectionHeading('② 补充可检索的资料片段'),
       const SoftCard(color: Color(0xFFF4EDF9),
         child: Text('本机检索用于补充来源片段。'

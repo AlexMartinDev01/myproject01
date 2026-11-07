@@ -511,7 +511,33 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
     final source = store.byId(widget.id);
     if (source == null) return const PageFrame(title: '来源不存在', children: [Text('这条记录可能已经删除。')]);
     final full = source.body.trim().isNotEmpty;
-    return PageFrame(title: '来源详情', subtitle: source.title, children: [
+    return PageFrame(title: '整理这条收藏', subtitle: source.title, children: [
+      SoftCard(color:const Color(0xFFF2EBF8),child:Column(
+        crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('下一步：把这条内容变成知识',
+            style:TextStyle(fontSize:17,fontWeight:FontWeight.w700,color:ink)),
+          const SizedBox(height:8),
+          Text(full?'先阅读原文，提炼出有价值的观点；保存前由你亲自筛选。':
+            '目前只有链接或标题，请先补充原文或笔记，再提炼知识点。',
+            style:const TextStyle(height:1.5,color:Color(0xFF75667E))),
+          const SizedBox(height:12),
+          SizedBox(width:double.infinity,child:FilledButton.icon(
+            onPressed:thinking?null:() {
+              if(!full && store.notesForSource(source.id).isEmpty){
+                openPage(context,SourceMissingPage(sourceId:source.id));
+              }else{
+                proposeKnowledgePoints(source);
+              }
+            },
+            icon:Icon(full?Icons.auto_awesome_outlined:Icons.edit_note_outlined),
+            label:Text(thinking?'正在提炼…':
+              full || store.notesForSource(source.id).isNotEmpty?
+                '提炼知识点 · 由我决定保存':'先补充内容'),
+          )),
+          const SizedBox(height:8),
+          const Text('只有你确认后，候选知识点才会保存；AI 提炼需联网并明确授权。',
+            style:TextStyle(fontSize:12,color:Colors.grey)),
+        ])),
       SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('来源状态', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),

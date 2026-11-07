@@ -43,6 +43,19 @@ void main(){
     await store.closeForTests();
   });
 
+  test('long diary text uses small pagination-safe chunks without losing content', () {
+    final original = ('这是连续的日记正文，描述学习和生活的细节。🙂' * 180)
+        + '\n\n' + ('第二段继续记录。' * 75);
+    final pieces = DiaryBookService.splitBody(original);
+    expect(pieces.where((p) => p.isNotEmpty).every(
+      (p) => p.runes.length <= 48), isTrue);
+    expect(pieces.join('\n').replaceAll('\n', ''),
+      original.replaceAll('\n', ''));
+    expect(pieces, contains(''));
+    expect(() => DiaryBookService.splitBody('abc', chunkSize: 0),
+      throwsArgumentError);
+  });
+
   test('book export refuses an all-empty diary selection instead of producing a blank book',() async {
     final store=await CompassStore.open();
     final empty=await store.add(kind:'journal',title:'只有标题的导入记录',body:'');

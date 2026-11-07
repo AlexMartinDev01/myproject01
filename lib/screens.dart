@@ -555,7 +555,13 @@ class _SourceDetailPageState extends State<SourceDetailPage> {
                 '提炼知识点 · 由我决定保存':'先补充内容'),
           )),
           const SizedBox(height:8),
-          const Text('只有你确认后，候选知识点才会保存；AI 提炼需联网并明确授权。',
+          SizedBox(width:double.infinity,child:OutlinedButton.icon(
+            onPressed:()=>openPage(context,CardEditPage(
+              originalSourceId:source.id,initialTitle:source.title)),
+            icon:const Icon(Icons.edit_note_outlined),
+            label:const Text('不用 AI，自己写知识卡'))),
+          const SizedBox(height:8),
+          const Text('AI 提炼需联网及你的授权；手动整理完全离线。知识卡保存前由你确认。',
             style:TextStyle(fontSize:12,color:Colors.grey)),
         ])),
       SoftCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

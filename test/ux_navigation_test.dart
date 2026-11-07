@@ -105,6 +105,10 @@ void main() {
     });
     await tester.pumpWidget(CompassScope(store:store,
       child:MaterialApp(home:SourceDetailPage(id:source.id))));
+    // SQLite futures run outside the widget fake clock.
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    });
     await tester.pumpAndSettle();
     expect(find.text('继续人工选择 · 1 条候选'),findsOneWidget);
     await tester.tap(find.text('继续人工选择 · 1 条候选'));

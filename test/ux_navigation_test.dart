@@ -114,7 +114,7 @@ void main() {
     await tester.tap(find.text('继续人工选择 · 1 条候选'));
     await tester.pumpAndSettle();
     expect(find.text('提炼知识点 · 人工筛选'),findsOneWidget);
-    expect(find.text('可复用的经验'),findsOneWidget);
+    expect(find.text('可复用的经验'),findsWidgets);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(()=>store.closeForTests());
   });

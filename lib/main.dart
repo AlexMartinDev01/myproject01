@@ -20,11 +20,27 @@ class CompassScope extends InheritedNotifier<CompassStore> {
       context.dependOnInheritedWidgetOfExactType<CompassScope>()!.notifier!;
 }
 
-class CompassApp extends StatelessWidget {
+class CompassApp extends StatefulWidget {
   final CompassStore store;
   const CompassApp({super.key, required this.store});
   @override
-  Widget build(BuildContext context) => CompassScope(store: store,
+  State<CompassApp> createState() => _CompassAppState();
+}
+
+class _CompassAppState extends State<CompassApp> {
+  bool openFirstCapture = false;
+  Future<void> startFirstCapture() async {
+    // Set the initial route before onboarding swaps the WelcomePage for HomeShell.
+    setState(() => openFirstCapture = true);
+    try {
+      await widget.store.setOnboarded();
+    } catch (_) {
+      if (mounted) setState(() => openFirstCapture = false);
+      rethrow;
+    }
+  }
+  @override
+  Widget build(BuildContext context) => CompassScope(store: widget.store,
     child: MaterialApp(
       title: '知行罗盘', debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -62,19 +78,34 @@ class CompassApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(16)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15)),
       ),
-      home: AnimatedBuilder(animation: store, builder: (_, __) =>
-        store.onboarded ? const HomeShell() : const WelcomePage()),
+      home: AnimatedBuilder(animation: widget.store, builder: (_, __) =>
+        widget.store.onboarded
+          ? HomeShell(openCaptureOnStart: openFirstCapture)
+          : WelcomePage(onStart: startFirstCapture)),
     ));
 }
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, this.openCaptureOnStart = false});
+  final bool openCaptureOnStart;
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
   int selected = 0;
+  bool openedFirstCapture = false;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openCaptureOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || openedFirstCapture) return;
+        openedFirstCapture = true;
+        openPage(context, const CapturePage());
+      });
+    }
+  }
   static const screens = <Widget>[
     TodayPage(), InboxPage(), KnowledgePage(), JournalPage(), WorkspacePage(),
   ];

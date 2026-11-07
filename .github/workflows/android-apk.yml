@@ -9,6 +9,7 @@ on:
       - 'feature/knowledge-compass-cloud'
       - 'feature/knowledge-compass-v086'
       - 'feature/knowledge-compass-v087'
+      - 'feature/knowledge-compass-v088'
   workflow_dispatch:
 concurrency:
   group: knowledge-compass-release-${{ github.ref }}
@@ -103,8 +104,8 @@ jobs:
           "$SDK_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature-report.txt
           sha256sum "$APK" | tee apk-sha256.txt
           "$SDK_TOOLS/aapt" dump badging "$APK" | grep '^package:' | tee apk-version-report.txt
-          grep -q "versionCode='27'" apk-version-report.txt
-          grep -q "versionName='0.8.8'" apk-version-report.txt
+          grep -q "versionCode='28'" apk-version-report.txt
+          grep -q "versionName='0.8.9'" apk-version-report.txt
           grep -q "com.zhixingcompass.zhixing_compass" apk-version-report.txt
           echo "Preview signing only; DO NOT claim cross-version overwrite compatibility."
       - name: Upload build provenance report
@@ -128,7 +129,7 @@ jobs:
     name: Publish direct APK download
     runs-on: ubuntu-latest
     needs: build-apk
-    if: github.ref == 'refs/heads/feature/knowledge-compass-v088'
+    if: github.ref == 'refs/heads/feature/knowledge-compass-v089'
     permissions:
       contents: write
     steps:
@@ -145,14 +146,14 @@ jobs:
         run: |
           set -euo pipefail
           test -s release-assets/app-release.apk
-          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.8.8-preview.apk
-          TAG=knowledge-compass-v0.8.8-preview
+          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.8.9-preview.apk
+          TAG=knowledge-compass-v0.8.9-preview
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/KnowledgeCompass-v0.8.8-preview.apk --clobber
+            gh release upload "$TAG" release-assets/KnowledgeCompass-v0.8.9-preview.apk --clobber
           else
-            gh release create "$TAG" release-assets/KnowledgeCompass-v0.8.8-preview.apk \
+            gh release create "$TAG" release-assets/KnowledgeCompass-v0.8.9-preview.apk \
               --target "$GITHUB_SHA" \
-              --title "知行罗盘 v0.8.8 Android 开发预览版" \
+              --title "知行罗盘 v0.8.9 Android 开发预览版" \
               --notes "Flutter Android 开发预览版。已完成 CI 编译；DeepSeek 在线联调和 Android 真机全功能验收尚未完成。不要在客户端保存 DeepSeek API Key。" \
               --prerelease
           fi

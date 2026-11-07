@@ -189,6 +189,11 @@ class _DecisionReviewPageState extends State<DecisionReviewPage> {
     final store=CompassScope.of(context);
     final entry=store.byId(widget.id);
     if(entry==null)return;
+    final previousCardId=entry.meta['lesson_card_id']?.toString();
+    if(previousCardId!=null&&store.byId(previousCardId)?.kind=='card') {
+      notice(context,'这条决策已经沉淀过知识卡，可在知识库中查看，避免重复创建');
+      return;
+    }
     try{
       final card=await store.add(kind:'card',
         title:'决策复盘：${entry.title}',

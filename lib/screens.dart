@@ -194,8 +194,6 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
     if (value.isEmpty || saving) return;
     setState(() => saving = true);
     try {
-      final uri = Uri.tryParse(value);
-      final isLink = uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
       final store = CompassScope.of(context);
       final uri = Uri.tryParse(value);
       final isLink = uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
@@ -205,7 +203,6 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
           if (!mounted) return;
           notice(context, '这条链接已经收集过了，已为你保留原记录');
           Navigator.of(context).pop();
-          await openPage(context, SourceDetailPage(id: existing.first.id));
           return;
         }
       }

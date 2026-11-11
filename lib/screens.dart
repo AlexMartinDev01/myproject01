@@ -183,7 +183,7 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
   void dispose() { input.dispose(); super.dispose(); }
 
   String _titleFor(String value) {
-    final first = value.split(RegExp(r'[\\n\\r]')).first.trim();
+    final first = value.split(RegExp(r'[\n\r]')).first.trim();
     if (first.isEmpty) return '随手记录';
     if (first.length <= 42) return first;
     return '${first.substring(0, 42)}…';
@@ -196,7 +196,20 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
     try {
       final uri = Uri.tryParse(value);
       final isLink = uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
-      await CompassScope.of(context).add(
+      final store = CompassScope.of(context);
+      final uri = Uri.tryParse(value);
+      final isLink = uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
+      if (isLink) {
+        final existing = store.ofKind('source').where((e) => e.origin == value).toList();
+        if (existing.isNotEmpty) {
+          if (!mounted) return;
+          notice(context, '这条链接已经收集过了，已为你保留原记录');
+          Navigator.of(context).pop();
+          await openPage(context, SourceDetailPage(id: existing.first.id));
+          return;
+        }
+      }
+      await store.add(
         kind: 'source',
         title: _titleFor(value),
         body: isLink ? '' : value,
@@ -233,7 +246,7 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
           onChanged: (_) => setState(() {}),
           textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
-            hintText: '例如：\\n一个值得研究的视频链接……\\n\\n或者：我今天突然想到……',
+            hintText: '例如：\n一个值得研究的视频链接……\n\n或者：我今天突然想到……',
             alignLabelWithHint: true,
             border: OutlineInputBorder(),
           )),

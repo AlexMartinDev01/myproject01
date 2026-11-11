@@ -204,8 +204,9 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
         final existing = store.ofKind('source').where((e) => e.origin == value).toList();
         if (existing.isNotEmpty) {
           if (!mounted) return;
+          input.clear();
+          setState(() {});
           notice(context, '这条链接已经收集过了，已为你保留原记录');
-          Navigator.of(context).pop();
           return;
         }
       }
@@ -222,8 +223,7 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
         },
       );
       if (!mounted) return;
-      notice(context, isLink ? '链接已保存，正文可稍后补充' : '记录已保存');
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) notice(context, '保存失败：$e');
     } finally {

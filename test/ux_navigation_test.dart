@@ -79,16 +79,16 @@ void main() {
     await tester.runAsync(() async { store = await CompassStore.open(); });
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: QuickCapturePage())));
-    await tester.enterText(find.byType(TextField).first, '一个新想法\\n第二行补充');
+    await tester.enterText(find.byType(TextField).first, '一个新想法\n第二行补充');
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(find.widgetWithText(
       FilledButton, '记录下来')).onPressed, isNotNull);
     await tester.tap(find.text('记录下来'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 600));
     final saved = store.ofKind('source');
     expect(saved, hasLength(1));
     expect(saved.single.title, '一个新想法');
-    expect(saved.single.body, '一个新想法\\n第二行补充');
+    expect(saved.single.body, '一个新想法\n第二行补充');
     expect(saved.single.status, '待处理');
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
@@ -108,7 +108,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, url);
     await tester.pumpAndSettle();
     await tester.tap(find.text('记录下来'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(store.ofKind('source'), hasLength(1));
     expect(find.text('这条链接已经收集过了，已为你保留原记录'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

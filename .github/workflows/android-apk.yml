@@ -18,6 +18,7 @@ on:
       - 'feature/knowledge-compass-v094'
       - 'feature/knowledge-compass-v095'
       - 'feature/knowledge-compass-v096'
+      - 'feature/knowledge-compass-v097-capture'
   workflow_dispatch:
 concurrency:
   group: knowledge-compass-release-${{ github.ref }}
@@ -137,7 +138,7 @@ jobs:
     name: Publish direct APK download
     runs-on: ubuntu-latest
     needs: build-apk
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/knowledge-compass-v096'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/knowledge-compass-v097-capture'
     permissions:
       contents: write
     steps:
@@ -154,14 +155,14 @@ jobs:
         run: |
           set -euo pipefail
           test -s release-assets/app-release.apk
-          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.9.6-preview.apk
-          TAG=knowledge-compass-v0.9.6-preview
+          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.9.7-preview.apk
+          TAG=knowledge-compass-v0.9.7-preview
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/KnowledgeCompass-v0.9.6-preview.apk --clobber
           else
             gh release create "$TAG" release-assets/KnowledgeCompass-v0.9.6-preview.apk \
               --target "$GITHUB_SHA" \
-              --title "知行罗盘 v0.9.6 Android 开发预览版" \
-              --notes "Flutter Android 开发预览版。已完成 CI 编译；DeepSeek 在线联调和 Android 真机全功能验收尚未完成。不要在客户端保存 DeepSeek API Key。" \
+              --title "知行罗盘 v0.9.7 Android 开发预览版" \
+              --notes "Flutter Android 开发预览版。CI 必须通过后才发布；真机完整验收仍需用户设备确认。不要在客户端保存 DeepSeek API Key。" \
               --prerelease
           fi

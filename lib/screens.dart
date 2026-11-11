@@ -68,7 +68,7 @@ class WelcomePage extends StatelessWidget {
               if(context.mounted)notice(context,'无法进入应用：$e');
             }
           },
-          icon:const Icon(Icons.arrow_forward),label:const Text('开始，添加第一条内容'))),
+          icon:const Icon(Icons.arrow_forward),label:const Text('进入知行罗盘'))),
         const SizedBox(height:12),
         const Text('不用注册 · 基础功能离线可用 · 私密日记独立加密保存',
           textAlign:TextAlign.center,

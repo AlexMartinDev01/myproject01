@@ -267,28 +267,6 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
   );
 }
 
-/// The product journey is stable across onboarding and the home page.
-class _JourneyStep extends StatelessWidget {
-  final String index,title,subtitle;
-  final IconData icon;
-  const _JourneyStep({required this.index,required this.title,
-    required this.subtitle,required this.icon});
-  @override
-  Widget build(BuildContext context)=>Row(children:[
-    Container(width:32,height:32,alignment:Alignment.center,
-      decoration:BoxDecoration(color:const Color(0xFFF1EAF7),
-        borderRadius:BorderRadius.circular(10)),
-      child:Text(index,style:const TextStyle(
-        color:grape,fontWeight:FontWeight.w700))),
-    const SizedBox(width:12),
-    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text(title,style:const TextStyle(fontWeight:FontWeight.w700)),
-      Text(subtitle,style:const TextStyle(fontSize:12,color:Color(0xFF766B7D))),
-    ])),
-    Icon(icon,size:21,color:grape),
-  ]);
-}
-
 /// Reusable, accessible empty state with one clear next action.
 class EmptyStateCard extends StatelessWidget {
   const EmptyStateCard({super.key, required this.icon, required this.title,

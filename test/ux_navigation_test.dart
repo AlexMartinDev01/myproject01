@@ -84,7 +84,14 @@ void main() {
     expect(tester.widget<FilledButton>(find.widgetWithText(
       FilledButton, '记录下来')).onPressed, isNotNull);
     await tester.tap(find.text('记录下来'));
-    await tester.pump(const Duration(milliseconds: 600));
+    // SQLite FFI runs in a real isolate; let the async save complete before
+    // asserting against the reloaded store.
+    await tester.runAsync(() async {
+      for (var i = 0; i < 100 && store.ofKind('source').isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    });
+    await tester.pump();
     final saved = store.ofKind('source');
     expect(saved, hasLength(1));
     expect(saved.single.title, '一个新想法');

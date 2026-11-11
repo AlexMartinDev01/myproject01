@@ -141,9 +141,12 @@ class TodayPage extends StatelessWidget {
           ])),
         SectionHeading('让记录产生价值'),
         Row(children: [
+          Expanded(child: _Shortcut(Icons.chat_bubble_outline, 'AI 对话', '随时交流想法',
+            () => openPage(context, const AiHubPage()))),
+          const SizedBox(width: 8),
           Expanded(child: _Shortcut(Icons.calendar_month_outlined, '生活复盘', '回看这一周',
             () => openPage(context, const JournalReviewPage()))),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(child: _Shortcut(Icons.psychology_alt_outlined, '辅助决策', '整理依据',
             () => openPage(context, const WorkspacePage()))),
         ]),

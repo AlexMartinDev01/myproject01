@@ -28,16 +28,10 @@ class CompassApp extends StatefulWidget {
 }
 
 class _CompassAppState extends State<CompassApp> {
-  bool openFirstCapture = false;
   Future<void> startFirstCapture() async {
-    // Set the initial route before onboarding swaps the WelcomePage for HomeShell.
-    setState(() => openFirstCapture = true);
-    try {
-      await widget.store.setOnboarded();
-    } catch (_) {
-      if (mounted) setState(() => openFirstCapture = false);
-      rethrow;
-    }
+    // Finish onboarding into the home dashboard. Recording is available there
+    // immediately, but users are not forced into a multi-field capture form.
+    await widget.store.setOnboarded();
   }
   @override
   Widget build(BuildContext context) => CompassScope(store: widget.store,
@@ -80,7 +74,7 @@ class _CompassAppState extends State<CompassApp> {
       ),
       home: AnimatedBuilder(animation: widget.store, builder: (_, __) =>
         widget.store.onboarded
-          ? HomeShell(openCaptureOnStart: openFirstCapture)
+          ? const HomeShell()
           : WelcomePage(onStart: startFirstCapture)),
     ));
 }

@@ -26,19 +26,19 @@ void main() {
     await deleteDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'));
   });
 
-  testWidgets('home makes journaling and ordinary AI conversation discoverable',
+  testWidgets('fused home makes recording, AI and reflection discoverable',
       (tester) async {
     late CompassStore store;
     await tester.runAsync(() async { store = await CompassStore.open(); });
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: TodayPage())));
-    expect(find.text('只需四步'), findsOneWidget);
-    expect(find.text('收集'), findsOneWidget);
+    expect(find.text('今天有什么值得留下？'), findsOneWidget);
+    expect(find.text('随手记录'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('AI 对话'), 250,
-      scrollable:find.byType(Scrollable).first);
+      scrollable: find.byType(Scrollable).first);
     expect(find.text('AI 对话'), findsOneWidget);
-    expect(find.text('私密日记'), findsOneWidget);
-    expect(find.text('添加第一条内容'), findsOneWidget);
+    expect(find.text('生活复盘'), findsOneWidget);
+    expect(find.text('辅助决策'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });
@@ -49,24 +49,26 @@ void main() {
     await tester.runAsync(() async {store=await CompassStore.open();});
     await tester.pumpWidget(CompassScope(store:store,
       child:const MaterialApp(home:WelcomePage())));
-    expect(find.text('把看到的内容，\n变成真正属于自己的知识。'),
+    expect(find.text('把看到的内容，\\n变成真正属于自己的知识。'),
       findsOneWidget);
-    expect(find.text('开始，添加第一条内容'),findsOneWidget);
+    expect(find.text('进入知行罗盘'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(()=>store.closeForTests());
   });
 
-  testWidgets('first-time start opens capture directly without another tap',
+  testWidgets('first-time start opens the fused home, not a forced capture form',
       (tester) async {
     late CompassStore store;
     await tester.runAsync(() async {store=await CompassStore.open();});
     await tester.pumpWidget(CompassApp(store:store));
-    expect(find.text('开始，添加第一条内容'),findsOneWidget);
-    await tester.ensureVisible(find.text('开始，添加第一条内容'));
-    await tester.tap(find.text('开始，添加第一条内容'));
+    expect(find.text('进入知行罗盘'),findsOneWidget);
+    await tester.ensureVisible(find.text('进入知行罗盘'));
+    await tester.tap(find.text('进入知行罗盘'));
     await tester.pumpAndSettle();
-    expect(find.text('快速收集'),findsOneWidget);
-    expect(find.text('保存到收集箱'),findsOneWidget);
+    expect(store.onboarded, isTrue);
+    expect(find.text('今天有什么值得留下？'), findsOneWidget);
+    expect(find.text('随手记录'), findsOneWidget);
+    expect(find.text('快速收集'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(()=>store.closeForTests());
   });

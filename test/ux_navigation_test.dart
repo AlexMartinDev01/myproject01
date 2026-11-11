@@ -26,19 +26,19 @@ void main() {
     await deleteDatabase(join(await getDatabasesPath(), 'zhixing_compass_v3.db'));
   });
 
-  testWidgets('home makes journaling and ordinary AI conversation discoverable',
+  testWidgets('fused home makes recording, AI and reflection discoverable',
       (tester) async {
     late CompassStore store;
     await tester.runAsync(() async { store = await CompassStore.open(); });
     await tester.pumpWidget(CompassScope(store: store,
       child: const MaterialApp(home: TodayPage())));
-    expect(find.text('只需四步'), findsOneWidget);
-    expect(find.text('收集'), findsOneWidget);
+    expect(find.text('今天有什么值得留下？'), findsOneWidget);
+    expect(find.text('随手记录'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('AI 对话'), 250,
-      scrollable:find.byType(Scrollable).first);
+      scrollable: find.byType(Scrollable).first);
     expect(find.text('AI 对话'), findsOneWidget);
-    expect(find.text('私密日记'), findsOneWidget);
-    expect(find.text('添加第一条内容'), findsOneWidget);
+    expect(find.text('生活复盘'), findsOneWidget);
+    expect(find.text('辅助决策'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() => store.closeForTests());
   });
@@ -51,24 +51,75 @@ void main() {
       child:const MaterialApp(home:WelcomePage())));
     expect(find.text('把看到的内容，\n变成真正属于自己的知识。'),
       findsOneWidget);
-    expect(find.text('开始，添加第一条内容'),findsOneWidget);
+    expect(find.text('进入知行罗盘'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(()=>store.closeForTests());
   });
 
-  testWidgets('first-time start opens capture directly without another tap',
+  testWidgets('first-time start opens the fused home, not a forced capture form',
       (tester) async {
     late CompassStore store;
     await tester.runAsync(() async {store=await CompassStore.open();});
     await tester.pumpWidget(CompassApp(store:store));
-    expect(find.text('开始，添加第一条内容'),findsOneWidget);
-    await tester.ensureVisible(find.text('开始，添加第一条内容'));
-    await tester.tap(find.text('开始，添加第一条内容'));
+    expect(find.text('进入知行罗盘'),findsOneWidget);
+    await tester.ensureVisible(find.text('进入知行罗盘'));
+    await tester.tap(find.text('进入知行罗盘'));
     await tester.pumpAndSettle();
-    expect(find.text('快速收集'),findsOneWidget);
-    expect(find.text('保存到收集箱'),findsOneWidget);
+    expect(store.onboarded, isTrue);
+    expect(find.text('今天有什么值得留下？'), findsOneWidget);
+    expect(find.text('随手记录'), findsOneWidget);
+    expect(find.text('快速收集'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(()=>store.closeForTests());
+  });
+
+  testWidgets('quick capture saves plain text without requiring metadata',
+      (tester) async {
+    late CompassStore store;
+    await tester.runAsync(() async { store = await CompassStore.open(); });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: QuickCapturePage())));
+    await tester.enterText(find.byType(TextField).first, '一个新想法\n第二行补充');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.widgetWithText(
+      FilledButton, '记录下来')).onPressed, isNotNull);
+    await tester.tap(find.text('记录下来'));
+    // SQLite FFI runs in a real isolate; let the async save complete before
+    // asserting against the reloaded store.
+    await tester.runAsync(() async {
+      for (var i = 0; i < 100 && store.ofKind('source').isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    });
+    await tester.pump();
+    final saved = store.ofKind('source');
+    expect(saved, hasLength(1));
+    expect(saved.single.title, '一个新想法');
+    expect(saved.single.body, '一个新想法\n第二行补充');
+    expect(saved.single.status, '待处理');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
+  });
+
+  testWidgets('quick capture marks links for content review and avoids duplicates',
+      (tester) async {
+    late CompassStore store;
+    const url = 'https://example.com/article';
+    await tester.runAsync(() async {
+      store = await CompassStore.open();
+      await store.add(kind: 'source', title: '已有链接', origin: url,
+        status: '需补内容', meta: {'source_type': '网页/视频链接'});
+    });
+    await tester.pumpWidget(CompassScope(store: store,
+      child: const MaterialApp(home: QuickCapturePage())));
+    await tester.enterText(find.byType(TextField).first, url);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('记录下来'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(store.ofKind('source'), hasLength(1));
+    expect(find.text('这条链接已经收集过了，已为你保留原记录'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => store.closeForTests());
   });
 
   testWidgets('source detail offers AI and offline manual knowledge paths',

@@ -68,7 +68,7 @@ class WelcomePage extends StatelessWidget {
               if(context.mounted)notice(context,'无法进入应用：$e');
             }
           },
-          icon:const Icon(Icons.arrow_forward),label:const Text('开始，添加第一条内容'))),
+          icon:const Icon(Icons.arrow_forward),label:const Text('进入知行罗盘'))),
         const SizedBox(height:12),
         const Text('不用注册 · 基础功能离线可用 · 私密日记独立加密保存',
           textAlign:TextAlign.center,
@@ -81,92 +81,193 @@ class TodayPage extends StatelessWidget {
   const TodayPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final store=CompassScope.of(context);
-    final sources=store.ofKind('source');
-    final waiting=sources.where((s)=>s.status=='待处理').toList();
-    final cards=store.ofKind('card');
-    final firstTime=sources.isEmpty && cards.isEmpty;
-    return PageFrame(title:'知行罗盘',
-      subtitle:'把看到的内容，变成真正属于自己的知识。',
-      children:[
-        SoftCard(color:const Color(0xFFF2EBF8),child:Column(
-          crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text(firstTime?'从第一条收藏开始':'你的知识，正在一点点积累',
-              style:const TextStyle(fontSize:21,fontWeight:FontWeight.w700,color:ink)),
-            const SizedBox(height:8),
-            Text(firstTime?'收藏一个视频、一篇文章，或写下一段想法。'
-              :'已收集 ${sources.length} 条内容 · 沉淀 ${cards.length} 张知识卡',
-              style:const TextStyle(color:Color(0xFF6F6378),height:1.5)),
-            const SizedBox(height:16),
-            SizedBox(width:double.infinity,child:FilledButton.icon(
-              onPressed:()=>openPage(context,const CapturePage()),
-              icon:const Icon(Icons.add),
-              label:Text(firstTime?'添加第一条内容':'添加新内容'))),
+    final store = CompassScope.of(context);
+    final sources = store.ofKind('source');
+    final cards = store.ofKind('card');
+    final decisions = store.ofKind('decision');
+    final waiting = sources.where((e) => e.status == '待处理' || e.status == '需补内容').length;
+    final recent = store.items.where((e) => e.kind == 'source' || e.kind == 'card')
+        .take(4).toList();
+    return PageFrame(title: '知行罗盘',
+      subtitle: '把日常记录，慢慢变成自己的知识与判断。',
+      children: [
+        SoftCard(color: const Color(0xFFF2EBF8), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('今天有什么值得留下？',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ink)),
+            const SizedBox(height: 7),
+            const Text('一个想法、一条视频、一次经历，都可以从这里开始。',
+              style: TextStyle(color: Color(0xFF6F6378), height: 1.5)),
+            const SizedBox(height: 15),
+            SizedBox(width: double.infinity, child: FilledButton.icon(
+              onPressed: () => openPage(context, const QuickCapturePage()),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('随手记录'))),
+            Align(alignment: Alignment.centerRight, child: TextButton.icon(
+              onPressed: () => openPage(context, const CapturePage()),
+              icon: const Icon(Icons.tune, size: 17),
+              label: const Text('更多导入方式'))),
           ])),
-        const SizedBox(height:10),
-        const Text('只需四步',style:TextStyle(
-          fontWeight:FontWeight.w700,fontSize:18,color:ink)),
-        const SizedBox(height:10),
-        const SoftCard(child:Column(children:[
-          _JourneyStep(index:'1',title:'收集',subtitle:'视频、文章、PDF 或想法',
-            icon:Icons.bookmark_add_outlined),
-          Divider(),
-          _JourneyStep(index:'2',title:'理解',subtitle:'查看原文，提炼关键点',
-            icon:Icons.lightbulb_outline),
-          Divider(),
-          _JourneyStep(index:'3',title:'沉淀',subtitle:'筛选和编辑自己的知识卡',
-            icon:Icons.style_outlined),
-          Divider(),
-          _JourneyStep(index:'4',title:'应用',subtitle:'回顾、连接知识或辅助决策',
-            icon:Icons.explore_outlined),
-        ])),
-        if(waiting.isNotEmpty)...[
-          SectionHeading('继续下一步 · ${waiting.length} 条待整理'),
-          NavCard(icon:Icons.move_to_inbox_outlined,
-            title:waiting.first.title,
-            subtitle:'已经收藏，继续补充内容并整理成知识卡',
-            onTap:()=>openPage(context,SourceDetailPage(id:waiting.first.id))),
-        ] else if(cards.isNotEmpty)...[
-          const SectionHeading('看看已经留下的知识'),
-          NavCard(icon:Icons.menu_book_outlined,title:'我的知识库',
-            subtitle:'${cards.length} 张知识卡，随时回顾',
-            onTap:()=>openPage(context,const KnowledgePage())),
-        ],
-        const SectionHeading('其他常用功能'),
-        Row(children:[
-          Expanded(child:_Shortcut(Icons.chat_bubble_outline,'AI 对话','辅助思考',
-            ()=>openPage(context,const AiHubPage()))),
-          const SizedBox(width:10),
-          Expanded(child:_Shortcut(Icons.edit_note_outlined,'私密日记','记录生活',
-            ()=>openPage(context,const JournalPage()))),
+        Row(children: [
+          Expanded(child: _HomeMetric(value: '${sources.length}', label: '收集记录', icon: Icons.inbox_outlined)),
+          const SizedBox(width: 8),
+          Expanded(child: _HomeMetric(value: '${cards.length}', label: '知识卡片', icon: Icons.menu_book_outlined)),
+          const SizedBox(width: 8),
+          Expanded(child: _HomeMetric(value: '${decisions.length}', label: '决策记录', icon: Icons.track_changes_outlined)),
         ]),
-        const SizedBox(height:12),
-        const Text('AI 为可选工具；没有 AI 也能收藏、整理和保存知识。私密日记不自动参与 AI。',
-          style:TextStyle(fontSize:12,color:Colors.grey,height:1.5)),
+        SectionHeading('继续你的积累', action: TextButton(
+          onPressed: () => openPage(context, const InboxPage()),
+          child: const Text('全部记录'))),
+        if (recent.isEmpty)
+          EmptyStateCard(icon: Icons.auto_awesome_outlined,
+            title: '从一件小事开始', description: '不需要分类，也不需要写完整。先把值得留下的内容记下来。',
+            actionLabel: '记录第一条',
+            onAction: () => openPage(context, const QuickCapturePage()))
+        else ...recent.map((entry) => _EntryTile(entry: entry, onTap: () {
+          if (entry.kind == 'source') {
+            openPage(context, SourceDetailPage(id: entry.id));
+          } else {
+            openPage(context, KnowledgeDetailPage(id: entry.id));
+          }
+        })),
+        if (waiting > 0)
+          SoftCard(color: const Color(0xFFFFF7E8), child: Row(children: [
+            const Icon(Icons.auto_awesome, color: Color(0xFF9B7436)),
+            const SizedBox(width: 10),
+            Expanded(child: Text('有 $waiting 条记录可以继续整理。',
+              style: const TextStyle(fontWeight: FontWeight.w600))),
+            TextButton(onPressed: () => openPage(context, const InboxPage()),
+              child: const Text('去看看')),
+          ])),
+        SectionHeading('让记录产生价值'),
+        Row(children: [
+          Expanded(child: _Shortcut(Icons.chat_bubble_outline, 'AI 对话', '随时交流想法',
+            () => openPage(context, const AiHubPage()))),
+          const SizedBox(width: 8),
+          Expanded(child: _Shortcut(Icons.calendar_month_outlined, '生活复盘', '回看这一周',
+            () => openPage(context, const JournalReviewPage()))),
+          const SizedBox(width: 8),
+          Expanded(child: _Shortcut(Icons.psychology_alt_outlined, '辅助决策', '整理依据',
+            () => openPage(context, const WorkspacePage()))),
+        ]),
+        const SizedBox(height: 8),
+        const Text('AI 整理由你决定；原始记录始终保留。私密日记不会自动参与 AI。',
+          style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.5)),
       ]);
   }
 }
 
-/// The product journey is stable across onboarding and the home page.
-class _JourneyStep extends StatelessWidget {
-  final String index,title,subtitle;
+class _HomeMetric extends StatelessWidget {
+  const _HomeMetric({required this.value, required this.label, required this.icon});
+  final String value, label;
   final IconData icon;
-  const _JourneyStep({required this.index,required this.title,
-    required this.subtitle,required this.icon});
   @override
-  Widget build(BuildContext context)=>Row(children:[
-    Container(width:32,height:32,alignment:Alignment.center,
-      decoration:BoxDecoration(color:const Color(0xFFF1EAF7),
-        borderRadius:BorderRadius.circular(10)),
-      child:Text(index,style:const TextStyle(
-        color:grape,fontWeight:FontWeight.w700))),
-    const SizedBox(width:12),
-    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text(title,style:const TextStyle(fontWeight:FontWeight.w700)),
-      Text(subtitle,style:const TextStyle(fontSize:12,color:Color(0xFF766B7D))),
-    ])),
-    Icon(icon,size:21,color:grape),
-  ]);
+  Widget build(BuildContext context) => SoftCard(padding: const EdgeInsets.all(12),
+    child: Column(children: [
+      Icon(icon, color: grape, size: 21),
+      const SizedBox(height: 5),
+      Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
+      Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF776B80))),
+    ]));
+}
+
+/// One-field capture. The original detailed importer remains available as an
+/// optional advanced path; quick notes never require a type, title or tag.
+class QuickCapturePage extends StatefulWidget {
+  const QuickCapturePage({super.key});
+  @override
+  State<QuickCapturePage> createState() => _QuickCapturePageState();
+}
+
+class _QuickCapturePageState extends State<QuickCapturePage> {
+  final input = TextEditingController();
+  bool saving = false;
+  @override
+  void dispose() { input.dispose(); super.dispose(); }
+
+  String _titleFor(String value) {
+    final first = value.split(RegExp(r'[\n\r]')).first.trim();
+    if (first.isEmpty) return '随手记录';
+    if (first.length <= 42) return first;
+    return '${first.substring(0, 42)}…';
+  }
+
+  Future<void> save() async {
+    final value = input.text.trim();
+    if (value.isEmpty || saving) return;
+    setState(() => saving = true);
+    try {
+      final store = CompassScope.of(context);
+      final uri = Uri.tryParse(value);
+      final isLink = uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
+      if (isLink) {
+        final existing = store.ofKind('source').where((e) => e.origin == value).toList();
+        if (existing.isNotEmpty) {
+          if (!mounted) return;
+          input.clear();
+          setState(() {});
+          notice(context, '这条链接已经收集过了，已为你保留原记录');
+          return;
+        }
+      }
+      await store.add(
+        kind: 'source',
+        title: _titleFor(value),
+        body: isLink ? '' : value,
+        origin: isLink ? value : '',
+        status: isLink ? '需补内容' : '待处理',
+        meta: {
+          'source_type': isLink ? '网页/视频链接' : '个人想法',
+          'capture_mode': 'quick',
+          'content_level': isLink ? 'metadata_only' : 'user_supplied',
+        },
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) notice(context, '保存失败：$e');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('随手记录')),
+    body: SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      children: [
+        const Text('先记下来，整理可以以后再做。',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: ink)),
+        const SizedBox(height: 8),
+        const Text('粘贴链接，写下一句话，或者记下刚刚想到的事情。',
+          style: TextStyle(color: Color(0xFF776B80), height: 1.5)),
+        const SizedBox(height: 20),
+        TextField(controller: input, autofocus: true, minLines: 5, maxLines: 12,
+          onChanged: (_) => setState(() {}),
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            hintText: '例如：\n一个值得研究的视频链接……\n\n或者：我今天突然想到……',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          )),
+        const SizedBox(height: 14),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          onPressed: saving || input.text.trim().isEmpty ? null : save,
+          icon: saving ? const SizedBox(width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.check),
+          label: Text(saving ? '正在保存…' : '记录下来'))),
+        const SizedBox(height: 8),
+        Center(child: TextButton.icon(
+          onPressed: () => openPage(context, const CapturePage()),
+          icon: const Icon(Icons.attach_file, size: 18),
+          label: const Text('需要导入 PDF、文档或更多内容？'))),
+        const SizedBox(height: 8),
+        const Text('现在只保存原始内容，不会自动上传或调用 AI。之后可以再整理成知识卡。',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.5)),
+      ])),
+  );
 }
 
 /// Reusable, accessible empty state with one clear next action.
@@ -263,8 +364,8 @@ class _InboxPageState extends State<InboxPage> {
           style:const TextStyle(color:Color(0xFF6B5A72),fontSize:13)),
         const SizedBox(height:12),
         SizedBox(width: double.infinity, child: FilledButton.icon(
-          onPressed: () => openPage(context, const CapturePage()),
-          icon: const Icon(Icons.add), label: const Text('添加素材'))),
+          onPressed: () => openPage(context, const QuickCapturePage()),
+          icon: const Icon(Icons.add), label: const Text('随手记录'))),
       ])),
       TextField(controller:search,onChanged:(_)=>setState((){}),
         decoration:InputDecoration(prefixIcon:const Icon(Icons.search),

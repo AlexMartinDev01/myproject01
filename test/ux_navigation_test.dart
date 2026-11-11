@@ -49,7 +49,7 @@ void main() {
     await tester.runAsync(() async {store=await CompassStore.open();});
     await tester.pumpWidget(CompassScope(store:store,
       child:const MaterialApp(home:WelcomePage())));
-    expect(find.text('把看到的内容，\\n变成真正属于自己的知识。'),
+    expect(find.text('把看到的内容，\n变成真正属于自己的知识。'),
       findsOneWidget);
     expect(find.text('进入知行罗盘'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:receive_sharing_intent_plus/receive_sharing_intent_plus.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'core/store.dart';
 import 'screens.dart';
 
@@ -89,7 +89,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int selected = 0;
-  StreamSubscription<String>? _shareSubscription;
+  StreamSubscription<List<SharedMediaFile>>? _shareSubscription;
   String? _lastSharedText;
   DateTime? _lastSharedAt;
   bool _openingShare = false;
@@ -97,15 +97,25 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
-    _shareSubscription = ReceiveSharingIntentPlus.getTextStream().listen(
-      _acceptShare, onError: (Object error) {
+    _shareSubscription = ReceiveSharingIntent.instance.getMediaStream().listen(
+      _acceptSharedMedia, onError: (Object error) {
         if (mounted) notice(context, '无法接收分享，请复制链接后手动记录');
       });
-    ReceiveSharingIntentPlus.getInitialText().then((value) {
-      if (value != null) _acceptShare(value);
+    ReceiveSharingIntent.instance.getInitialMedia().then((media) {
+      _acceptSharedMedia(media);
     }, onError: (Object _) {
       // Sharing is optional: users can still write notes while offline.
     });
+  }
+
+  void _acceptSharedMedia(List<SharedMediaFile> media) {
+    for (final item in media) {
+      if (item.type == SharedMediaType.text ||
+          item.type == SharedMediaType.url) {
+        _acceptShare(item.path);
+        break;
+      }
+    }
   }
 
   void _acceptShare(String content) {
@@ -123,6 +133,11 @@ class _HomeShellState extends State<HomeShell> {
         await openPage(context, QuickCapturePage(initialText: text));
       } finally {
         _openingShare = false;
+        try {
+          await ReceiveSharingIntent.instance.reset();
+        } catch (_) {
+          // Never interfere with the user's offline capture flow.
+        }
       }
     });
   }

@@ -103,8 +103,8 @@ class _HomeShellState extends State<HomeShell> {
       });
     ReceiveSharingIntentPlus.getInitialText().then((value) {
       if (value != null) _acceptShare(value);
-    }).catchError((Object _) {
-      // Sharing remains optional; ordinary offline notes still work.
+    }, onError: (Object _) {
+      // Sharing is optional: users can still write notes while offline.
     });
   }
 

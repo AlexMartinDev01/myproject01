@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:receive_sharing_intent_plus/receive_sharing_intent_plus.dart';
 import 'core/store.dart';
 import 'screens.dart';
 
@@ -80,25 +82,55 @@ class _CompassAppState extends State<CompassApp> {
 }
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, this.openCaptureOnStart = false});
-  final bool openCaptureOnStart;
+  const HomeShell({super.key});
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
   int selected = 0;
-  bool openedFirstCapture = false;
+  StreamSubscription<String>? _shareSubscription;
+  String? _lastSharedText;
+  DateTime? _lastSharedAt;
+  bool _openingShare = false;
+
   @override
   void initState() {
     super.initState();
-    if (widget.openCaptureOnStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || openedFirstCapture) return;
-        openedFirstCapture = true;
-        openPage(context, const CapturePage());
+    _shareSubscription = ReceiveSharingIntentPlus.getTextStream().listen(
+      _acceptShare, onError: (Object error) {
+        if (mounted) notice(context, '无法接收分享，请复制链接后手动记录');
       });
-    }
+    ReceiveSharingIntentPlus.getInitialText().then((value) {
+      if (value != null) _acceptShare(value);
+    }).catchError((Object _) {
+      // Sharing remains optional; ordinary offline notes still work.
+    });
+  }
+
+  void _acceptShare(String content) {
+    final text = content.trim();
+    if (!mounted || text.isEmpty || _openingShare) return;
+    final now = DateTime.now();
+    if (_lastSharedText == text && _lastSharedAt != null &&
+        now.difference(_lastSharedAt!).inSeconds < 5) return;
+    _lastSharedText = text;
+    _lastSharedAt = now;
+    _openingShare = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) { _openingShare = false; return; }
+      try {
+        await openPage(context, QuickCapturePage(initialText: text));
+      } finally {
+        _openingShare = false;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _shareSubscription?.cancel();
+    super.dispose();
   }
   static const screens = <Widget>[
     TodayPage(), InboxPage(), KnowledgePage(), JournalPage(), WorkspacePage(),

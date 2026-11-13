@@ -76,6 +76,12 @@ jobs:
           rules.write_text('-dontwarn com.gemalto.jp2.JP2Decoder\n')
           gradle = Path('android/app/build.gradle.kts')
           gradle_text = gradle.read_text()
+          # The maintained sharing plugin requires API 37 at compile time.
+          # This does not change Android targetSdk or minimum supported SDK.
+          sdk_needle = 'compileSdk = flutter.compileSdkVersion'
+          if sdk_needle not in gradle_text:
+              raise RuntimeError('Unable to locate compileSdk assignment')
+          gradle_text = gradle_text.replace(sdk_needle, 'compileSdk = 37', 1)
           needle = 'buildTypes {\n        release {'
           if needle not in gradle_text:
               raise RuntimeError('Unexpected Flutter Android build.gradle.kts layout')

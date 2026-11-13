@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +18,13 @@ void main() {
     ffi.sqfliteFfiInit();
     databaseFactory = ffi.databaseFactoryFfi;
     FlutterSecureStorage.setMockInitialValues({});
+    // Widget tests do not start Android's native share-sheet plugin. Mock only
+    // its EventChannel lifecycle; URL parsing and SQLite writes are tested.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('receive_sharing_intent_plus/events-text'),
+          (call) async => null,
+        );
   });
   setUp(() async {
     SharedPreferences.setMockInitialValues({});

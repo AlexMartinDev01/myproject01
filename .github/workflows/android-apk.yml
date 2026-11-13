@@ -59,12 +59,12 @@ jobs:
           # Register Android share-sheet for text and links only.
           # Keep a single APK source-of-truth even though Android is generated in CI.
           marker = '        </activity>'
-          share = '''            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-        </activity>'''
+          share = ('            <intent-filter>\\n'
+                   '                <action android:name="android.intent.action.SEND" />\\n'
+                   '                <category android:name="android.intent.category.DEFAULT" />\\n'
+                   '                <data android:mimeType="text/plain" />\\n'
+                   '            </intent-filter>\\n'
+                   '        </activity>')
           if marker not in text:
               raise RuntimeError('Unable to insert Android share-sheet intent filter')
           text = text.replace(marker, share, 1)

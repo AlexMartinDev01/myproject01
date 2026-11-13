@@ -47,6 +47,10 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: Generate Android platform project
         run: |
           flutter create --project-name zhixing_compass --org com.zhixingcompass --platforms android .

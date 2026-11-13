@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'main.dart';
 import 'core/store.dart';
+import 'core/capture_input.dart';
 import 'core/ai.dart';
 import 'ai_chat_v051.dart';
 import 'decision_review_v055.dart';
@@ -174,23 +175,22 @@ class _HomeMetric extends StatelessWidget {
 /// One-field capture. The original detailed importer remains available as an
 /// optional advanced path; quick notes never require a type, title or tag.
 class QuickCapturePage extends StatefulWidget {
-  const QuickCapturePage({super.key});
+  const QuickCapturePage({super.key, this.initialText = ''});
+  final String initialText;
   @override
   State<QuickCapturePage> createState() => _QuickCapturePageState();
 }
 
 class _QuickCapturePageState extends State<QuickCapturePage> {
-  final input = TextEditingController();
+  late final TextEditingController input;
   bool saving = false;
   @override
-  void dispose() { input.dispose(); super.dispose(); }
-
-  String _titleFor(String value) {
-    final first = value.split(RegExp(r'[\n\r]')).first.trim();
-    if (first.isEmpty) return '随手记录';
-    if (first.length <= 42) return first;
-    return '${first.substring(0, 42)}…';
+  void initState() {
+    super.initState();
+    input = TextEditingController(text: widget.initialText);
   }
+  @override
+  void dispose() { input.dispose(); super.dispose(); }
 
   Future<void> save() async {
     final value = input.text.trim();
@@ -198,10 +198,10 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
     setState(() => saving = true);
     try {
       final store = CompassScope.of(context);
-      final uri = Uri.tryParse(value);
-      final isLink = uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty;
-      if (isLink) {
-        final existing = store.ofKind('source').where((e) => e.origin == value).toList();
+      final parsed = CaptureInput.fromText(value);
+      if (parsed.origin.isNotEmpty) {
+        final existing = store.ofKind('source').where(
+          (e) => e.origin == parsed.origin).toList();
         if (existing.isNotEmpty) {
           if (!mounted) return;
           input.clear();
@@ -212,14 +212,14 @@ class _QuickCapturePageState extends State<QuickCapturePage> {
       }
       await store.add(
         kind: 'source',
-        title: _titleFor(value),
-        body: isLink ? '' : value,
-        origin: isLink ? value : '',
-        status: isLink ? '需补内容' : '待处理',
+        title: parsed.title,
+        body: parsed.body,
+        origin: parsed.origin,
+        status: parsed.status,
         meta: {
-          'source_type': isLink ? '网页/视频链接' : '个人想法',
-          'capture_mode': 'quick',
-          'content_level': isLink ? 'metadata_only' : 'user_supplied',
+          'source_type': parsed.sourceType,
+          'capture_mode': widget.initialText.isEmpty ? 'quick' : 'android_share',
+          'content_level': parsed.origin.isNotEmpty ? 'metadata_only' : 'user_supplied',
         },
       );
       if (!mounted) return;

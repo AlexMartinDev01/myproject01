@@ -19,6 +19,7 @@ on:
       - 'feature/knowledge-compass-v095'
       - 'feature/knowledge-compass-v096'
       - 'feature/knowledge-compass-v097-capture'
+      - 'feature/knowledge-compass-v098-share'
   workflow_dispatch:
 concurrency:
   group: knowledge-compass-release-${{ github.ref }}
@@ -55,6 +56,18 @@ jobs:
           text = p.read_text()
           text = text.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
             '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />')
+          # Register Android share-sheet for text and links only.
+          # Keep a single APK source-of-truth even though Android is generated in CI.
+          marker = '        </activity>'
+          share = '''            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>'''
+          if marker not in text:
+              raise RuntimeError('Unable to insert Android share-sheet intent filter')
+          text = text.replace(marker, share, 1)
           p.write_text(text)
           # read_pdf_text brings pdfbox-android, whose optional JPX/JPEG2000
           # decoder is not bundled. R8 must not treat that optional class
@@ -113,8 +126,8 @@ jobs:
           "$SDK_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature-report.txt
           sha256sum "$APK" | tee apk-sha256.txt
           "$SDK_TOOLS/aapt" dump badging "$APK" | grep '^package:' | tee apk-version-report.txt
-          grep -q "versionCode='36'" apk-version-report.txt
-          grep -q "versionName='0.9.7'" apk-version-report.txt
+          grep -q "versionCode='37'" apk-version-report.txt
+          grep -q "versionName='0.9.8'" apk-version-report.txt
           grep -q "com.zhixingcompass.zhixing_compass" apk-version-report.txt
           echo "Preview signing only; DO NOT claim cross-version overwrite compatibility."
       - name: Upload build provenance report
@@ -138,7 +151,7 @@ jobs:
     name: Publish direct APK download
     runs-on: ubuntu-latest
     needs: build-apk
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/knowledge-compass-v097-capture'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/knowledge-compass-v098-share'
     permissions:
       contents: write
     steps:
@@ -155,14 +168,14 @@ jobs:
         run: |
           set -euo pipefail
           test -s release-assets/app-release.apk
-          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.9.7-preview.apk
-          TAG=knowledge-compass-v0.9.7-preview
+          cp release-assets/app-release.apk release-assets/KnowledgeCompass-v0.9.8-preview.apk
+          TAG=knowledge-compass-v0.9.8-preview
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-assets/KnowledgeCompass-v0.9.6-preview.apk --clobber
+            gh release upload "$TAG" release-assets/KnowledgeCompass-v0.9.8-preview.apk --clobber
           else
-            gh release create "$TAG" release-assets/KnowledgeCompass-v0.9.6-preview.apk \
+            gh release create "$TAG" release-assets/KnowledgeCompass-v0.9.8-preview.apk \
               --target "$GITHUB_SHA" \
-              --title "知行罗盘 v0.9.7 Android 开发预览版" \
+              --title "知行罗盘 v0.9.8 Android 开发预览版" \
               --notes "Flutter Android 开发预览版。CI 必须通过后才发布；真机完整验收仍需用户设备确认。不要在客户端保存 DeepSeek API Key。" \
               --prerelease
           fi
